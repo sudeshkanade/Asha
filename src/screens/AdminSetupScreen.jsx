@@ -26,6 +26,7 @@ const AdminSetupScreen = ({ user, onBack }) => {
   const [newPhc, setNewPhc] = useState({ name: '', block: '' });
   const [newSubCenter, setNewSubCenter] = useState({ name: '', phcId: isAdmin ? '' : user?.phcId });
   const [newVillage, setNewVillage] = useState({ name: '', subCenterId: '', ward: '' });
+  const [editingItem, setEditingItem] = useState(null); // { type, id }
 
   useEffect(() => {
     loadData();
@@ -49,11 +50,21 @@ const AdminSetupScreen = ({ user, onBack }) => {
       Alert.alert('Error', 'PHC Name is required');
       return;
     }
-    const phc = { ...newPhc, id: 'phc_' + Date.now() };
-    await storage.save(STORAGE_KEYS.PHCS, phc);
+    if (editingItem) {
+      const all = await storage.getAll(STORAGE_KEYS.PHCS);
+      const idx = all.findIndex(p => p.id === editingItem.id);
+      if (idx >= 0) {
+        all[idx] = { ...all[idx], ...newPhc };
+        await storage.saveAll(STORAGE_KEYS.PHCS, all);
+      }
+      setEditingItem(null);
+    } else {
+      const phc = { ...newPhc, id: 'phc_' + Date.now() };
+      await storage.save(STORAGE_KEYS.PHCS, phc);
+    }
     setNewPhc({ name: '', block: '' });
     loadData();
-    Alert.alert('Success', 'PHC added successfully');
+    Alert.alert('Success', editingItem ? 'PHC updated' : 'PHC added');
   };
 
   const handleAddSubCenter = async () => {
@@ -61,11 +72,21 @@ const AdminSetupScreen = ({ user, onBack }) => {
       Alert.alert('Error', 'Name and PHC selection are required');
       return;
     }
-    const sc = { ...newSubCenter, id: 'sc_' + Date.now() };
-    await storage.save(STORAGE_KEYS.SUB_CENTERS, sc);
-    setNewSubCenter({ name: '', phcId: '' });
+    if (editingItem) {
+      const all = await storage.getAll(STORAGE_KEYS.SUB_CENTERS);
+      const idx = all.findIndex(s => s.id === editingItem.id);
+      if (idx >= 0) {
+        all[idx] = { ...all[idx], ...newSubCenter };
+        await storage.saveAll(STORAGE_KEYS.SUB_CENTERS, all);
+      }
+      setEditingItem(null);
+    } else {
+      const sc = { ...newSubCenter, id: 'sc_' + Date.now() };
+      await storage.save(STORAGE_KEYS.SUB_CENTERS, sc);
+    }
+    setNewSubCenter({ name: '', phcId: isAdmin ? '' : user?.phcId });
     loadData();
-    Alert.alert('Success', 'Sub-Center added');
+    Alert.alert('Success', editingItem ? 'Sub-Center updated' : 'Sub-Center added');
   };
 
   const handleAddVillage = async () => {
@@ -73,11 +94,37 @@ const AdminSetupScreen = ({ user, onBack }) => {
       Alert.alert('Error', 'Name and Sub-Center selection are required');
       return;
     }
-    const village = { ...newVillage, id: 'v_' + Date.now() };
-    await storage.save(STORAGE_KEYS.VILLAGES, village);
+    if (editingItem) {
+      const all = await storage.getAll(STORAGE_KEYS.VILLAGES);
+      const idx = all.findIndex(v => v.id === editingItem.id);
+      if (idx >= 0) {
+        all[idx] = { ...all[idx], ...newVillage };
+        await storage.saveAll(STORAGE_KEYS.VILLAGES, all);
+      }
+      setEditingItem(null);
+    } else {
+      const village = { ...newVillage, id: 'v_' + Date.now() };
+      await storage.save(STORAGE_KEYS.VILLAGES, village);
+    }
     setNewVillage({ name: '', subCenterId: '', ward: '' });
     loadData();
-    Alert.alert('Success', 'Village added');
+    Alert.alert('Success', editingItem ? 'Village updated' : 'Village added');
+  };
+  const handleEditStart = (type, item) => {
+    setEditingItem({ type, id: item.id });
+    if (type === 'phcs') setNewPhc({ name: item.name, block: item.block });
+    if (type === 'sc') setNewSubCenter({ name: item.name, phcId: item.phcId });
+    if (type === 'villages') setNewVillage({ name: item.name, subCenterId: item.subCenterId, ward: item.ward });
+    
+    // Scroll to top to see the form
+    // Note: ScrollView ref would be better but this works for focus
+  };
+
+  const handleCancelEdit = () => {
+    setEditingItem(null);
+    setNewPhc({ name: '', block: '' });
+    setNewSubCenter({ name: '', phcId: isAdmin ? '' : user?.phcId });
+    setNewVillage({ name: '', subCenterId: '', ward: '' });
   };
 
   const handleDeletePhc = async (id, name) => {
@@ -237,7 +284,7 @@ const AdminSetupScreen = ({ user, onBack }) => {
         {activeTab === 'phcs' && (
           <View>
             <View style={styles.formCard}>
-              <Text style={styles.cardTitle}>Add Primary Health Center (PHC)</Text>
+              <Text style={styles.cardTitle}>{editingItem ? 'Edit PHC' : 'Add Primary Health Center (PHC)'}</Text>
               <TextInput
                 style={styles.input}
                 placeholder="PHC Name"
@@ -250,9 +297,16 @@ const AdminSetupScreen = ({ user, onBack }) => {
                 value={newPhc.block}
                 onChangeText={(t) => setNewPhc({...newPhc, block: t})}
               />
-              <TouchableOpacity style={styles.saveBtn} onPress={handleAddPhc}>
-                <Text style={styles.saveBtnText}>Save PHC</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity style={[styles.saveBtn, { flex: 1 }]} onPress={handleAddPhc}>
+                  <Text style={styles.saveBtnText}>{editingItem ? 'Update PHC' : 'Save PHC'}</Text>
+                </TouchableOpacity>
+                {editingItem && (
+                  <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: '#64748B' }]} onPress={handleCancelEdit}>
+                    <Text style={styles.saveBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
 
             <Text style={styles.sectionHeader}>Registered PHCs</Text>
@@ -271,15 +325,20 @@ const AdminSetupScreen = ({ user, onBack }) => {
                     </View>
                   ))}
                 </View>
-                <TouchableOpacity 
-                  onPress={() => {
-                    console.log('Delete PHC pressed:', p.id);
-                    handleDeletePhc(p.id, p.name);
-                  }}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Text style={styles.deleteIcon}>🗑️</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <TouchableOpacity onPress={() => handleEditStart('phcs', p)}>
+                    <Text style={styles.editIcon}>✏️</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    onPress={() => {
+                      console.log('Delete PHC pressed:', p.id);
+                      handleDeletePhc(p.id, p.name);
+                    }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text style={styles.deleteIcon}>🗑️</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             ))}
           </View>
@@ -289,7 +348,7 @@ const AdminSetupScreen = ({ user, onBack }) => {
           <View>
             {/* ... SC Form ... */}
             <View style={styles.formCard}>
-              <Text style={styles.cardTitle}>Add Sub-Center (SC)</Text>
+              <Text style={styles.cardTitle}>{editingItem ? 'Edit Sub-Center' : 'Add Sub-Center (SC)'}</Text>
               <TextInput
                 style={styles.input}
                 placeholder="Sub-Center Name"
@@ -317,9 +376,16 @@ const AdminSetupScreen = ({ user, onBack }) => {
                   <Text style={styles.infoValue}>{phcs.find(p => p.id === user?.phcId)?.name || 'My PHC'}</Text>
                 </View>
               )}
-              <TouchableOpacity style={styles.saveBtn} onPress={handleAddSubCenter}>
-                <Text style={styles.saveBtnText}>Save Sub-Center</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity style={[styles.saveBtn, { flex: 1 }]} onPress={handleAddSubCenter}>
+                  <Text style={styles.saveBtnText}>{editingItem ? 'Update SC' : 'Save Sub-Center'}</Text>
+                </TouchableOpacity>
+                {editingItem && (
+                  <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: '#64748B' }]} onPress={handleCancelEdit}>
+                    <Text style={styles.saveBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
 
             <Text style={styles.sectionHeader}>Registered Sub-Centers</Text>
@@ -340,15 +406,20 @@ const AdminSetupScreen = ({ user, onBack }) => {
                     </View>
                   ))}
                 </View>
-                <TouchableOpacity 
-                  onPress={() => {
-                    console.log('Delete SC pressed:', sc.id);
-                    handleDeleteSubCenter(sc.id, sc.name);
-                  }}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Text style={styles.deleteIcon}>🗑️</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <TouchableOpacity onPress={() => handleEditStart('sc', sc)}>
+                    <Text style={styles.editIcon}>✏️</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    onPress={() => {
+                      console.log('Delete SC pressed:', sc.id);
+                      handleDeleteSubCenter(sc.id, sc.name);
+                    }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text style={styles.deleteIcon}>🗑️</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             ))}
           </View>
@@ -357,7 +428,7 @@ const AdminSetupScreen = ({ user, onBack }) => {
         {activeTab === 'villages' && (
           <View>
             <View style={styles.formCard}>
-              <Text style={styles.cardTitle}>Add Village</Text>
+              <Text style={styles.cardTitle}>{editingItem ? 'Edit Village' : 'Add Village'}</Text>
               <TextInput
                 style={styles.input}
                 placeholder="Village Name"
@@ -384,9 +455,16 @@ const AdminSetupScreen = ({ user, onBack }) => {
                   </TouchableOpacity>
                 ))}
               </View>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleAddVillage}>
-                <Text style={styles.saveBtnText}>Save Village</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity style={[styles.saveBtn, { flex: 1 }]} onPress={handleAddVillage}>
+                  <Text style={styles.saveBtnText}>{editingItem ? 'Update Village' : 'Save Village'}</Text>
+                </TouchableOpacity>
+                {editingItem && (
+                  <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: '#64748B' }]} onPress={handleCancelEdit}>
+                    <Text style={styles.saveBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
 
             <Text style={styles.sectionHeader}>Registered Villages</Text>
@@ -411,15 +489,20 @@ const AdminSetupScreen = ({ user, onBack }) => {
                     </View>
                   ))}
                 </View>
-                <TouchableOpacity 
-                  onPress={() => {
-                    console.log('Delete Village pressed:', v.id);
-                    handleDeleteVillage(v.id, v.name);
-                  }}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Text style={styles.deleteIcon}>🗑️</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <TouchableOpacity onPress={() => handleEditStart('villages', v)}>
+                    <Text style={styles.editIcon}>✏️</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    onPress={() => {
+                      console.log('Delete Village pressed:', v.id);
+                      handleDeleteVillage(v.id, v.name);
+                    }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text style={styles.deleteIcon}>🗑️</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             ))}
           </View>
@@ -457,6 +540,7 @@ const styles = StyleSheet.create({
   listText: { fontSize: 16, fontWeight: '700', color: COLORS.text },
   listSubText: { fontSize: 12, color: COLORS.textSecondary, marginTop: 4 },
   deleteIcon: { fontSize: 18, color: COLORS.error, padding: 10 },
+  editIcon: { fontSize: 18, color: COLORS.primary, padding: 10 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   assignedUserRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F0FDF4', padding: 8, borderRadius: 8, marginTop: 8, borderWidth: 1, borderColor: '#DCFCE7' },
   assignedUserText: { fontSize: 12, fontWeight: '600', color: COLORS.text },
