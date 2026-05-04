@@ -10,18 +10,16 @@ export const cloudSyncManager = {
    * If successful, removes from the queue.
    */
   startBackgroundSync: async () => {
-    if (cloudSyncManager.isSyncing) return;
+    if (cloudSyncManager.isSyncing) return { success: false, message: 'Sync already in progress' };
     
-    // Skip if no db instance (e.g. invalid config)
     if (!db) {
       console.warn("Cloud Sync: Firebase DB not initialized.");
-      return;
+      return { success: false, message: 'Firebase not initialized' };
     }
 
-    // In a browser environment, verify online status
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        console.log("Cloud Sync: Offline. Sync skipped.");
-        return;
+        console.log("Cloud Sync: Offline.");
+        return { success: false, message: 'Offline' };
     }
 
     cloudSyncManager.isSyncing = true;
@@ -29,51 +27,54 @@ export const cloudSyncManager = {
       const queue = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
       if (!queue || queue.length === 0) {
         cloudSyncManager.isSyncing = false;
-        return;
+        return { success: true, syncedCount: 0 };
       }
 
-      console.log(`Cloud Sync: Starting sync for ${queue.length} items...`);
+      console.log(`Cloud Sync: Processing ${queue.length} items...`);
       
-      const newQueue = [];
+      const remainingQueue = [];
       let syncedCount = 0;
       
+      // Process items in small batches or one by one
       for (const item of queue) {
         try {
-          // Destructure properties carefully since payloads can vary
           const { tableName, payload, timestamp } = item;
-          
-          // Using tableName as the Firestore collection name 
-          // (e.g. 'members', 'families', 'vital_events', 'vhnd_sessions')
+          if (!tableName || !payload) continue;
+
           const colRef = collection(db, tableName);
           
-          if (payload && payload.id) {
-             // If payload has a unique ID, use it as the Firestore document ID to avoid duplicates
-             await setDoc(doc(db, tableName, payload.id.toString()), {
+          // Use payload.id as document ID if available, otherwise auto-generate
+          const docId = payload.id ? payload.id.toString() : null;
+
+          if (docId) {
+             await setDoc(doc(db, tableName, docId), {
                 ...payload,
-                _syncTimestamp: timestamp || new Date().toISOString()
-             });
+                _lastSyncedAt: new Date().toISOString(),
+                _originalTimestamp: timestamp
+             }, { merge: true });
           } else {
-             // Otherwise let Firestore generate a random ID
              await addDoc(colRef, {
                 ...payload,
-                _syncTimestamp: timestamp || new Date().toISOString()
+                _lastSyncedAt: new Date().toISOString(),
+                _originalTimestamp: timestamp
              });
           }
-          console.log(`Cloud Sync: Synced ${tableName} event.`);
           syncedCount++;
         } catch (err) {
-          console.error("Cloud Sync: Failed to sync item", err);
-          // Keep item in queue for retry
-          newQueue.push(item);
+          console.error("Cloud Sync: Item failed", err);
+          remainingQueue.push(item); // Keep for retry
         }
       }
 
-      // Update queue with only the items that failed
-      await storage.save(STORAGE_KEYS.SYNC_QUEUE, newQueue);
-      console.log(`Cloud Sync: Finished. Synced ${syncedCount} items. ${newQueue.length} items remaining.`);
-      
+      await storage.saveAll(STORAGE_KEYS.SYNC_QUEUE, remainingQueue);
+      return { 
+        success: true, 
+        syncedCount, 
+        remainingCount: remainingQueue.length 
+      };
     } catch (e) {
-      console.error("Cloud Sync: Critical Error:", e);
+      console.error("Cloud Sync Error:", e);
+      return { success: false, error: e.message };
     } finally {
       cloudSyncManager.isSyncing = false;
     }

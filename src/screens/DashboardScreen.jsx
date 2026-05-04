@@ -14,6 +14,8 @@ import { generateMPRStats } from '../utils/reportLogic';
 import { exportMasterPopulation } from '../utils/exportLogic';
 import { generateAllTasks } from '../utils/healthLogic';
 import { useTranslation } from 'react-i18next';
+import { cloudSyncManager } from '../database/cloudSync';
+import { Alert, Platform } from 'react-native';
 
 const DashboardScreen = ({ user, onNavigate }) => {
   const { t, i18n } = useTranslation();
@@ -34,9 +36,12 @@ const DashboardScreen = ({ user, onNavigate }) => {
   const [syncCount, setSyncCount] = React.useState(0);
   const [pendingTasksCount, setPendingTasksCount] = React.useState(0);
   const [fabOpen, setFabOpen] = React.useState(false);
+  const [isSyncing, setIsSyncing] = React.useState(false);
 
   React.useEffect(() => {
     loadLiveStats();
+    // Auto-sync on launch
+    cloudSyncManager.startBackgroundSync();
   }, []);
 
   const loadLiveStats = async () => {
@@ -84,6 +89,32 @@ const DashboardScreen = ({ user, onNavigate }) => {
     setLoading(false);
   };
 
+  const handleManualSync = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      const result = await cloudSyncManager.startBackgroundSync();
+      if (result.success) {
+        await loadLiveStats();
+        if (result.syncedCount > 0) {
+          const msg = `Synced ${result.syncedCount} items successfully!`;
+          if (Platform.OS === 'web') window.alert(msg);
+          else Alert.alert('Sync Complete', msg);
+        } else {
+          if (Platform.OS === 'web') window.alert('All data is already up to date.');
+          else Alert.alert('Sync', 'All data is already up to date.');
+        }
+      } else {
+        if (Platform.OS === 'web') window.alert(`Sync failed: ${result.message || 'Check connection'}`);
+        else Alert.alert('Sync Failed', result.message || 'Please check your internet connection');
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   if (loading || !stats) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -101,9 +132,9 @@ const DashboardScreen = ({ user, onNavigate }) => {
             {user?.role === 'ASHA' ? `${user.village} (Ward ${user.ward || 'N/A'})` : user?.name}
           </Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <TouchableOpacity 
-            style={[styles.syncContainer, { marginRight: 10, backgroundColor: 'rgba(255,255,255,0.1)' }]} 
+            style={[styles.syncContainer, { backgroundColor: 'rgba(255,255,255,0.1)' }]} 
             onPress={() => onNavigate('Tasks')}
           >
             <Text style={styles.syncText}>🔔</Text>
@@ -113,14 +144,27 @@ const DashboardScreen = ({ user, onNavigate }) => {
               </View>
             )}
           </TouchableOpacity>
+
           <TouchableOpacity 
-            style={[styles.syncContainer, { marginRight: 10, backgroundColor: 'rgba(255,255,255,0.1)' }]} 
-            onPress={() => i18n.changeLanguage(i18n.language === 'en' ? 'mr' : 'en')}
+            style={[styles.syncIndicator, syncCount > 0 && styles.syncIndicatorActive]} 
+            onPress={handleManualSync}
+            disabled={isSyncing}
           >
-            <Text style={styles.syncText}>{i18n.language === 'en' ? 'मराठी' : 'EN'}</Text>
+            {isSyncing ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <Text style={styles.syncText}>
+                {syncCount > 0 ? `🔄 ${syncCount}` : '✅'}
+              </Text>
+            )}
           </TouchableOpacity>
+
+          <TouchableOpacity style={styles.langBtn} onPress={() => i18n.changeLanguage(i18n.language === 'en' ? 'mr' : 'en')}>
+            <Text style={styles.langBtnText}>{i18n.language === 'en' ? 'मराठी' : 'EN'}</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.syncContainer} onPress={() => onNavigate('Login')}>
-            <Text style={styles.syncText}>{t('logout')}</Text>
+            <Text style={styles.syncText}>🚪</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -515,6 +559,20 @@ const styles = StyleSheet.create({
   addEventButtonText: {
     color: COLORS.primary,
     fontWeight: '700',
+  },
+  langBtn: { padding: 6 },
+  langBtnText: { color: COLORS.primary, fontWeight: '800', fontSize: 12 },
+  syncIndicator: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 80
+  },
+  syncIndicatorActive: {
+    backgroundColor: COLORS.accent,
   },
   welcomeCard: {
     backgroundColor: COLORS.surface,

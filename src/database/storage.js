@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { cloudSyncManager } from './cloudSync';
 import { Platform } from 'react-native';
 
 /**
@@ -60,6 +61,7 @@ export const storage = {
 
       await AsyncStorage.setItem(key, JSON.stringify(updatedCollection));
       await storage.addToSyncQueue(key, newData);
+      cloudSyncManager.startBackgroundSync(); // Trigger background sync
       return true;
     } catch (e) {
       console.error('Error saving data', e);
@@ -105,6 +107,7 @@ export const storage = {
         timestamp: new Date().toISOString() 
       }];
       await AsyncStorage.setItem(STORAGE_KEYS.SYNC_QUEUE, JSON.stringify(updatedQueue));
+      cloudSyncManager.startBackgroundSync(); // Trigger background sync
     } catch (e) {
       console.error('Sync Queue Error', e);
     }
