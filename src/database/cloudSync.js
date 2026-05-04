@@ -44,9 +44,12 @@ export const cloudSyncManager = {
           const docId = payload.id ? payload.id.toString() : null;
 
           if (type === 'delete' && docId) {
-            // Permanent Cloud Deletion
-            await deleteDoc(doc(db, tableName, docId));
-            console.log(`Cloud Sync: Deleted ${docId} from ${tableName}`);
+            // Soft Delete in Cloud (Robust for multi-device)
+            await setDoc(doc(db, tableName, docId), { 
+              deleted: true, 
+              _lastSyncedAt: new Date().toISOString() 
+            }, { merge: true });
+            console.log(`Cloud Sync: Soft-Deleted ${docId} from ${tableName}`);
           } else if (docId) {
              // Save/Update
              await setDoc(doc(db, tableName, docId), {
@@ -103,32 +106,39 @@ export const cloudSyncManager = {
       for (const col of collectionsToPull) {
         const querySnapshot = await getDocs(collection(db, col.table));
         const cloudData = [];
+        const deletedInCloud = [];
+
         querySnapshot.forEach((doc) => {
-          // Filter out items that were deleted locally
-          if (!tombstones.includes(doc.id)) {
-            cloudData.push({ id: doc.id, ...doc.data() });
+          const data = doc.data();
+          if (data.deleted === true || tombstones.includes(doc.id)) {
+            deletedInCloud.push(doc.id);
+          } else {
+            cloudData.push({ id: doc.id, ...data });
           }
         });
 
+        // 1. Handle items to be pulled/updated
+        const localData = await storage.getAll(col.key);
+        let merged = [...localData];
+
         if (cloudData.length > 0) {
-          const localData = await storage.getAll(col.key);
-          
-          // Simple merge: Use Cloud data as source of truth for items with same ID
-          const merged = [...localData];
           cloudData.forEach(cloudItem => {
             const idx = merged.findIndex(localItem => localItem.id == cloudItem.id);
             if (idx >= 0) {
-              // Update existing
               merged[idx] = { ...merged[idx], ...cloudItem };
             } else {
-              // Add new
               merged.push(cloudItem);
             }
           });
-
-          await storage.saveAll(col.key, merged);
-          totalPulled += cloudData.length;
         }
+
+        // 2. Handle items to be removed locally (because they are deleted in cloud)
+        if (deletedInCloud.length > 0) {
+          merged = merged.filter(item => !deletedInCloud.includes(item.id?.toString()));
+        }
+
+        await storage.saveAll(col.key, merged);
+        totalPulled += cloudData.length;
       }
 
       return { success: true, pulledCount: totalPulled };
