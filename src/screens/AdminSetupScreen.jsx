@@ -349,10 +349,11 @@ const AdminSetupScreen = ({ user, onBack }) => {
       </View>
 
       <View style={styles.tabBar}>
-        {['phcs', 'sc', 'villages', 'approvals'].filter(t => {
-          if (isAdmin) return true;
-          if (t === 'phcs') return false;
-          return true; // MO and ANM can see SC, Villages, and Approvals
+        {['phcs', 'sc', 'villages', 'approvals'].filter(tabKey => {
+          if (user?.role === 'Admin') return true;
+          if (tabKey === 'phcs') return false; // Supervisors can't manage PHCs
+          if (tabKey === 'approvals') return user?.role === 'MO' || user?.role === 'ANM';
+          return true; // Both MO and ANM can see SC and Villages
         }).map(tab => (
           <TouchableOpacity 
             key={tab}
@@ -360,7 +361,7 @@ const AdminSetupScreen = ({ user, onBack }) => {
             onPress={() => setActiveTab(tab)}
           >
             <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-              {tab.toUpperCase()}
+              {tab === 'phcs' ? 'PHCs' : tab === 'sc' ? 'Sub-Centers' : tab === 'villages' ? 'Villages' : 'Approvals'}
             </Text>
           </TouchableOpacity>
         ))}
