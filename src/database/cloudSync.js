@@ -57,35 +57,37 @@ export const cloudSyncManager = {
           const { payload, timestamp, type } = item;
           if (!storageKey || !payload) continue;
 
-          const tableName = getFirestoreCollectionName(storageKey);
-          const colRef = collection(db, tableName);
+          let tableName = getFirestoreCollectionName(storageKey);
+          // Safety: Remove invalid characters (@, $, etc) from collection names
+          tableName = tableName.replace(/[^a-zA-Z0-9_]/g, ''); 
+          
           const docId = payload.id ? payload.id.toString() : null;
+          if (!docId) continue;
 
-          if (type === 'delete' && docId) {
-            // Soft Delete in Cloud (Robust for multi-device)
-            await setDoc(doc(db, tableName, docId), { 
-              deleted: true, 
-              _lastSyncedAt: new Date().toISOString() 
-            }, { merge: true });
-            console.log(`Cloud Sync: Soft-Deleted ${docId} from ${tableName}`);
-          } else if (docId) {
-             // Save/Update
-             await setDoc(doc(db, tableName, docId), {
-                ...payload,
-                _lastSyncedAt: new Date().toISOString(),
-                _originalTimestamp: timestamp
-             }, { merge: true });
-          } else {
-             // New entry without ID
-             await addDoc(colRef, {
-                ...payload,
-                _lastSyncedAt: new Date().toISOString(),
-                _originalTimestamp: timestamp
-             });
-          }
+          // Timeout-protected sync operation
+          const syncPromise = (async () => {
+            if (type === 'delete') {
+              await setDoc(doc(db, tableName, docId), { 
+                deleted: true, 
+                _lastSyncedAt: new Date().toISOString() 
+              }, { merge: true });
+            } else {
+              await setDoc(doc(db, tableName, docId), {
+                  ...payload,
+                  _lastSyncedAt: new Date().toISOString(),
+                  _originalTimestamp: timestamp
+              }, { merge: true });
+            }
+          })();
+
+          await Promise.race([
+            syncPromise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Sync Timeout')), 10000))
+          ]);
+
           syncedCount++;
         } catch (err) {
-          console.error("Cloud Sync: Item failed", err);
+          console.error("Cloud Sync Error for item:", err);
           if (!firstError) firstError = err.message;
           remainingQueue.push(item);
         }
@@ -94,17 +96,17 @@ export const cloudSyncManager = {
       await storage.saveAll(STORAGE_KEYS.SYNC_QUEUE, remainingQueue);
       return { 
         success: syncedCount > 0 || queue.length === 0, 
-        syncedCount, 
-        remainingCount: remainingQueue.length,
-        error: firstError
+        syncedCount,
+        error: firstError 
       };
     } catch (e) {
-      console.error("Cloud Sync Error:", e);
+      console.error("Cloud Sync Critical Error:", e);
       return { success: false, error: e.message };
     } finally {
       cloudSyncManager.isSyncing = false;
     }
   },
+
   /**
    * Pulls data from Firestore and updates local storage
    */
@@ -121,7 +123,7 @@ export const cloudSyncManager = {
       ];
 
       let totalPulled = 0;
-      const tombstones = await storage.getAll(STORAGE_KEYS.DELETED_IDS);
+      const tombstones = await storage.getAll(STORAGE_KEYS.DELETED_IDS) || [];
 
       for (const col of collectionsToPull) {
         const querySnapshot = await getDocs(collection(db, col.table));
@@ -130,6 +132,7 @@ export const cloudSyncManager = {
 
         querySnapshot.forEach((doc) => {
           const data = doc.data();
+          // Filter out tombstones and soft-deleted items
           if (data.deleted === true || tombstones.includes(doc.id)) {
             deletedInCloud.push(doc.id);
           } else {
@@ -137,34 +140,33 @@ export const cloudSyncManager = {
           }
         });
 
-        // 1. Handle items to be pulled/updated
-        const localData = await storage.getAll(col.key);
-        let merged = [...localData];
-
-        if (cloudData.length > 0) {
-          cloudData.forEach(cloudItem => {
-            const idx = merged.findIndex(localItem => localItem.id == cloudItem.id);
+        if (cloudData.length > 0 || deletedInCloud.length > 0) {
+          const localData = await storage.getAll(col.key);
+          
+          // Merge logic: Cloud wins but only for non-deleted items
+          let merged = [...localData];
+          
+          cloudData.forEach(cd => {
+            const idx = merged.findIndex(ld => ld.id === cd.id);
             if (idx >= 0) {
-              merged[idx] = { ...merged[idx], ...cloudItem };
+              merged[idx] = { ...merged[idx], ...cd };
             } else {
-              merged.push(cloudItem);
+              merged.push(cd);
             }
           });
-        }
 
-        // 2. Handle items to be removed locally (because they are deleted in cloud)
-        if (deletedInCloud.length > 0) {
-          merged = merged.filter(item => !deletedInCloud.includes(item.id?.toString()));
-        }
+          // Remove items deleted in cloud
+          merged = merged.filter(item => !deletedInCloud.includes(item.id));
 
-        await storage.saveAll(col.key, merged);
-        totalPulled += cloudData.length;
+          await storage.saveAll(col.key, merged);
+          totalPulled += cloudData.length;
+        }
       }
 
       return { success: true, pulledCount: totalPulled };
     } catch (e) {
-      console.error("Cloud Pull Error:", e);
-      return { success: false, error: e.message };
+      console.error('Cloud Pull Error', e);
+      return { success: false, message: e.message };
     }
   }
 };
