@@ -35,11 +35,28 @@ export const cloudSyncManager = {
       const remainingQueue = [];
       let syncedCount = 0;
       
+      const getFirestoreCollectionName = (storageKey) => {
+        const mapping = {
+          [STORAGE_KEYS.PHCS]: 'phcs',
+          [STORAGE_KEYS.SUB_CENTERS]: 'sub_centers',
+          [STORAGE_KEYS.VILLAGES]: 'villages',
+          [STORAGE_KEYS.MEMBERS]: 'members',
+          [STORAGE_KEYS.FAMILIES]: 'families',
+          [STORAGE_KEYS.VITAL_EVENTS]: 'vital_events',
+          [STORAGE_KEYS.VHND_SESSIONS]: 'vhnd_sessions',
+          'tasks': 'tasks',
+          'claims': 'claims'
+        };
+        return mapping[storageKey] || storageKey;
+      };
+
       for (const item of queue) {
         try {
-          const { tableName, payload, timestamp, type } = item;
-          if (!tableName || !payload) continue;
+          const storageKey = item.tableName;
+          const { payload, timestamp, type } = item;
+          if (!storageKey || !payload) continue;
 
+          const tableName = getFirestoreCollectionName(storageKey);
           const colRef = collection(db, tableName);
           const docId = payload.id ? payload.id.toString() : null;
 
