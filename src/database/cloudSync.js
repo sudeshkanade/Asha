@@ -1,6 +1,6 @@
 import { storage, STORAGE_KEYS } from './storage';
 import { db } from './firebaseConfig';
-import { collection, addDoc, doc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, getDocs } from 'firebase/firestore';
 
 export const cloudSyncManager = {
   isSyncing: false,
@@ -77,6 +77,57 @@ export const cloudSyncManager = {
       return { success: false, error: e.message };
     } finally {
       cloudSyncManager.isSyncing = false;
+    }
+  },
+  /**
+   * Pulls data from Firestore and updates local storage
+   */
+  pullFromCloud: async () => {
+    if (!db) return { success: false, message: 'Firebase not initialized' };
+    
+    try {
+      const collectionsToPull = [
+        { key: STORAGE_KEYS.PHCS, table: 'phcs' },
+        { key: STORAGE_KEYS.SUB_CENTERS, table: 'sub_centers' },
+        { key: STORAGE_KEYS.VILLAGES, table: 'villages' },
+        { key: STORAGE_KEYS.MEMBERS, table: 'members' },
+        { key: STORAGE_KEYS.FAMILIES, table: 'families' }
+      ];
+
+      let totalPulled = 0;
+
+      for (const col of collectionsToPull) {
+        const querySnapshot = await getDocs(collection(db, col.table));
+        const cloudData = [];
+        querySnapshot.forEach((doc) => {
+          cloudData.push({ id: doc.id, ...doc.data() });
+        });
+
+        if (cloudData.length > 0) {
+          const localData = await storage.getAll(col.key);
+          
+          // Simple merge: Use Cloud data as source of truth for items with same ID
+          const merged = [...localData];
+          cloudData.forEach(cloudItem => {
+            const idx = merged.findIndex(localItem => localItem.id == cloudItem.id);
+            if (idx >= 0) {
+              // Update existing
+              merged[idx] = { ...merged[idx], ...cloudItem };
+            } else {
+              // Add new
+              merged.push(cloudItem);
+            }
+          });
+
+          await storage.saveAll(col.key, merged);
+          totalPulled += cloudData.length;
+        }
+      }
+
+      return { success: true, pulledCount: totalPulled };
+    } catch (e) {
+      console.error("Cloud Pull Error:", e);
+      return { success: false, error: e.message };
     }
   }
 };

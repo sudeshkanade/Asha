@@ -93,23 +93,25 @@ const DashboardScreen = ({ user, onNavigate }) => {
     if (isSyncing) return;
     setIsSyncing(true);
     try {
-      const result = await cloudSyncManager.startBackgroundSync();
-      if (result.success) {
+      // 1. Push local changes to cloud
+      const pushResult = await cloudSyncManager.startBackgroundSync();
+      
+      // 2. Pull latest data from cloud
+      const pullResult = await cloudSyncManager.pullFromCloud();
+
+      if (pushResult.success || pullResult.success) {
         await loadLiveStats();
-        if (result.syncedCount > 0) {
-          const msg = `Synced ${result.syncedCount} items successfully!`;
-          if (Platform.OS === 'web') window.alert(msg);
-          else Alert.alert('Sync Complete', msg);
-        } else {
-          if (Platform.OS === 'web') window.alert('All data is already up to date.');
-          else Alert.alert('Sync', 'All data is already up to date.');
-        }
+        const msg = `Sync complete! Pushed: ${pushResult.syncedCount || 0}, Pulled: ${pullResult.pulledCount || 0}`;
+        if (Platform.OS === 'web') window.alert(msg);
+        else Alert.alert('Sync Result', msg);
       } else {
-        if (Platform.OS === 'web') window.alert(`Sync failed: ${result.message || 'Check connection'}`);
-        else Alert.alert('Sync Failed', result.message || 'Please check your internet connection');
+        const errorMsg = pushResult.message || pullResult.message || 'Check connection';
+        if (Platform.OS === 'web') window.alert(`Sync failed: ${errorMsg}`);
+        else Alert.alert('Sync Failed', errorMsg);
       }
     } catch (e) {
       console.error(e);
+      if (Platform.OS === 'web') window.alert('Sync error occurred.');
     } finally {
       setIsSyncing(false);
     }
