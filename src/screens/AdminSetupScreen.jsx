@@ -16,7 +16,7 @@ import { storage, STORAGE_KEYS } from '../database/storage';
 
 const AdminSetupScreen = ({ user, onBack }) => {
   const isAdmin = user?.role === 'Admin';
-  const [activeTab, setActiveTab] = useState(isAdmin ? 'phcs' : 'sc'); // phcs, sc, villages
+  const [activeTab, setActiveTab] = useState(isAdmin ? 'phcs' : 'sc'); // phcs, sc, villages, maintenance
   const [phcs, setPhcs] = useState([]);
   const [subCenters, setSubCenters] = useState([]);
   const [villages, setVillages] = useState([]);
@@ -202,6 +202,51 @@ const AdminSetupScreen = ({ user, onBack }) => {
     }
   };
 
+  const handleFactoryReset = () => {
+    const performReset = async () => {
+      setLoading(true);
+      await storage.wipeAllData();
+      Alert.alert('Success', 'All local data has been wiped. The app will now reload.', [
+        { text: 'OK', onPress: () => {
+          if (Platform.OS === 'web') window.location.reload();
+          else onBack(); // Go back to dashboard/login
+        }}
+      ]);
+    };
+
+    const confirmMessage = "WARNING: This will PERMANENTLY DELETE all local health records, families, and hierarchy data on THIS DEVICE. This action cannot be undone. Are you sure?";
+    
+    if (Platform.OS === 'web') {
+      if (window.confirm(confirmMessage)) {
+        if (window.confirm("FINAL CONFIRMATION: I understand that all data will be lost. Proceed?")) {
+          performReset();
+        }
+      }
+    } else {
+      Alert.alert(
+        '🚨 CRITICAL: Factory Reset',
+        confirmMessage,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'DELETE EVERYTHING', 
+            style: 'destructive', 
+            onPress: () => {
+              Alert.alert(
+                'Final Confirmation',
+                'Are you absolutely sure? This is your last chance to cancel.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'RESET NOW', style: 'destructive', onPress: performReset }
+                ]
+              );
+            }
+          }
+        ]
+      );
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -220,7 +265,7 @@ const AdminSetupScreen = ({ user, onBack }) => {
       </View>
 
       <View style={styles.tabBar}>
-        {['phcs', 'sc', 'villages'].filter(t => isAdmin || t !== 'phcs').map(tab => (
+        {['phcs', 'sc', 'villages', 'maintenance'].filter(t => isAdmin || t !== 'phcs').map(tab => (
           <TouchableOpacity 
             key={tab}
             style={[styles.tab, activeTab === tab && styles.activeTab]} 
@@ -424,6 +469,28 @@ const AdminSetupScreen = ({ user, onBack }) => {
             ))}
           </View>
         )}
+
+        {activeTab === 'maintenance' && (
+          <View style={styles.maintenanceCard}>
+            <Text style={styles.warningHeader}>⚠️ Dangerous Area</Text>
+            <Text style={styles.warningText}>
+              Use these tools only if instructed by the State Health Admin. These actions affect local data integrity.
+            </Text>
+            
+            <View style={styles.divider} />
+            
+            <Text style={styles.cardTitle}>Factory Reset (Local Wipe)</Text>
+            <Text style={styles.listSubText}>
+              Clears all local records. Use this if you need to resubmit data following hierarchy changes or to resolve synchronization chaos.
+            </Text>
+            <TouchableOpacity 
+              style={styles.dangerBtn} 
+              onPress={handleFactoryReset}
+            >
+              <Text style={styles.dangerBtnText}>Wipe All Local Data & Restart</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -464,6 +531,12 @@ const styles = StyleSheet.create({
   infoBox: { backgroundColor: '#F1F5F9', padding: 12, borderRadius: 10, marginBottom: 15, flexDirection: 'row', alignItems: 'center' },
   infoLabel: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginRight: 8 },
   infoValue: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
+  maintenanceCard: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, borderTopWidth: 5, borderTopColor: '#EF4444' },
+  warningHeader: { fontSize: 18, fontWeight: '900', color: '#B91C1C', marginBottom: 8 },
+  warningText: { fontSize: 13, color: '#7F1D1D', lineHeight: 20, marginBottom: 20 },
+  divider: { height: 1, backgroundColor: '#FEE2E2', marginVertical: 20 },
+  dangerBtn: { backgroundColor: '#EF4444', padding: 18, borderRadius: 12, alignItems: 'center', marginTop: 20 },
+  dangerBtnText: { color: '#FFF', fontWeight: '800', fontSize: 15 },
 });
 
 export default AdminSetupScreen;

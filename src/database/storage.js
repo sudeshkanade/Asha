@@ -108,5 +108,19 @@ export const storage = {
     } catch (e) {
       console.error('Sync Queue Error', e);
     }
+  },
+
+  /**
+   * Factory Reset: Clear all local data
+   */
+  wipeAllData: async () => {
+    try {
+      const keys = Object.values(STORAGE_KEYS);
+      await AsyncStorage.multiRemove(keys);
+      return true;
+    } catch (e) {
+      console.error('Error wiping data', e);
+      return false;
+    }
   }
 };
