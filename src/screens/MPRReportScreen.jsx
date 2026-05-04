@@ -33,8 +33,24 @@ const MPRReportScreen = ({ user, onBack }) => {
 
   const generateReport = async () => {
     setLoading(true);
-    const members = await storage.getAll(STORAGE_KEYS.MEMBERS);
-    const events = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
+    const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+    const allEvents = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
+    
+    // Hierarchy filtering
+    let members = allMembers;
+    let events = allEvents;
+    
+    if (user?.role === 'ASHA') {
+      members = allMembers.filter(m => m.ashaId === user.id || m.villageId === user.villageId);
+      events = allEvents.filter(e => e.payload?.ashaId === user.id || e.payload?.villageId === user.villageId);
+    } else if (user?.role === 'ANM') {
+      members = allMembers.filter(m => m.subCenterId === user.subCenterId);
+      events = allEvents.filter(e => e.payload?.subCenterId === user.subCenterId);
+    } else if (user?.role === 'MO') {
+      members = allMembers.filter(m => m.phcId === user.phcId);
+      events = allEvents.filter(e => e.payload?.phcId === user.phcId);
+    }
+
     const stats = generateMPRStats(members, events);
     setReport(stats);
     setLoading(false);

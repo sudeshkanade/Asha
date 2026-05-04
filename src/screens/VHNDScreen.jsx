@@ -14,7 +14,7 @@ import {
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 
-const VHNDScreen = ({ onBack }) => {
+const VHNDScreen = ({ user, onBack }) => {
   const [formData, setFormData] = useState({
     sessionDate: new Date().toISOString().split('T')[0],
     venue: '',
@@ -46,6 +46,13 @@ const VHNDScreen = ({ onBack }) => {
     const session = {
       id: Date.now().toString(),
       type: 'VHND',
+      ashaId: user?.id,
+      villageId: user?.villageId,
+      villageName: user?.villageName,
+      subCenterId: user?.subCenterId,
+      subCenterName: user?.subCenterName,
+      phcId: user?.phcId,
+      phcName: user?.phcName,
       ...formData,
       pregnantAttended: parseInt(formData.pregnantAttended) || 0,
       childrenAttended: parseInt(formData.childrenAttended) || 0,

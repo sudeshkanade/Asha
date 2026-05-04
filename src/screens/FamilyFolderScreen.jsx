@@ -34,25 +34,38 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
     const f = await storage.getAll(STORAGE_KEYS.FAMILIES);
     const m = await storage.getAll(STORAGE_KEYS.MEMBERS);
     
-    // Hierarchy filtering
+    // 1. Filter Families by Hierarchy
     let scopedFamilies = f;
     if (user?.role === 'ASHA') {
       scopedFamilies = f.filter(fam => fam.villageId === user.villageId);
+    } else if (user?.role === 'ANM') {
+      scopedFamilies = f.filter(fam => fam.subCenterId === user.subCenterId);
+    } else if (user?.role === 'MO') {
+      scopedFamilies = f.filter(fam => fam.phcId === user.phcId);
     }
 
-    // Identify Eligible Couples (Married Females 15-49)
-    const ecList = m.filter(mem => 
+    // 2. Filter Members by Hierarchy for EC List
+    let scopedMembers = m;
+    if (user?.role === 'ASHA') {
+      scopedMembers = m.filter(mem => mem.ashaId === user.id || mem.villageId === user.villageId);
+    } else if (user?.role === 'ANM') {
+      scopedMembers = m.filter(mem => mem.subCenterId === user.subCenterId);
+    } else if (user?.role === 'MO') {
+      scopedMembers = m.filter(mem => mem.phcId === user.phcId);
+    }
+
+    // 3. Identify Eligible Couples (Married Females 15-49) within scope
+    const ecList = scopedMembers.filter(mem => 
       mem.gender === 'Female' && 
       parseInt(mem.age) >= 15 && 
       parseInt(mem.age) <= 49 &&
-      (mem.villageId === user.villageId) &&
       (mem.maritalStatus === 'Married' || mem.relationToHead === 'Wife' || mem.relation === 'Wife' || mem.relationToHead === 'Daughter-in-law' || mem.relation === 'Daughter-in-law')
     );
 
     setFamilies(scopedFamilies);
     setFilteredFamilies(scopedFamilies);
     setEligibleCouples(ecList);
-    setAllMembers(m);
+    setAllMembers(m); // Keep all members for counting in family cards (the families themselves are already filtered)
     setLoading(false);
   };
 

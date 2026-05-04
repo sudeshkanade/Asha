@@ -59,8 +59,19 @@ const VitalEventsScreen = ({ user, onBack }) => {
 
   const loadExistingEvents = async () => {
     const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+    
+    // Hierarchy filtering for members whose events we will show
+    let scopedMembers = allMembers;
+    if (user?.role === 'ASHA') {
+      scopedMembers = allMembers.filter(m => m.ashaId === user.id || m.villageId === user.villageId);
+    } else if (user?.role === 'ANM') {
+      scopedMembers = allMembers.filter(m => m.subCenterId === user.subCenterId);
+    } else if (user?.role === 'MO') {
+      scopedMembers = allMembers.filter(m => m.phcId === user.phcId);
+    }
+
     const vitalEvents = [];
-    allMembers.forEach(m => {
+    scopedMembers.forEach(m => {
       if (m.vitalEvents) {
         m.vitalEvents.forEach(e => vitalEvents.push({ ...e, memberName: m.firstName + ' ' + m.lastName }));
       }

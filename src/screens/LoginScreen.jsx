@@ -42,13 +42,16 @@ const LoginScreen = ({ onLogin }) => {
 
   useEffect(() => {
     loadHierarchy();
+    // Initial pull to get existing accounts for login
+    cloudSyncManager.pullFromCloud().then(() => {
+       // Refresh local users list if needed
+    });
   }, [isRegister]);
 
   const loadHierarchy = async () => {
-    if (!isRegister) return;
     setLoading(true);
     
-    // Auto-pull latest hierarchy from cloud on new devices
+    // Auto-pull latest hierarchy & users from cloud
     await cloudSyncManager.pullFromCloud();
     
     const p = await storage.getAll(STORAGE_KEYS.PHCS);
@@ -72,13 +75,17 @@ const LoginScreen = ({ onLogin }) => {
       return;
     }
 
+    setLoading(true);
+    // Try to pull latest users before failing
+    await cloudSyncManager.pullFromCloud();
     const users = await storage.getAll(STORAGE_KEYS.USERS);
     const user = users.find(u => u.username === formData.username && u.password === formData.password);
     
+    setLoading(false);
     if (user) {
       onLogin(user);
     } else {
-      Alert.alert('Error', 'Invalid credentials');
+      Alert.alert('Error', 'Invalid credentials. If you just registered, tap "Sync Accounts" below.');
     }
   };
 
@@ -104,16 +111,23 @@ const LoginScreen = ({ onLogin }) => {
       villageName: selectedVillage?.name,
       subCenterName: selectedSC?.name,
       phcName: selectedPHC?.name,
+      // Ensure IDs are strings for sync consistency
+      phcId: formData.phcId?.toString(),
+      subCenterId: formData.subCenterId?.toString(),
+      villageId: formData.villageId?.toString(),
     };
 
     const users = await storage.getAll(STORAGE_KEYS.USERS);
-    if (users.find(u => u.username === formData.username)) {
+    if (users.find(u => u.username === newUser.username)) {
       Alert.alert('Error', 'Username already exists');
       return;
     }
 
     await storage.save(STORAGE_KEYS.USERS, newUser);
-    Alert.alert('Success', 'Registration successful. Please login.');
+    // Push immediately
+    await cloudSyncManager.startBackgroundSync();
+    
+    Alert.alert('Success', 'Registration successful. You can now login.');
     setIsRegister(false);
   };
 
@@ -318,6 +332,22 @@ const LoginScreen = ({ onLogin }) => {
           >
             <Text style={styles.mainBtnText}>{isRegister ? t('register') : t('login')}</Text>
           </TouchableOpacity>
+
+          {!isRegister && (
+            <TouchableOpacity 
+              style={[styles.switchBtn, { marginTop: 15 }]} 
+              onPress={async () => {
+                setLoading(true);
+                await cloudSyncManager.pullFromCloud();
+                setLoading(false);
+                Alert.alert('Success', 'Accounts refreshed from cloud.');
+              }}
+            >
+              <Text style={{ color: COLORS.secondary, fontSize: 12, fontWeight: '700' }}>
+                ↻ Sync Accounts
+              </Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity onPress={() => setIsRegister(!isRegister)} style={styles.switchBtn}>
             <Text style={styles.switchBtnText}>
