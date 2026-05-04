@@ -9,9 +9,12 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
+import { db } from '../database/firebaseConfig';
+import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 
 const LoginScreen = ({ onLogin }) => {
@@ -115,6 +118,35 @@ const LoginScreen = ({ onLogin }) => {
     if (newCount === 10) {
       setShowHiddenTools(true);
       Alert.alert('Admin Mode', 'Hidden maintenance tools activated.');
+    }
+  };
+
+  const handleCloudReset = async () => {
+    const performCloudReset = async () => {
+      setLoading(true);
+      try {
+        const collectionsToClear = ['phcs', 'sub_centers', 'villages', 'members', 'families', 'vital_events', 'vhnd_sessions'];
+        for (const colName of collectionsToClear) {
+          const querySnapshot = await getDocs(collection(db, colName));
+          for (const docSnap of querySnapshot.docs) {
+            await deleteDoc(doc(db, colName, docSnap.id));
+          }
+        }
+        await storage.wipeAllData();
+        if (Platform.OS === 'web') window.location.reload();
+        else Alert.alert('Success', 'Cloud and Local data wiped.');
+      } catch (err) {
+        console.error(err);
+        Alert.alert('Error', 'Failed to clear cloud data.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (window.confirm("🚨 EXTREME DANGER: This will delete EVERYTHING from the GOVERNMENT CLOUD and your phone. This cannot be undone. Proceed?")) {
+      if (window.confirm("ARE YOU ABSOLUTELY SURE? ALL FIELD DATA WILL BE LOST PERMANENTLY.")) {
+        performCloudReset();
+      }
     }
   };
 
@@ -264,7 +296,10 @@ const LoginScreen = ({ onLogin }) => {
           <View style={styles.hiddenTools}>
             <Text style={styles.hiddenToolsTitle}>Maintenance Mode</Text>
             <TouchableOpacity style={styles.resetBtn} onPress={handleFactoryReset}>
-              <Text style={styles.resetBtnText}>Wipe Local Data (Factory Reset)</Text>
+              <Text style={styles.resetBtnText}>Wipe Local Data (This Phone)</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.resetBtn, { backgroundColor: '#7F1D1D', marginTop: 10 }]} onPress={handleCloudReset}>
+              <Text style={styles.resetBtnText}>Wipe ALL (Cloud + ALL Phones)</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.closeHiddenBtn} onPress={() => setShowHiddenTools(false)}>
               <Text style={styles.closeHiddenBtnText}>Close Tools</Text>
