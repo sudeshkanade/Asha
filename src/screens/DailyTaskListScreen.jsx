@@ -12,6 +12,7 @@ import {
   Image,
   Alert,
   Linking,
+  Platform,
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
@@ -92,7 +93,8 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
     const reasoningToSave = isQuick ? 'Routine task completed' : completionData.reasoning;
 
     if (!isQuick && !reasoningToSave.trim()) {
-      Alert.alert(t('error'), 'Please provide a visit summary.');
+      if (Platform.OS === 'web') window.alert('Please provide a visit summary.');
+      else Alert.alert(t('error'), 'Please provide a visit summary.');
       return;
     }
 
@@ -137,11 +139,13 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
       setSelectedTask(null);
       
       if (!isQuick) {
-        Alert.alert(t('success'), 'Task marked as completed.');
+        if (Platform.OS === 'web') window.alert('Task marked as completed.');
+        else Alert.alert(t('success'), 'Task marked as completed.');
       }
     } catch (e) {
       console.error(e);
-      Alert.alert(t('error'), 'Failed to save task completion.');
+      if (Platform.OS === 'web') window.alert('Failed to save task completion.');
+      else Alert.alert(t('error'), 'Failed to save task completion.');
     }
   };
 

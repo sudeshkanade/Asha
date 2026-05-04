@@ -8,11 +8,20 @@ import {
   ScrollView,
   SafeAreaView,
   Alert,
+  Switch,
+  Platform,
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { calculateChildSchedule, shouldShowMaternalFields, ANC_RISK_FACTORS, calculateVaccinationSchedule } from '../utils/healthLogic';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { useTranslation } from 'react-i18next';
+
+const RenderInput = ({ label, value, onChange, placeholder, keyboardType = 'default' }) => (
+  <View style={styles.inputGroup}>
+    <Text style={styles.label}>{label}</Text>
+    <TextInput style={styles.input} value={value} onChangeText={onChange} placeholder={placeholder} keyboardType={keyboardType} />
+  </View>
+);
 
 const HealthTrackerScreen = ({ member, onSave, onBack }) => {
   const { t } = useTranslation();
@@ -79,7 +88,11 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
       healthData: { ...member?.healthData, ...tracker, isHighRisk: finalIsHighRisk },
     };
     await storage.save(STORAGE_KEYS.MEMBERS, updatedMember);
-    Alert.alert(t('success'), t('healthTracker') + ' ' + t('success'));
+    if (Platform.OS === 'web') {
+      window.alert(t('success'));
+    } else {
+      Alert.alert(t('success'), t('healthTracker') + ' ' + t('success'));
+    }
     // Only call onSave (which handles navigation back). Don't call onBack too.
     if (onSave) onSave(updatedMember);
     else if (onBack) onBack();
@@ -88,10 +101,16 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
   const handleSave = async () => {
     const redFlags = checkRedFlags();
     if (redFlags.length > 0) {
-      Alert.alert('🚨 Clinical Alert', redFlags.join('\n\n'), [
-        { text: t('cancel'), style: 'cancel' },
-        { text: 'Acknowledge & Save', onPress: () => persistData() }
-      ]);
+      if (Platform.OS === 'web') {
+        if (window.confirm('🚨 Clinical Alert\n\n' + redFlags.join('\n\n') + '\n\nDo you want to acknowledge and save?')) {
+          persistData();
+        }
+      } else {
+        Alert.alert('🚨 Clinical Alert', redFlags.join('\n\n'), [
+          { text: t('cancel'), style: 'cancel' },
+          { text: 'Acknowledge & Save', onPress: () => persistData() }
+        ]);
+      }
     } else {
       persistData();
     }
@@ -228,7 +247,9 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
                 hbncSchedule.map((visit, i) => (
                   <View key={i} style={styles.visitRow}>
                     <Text style={styles.visitLabel}>{visit.label}</Text>
-                    <Text style={styles.visitDate}>{new Date(visit.date).toLocaleDateString()}</Text>
+                    <Text style={styles.visitDate}>
+                      {!isNaN(new Date(visit.date).getTime()) ? new Date(visit.date).toLocaleDateString() : 'N/A'}
+                    </Text>
                   </View>
                 ))
               ) : (
@@ -245,7 +266,9 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
                       <Text style={styles.visitLabel}>{vax.label}</Text>
                       <Text style={styles.vaccineList}>{vax.vaccines}</Text>
                     </View>
-                    <Text style={styles.visitDate}>{new Date(vax.date).toLocaleDateString()}</Text>
+                    <Text style={styles.visitDate}>
+                      {!isNaN(new Date(vax.date).getTime()) ? new Date(vax.date).toLocaleDateString() : 'N/A'}
+                    </Text>
                   </View>
                 ))
               ) : (
@@ -315,12 +338,6 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
   );
 };
 
-const RenderInput = ({ label, value, onChange, placeholder, keyboardType = 'default' }) => (
-  <View style={styles.inputGroup}>
-    <Text style={styles.label}>{label}</Text>
-    <TextInput style={styles.input} value={value} onChangeText={onChange} placeholder={placeholder} keyboardType={keyboardType} />
-  </View>
-);
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },

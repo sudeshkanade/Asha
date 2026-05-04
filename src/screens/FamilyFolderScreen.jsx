@@ -8,7 +8,8 @@ import {
   SafeAreaView,
   TextInput,
   ActivityIndicator,
-  Alert
+  Alert,
+  Platform
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
@@ -66,29 +67,37 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
   };
 
   const handleDeleteFamily = (familyId) => {
-    Alert.alert(
-      t('delete'),
-      'Are you sure? This will delete the entire family folder and all its members.',
-      [
-        { text: t('cancel'), style: 'cancel' },
-        { 
-          text: t('delete'), 
-          style: 'destructive',
-          onPress: async () => {
-            const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
-            const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
-            
-            const updatedFamilies = allFamilies.filter(f => f.id !== familyId);
-            const updatedMembers = allMembers.filter(m => m.familyId !== familyId);
-            
-            await storage.saveAll(STORAGE_KEYS.FAMILIES, updatedFamilies);
-            await storage.saveAll(STORAGE_KEYS.MEMBERS, updatedMembers);
-            
-            loadData(); // Full refresh
+    const confirmDelete = async () => {
+      const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
+      const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+      
+      const updatedFamilies = allFamilies.filter(f => f.id !== familyId);
+      const updatedMembers = allMembers.filter(m => m.familyId !== familyId);
+      
+      await storage.saveAll(STORAGE_KEYS.FAMILIES, updatedFamilies);
+      await storage.saveAll(STORAGE_KEYS.MEMBERS, updatedMembers);
+      
+      loadData(); // Full refresh
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm('Are you sure? This will delete the entire family folder and all its members.')) {
+        confirmDelete();
+      }
+    } else {
+      Alert.alert(
+        t('delete'),
+        'Are you sure? This will delete the entire family folder and all its members.',
+        [
+          { text: t('cancel'), style: 'cancel' },
+          { 
+            text: t('delete'), 
+            style: 'destructive',
+            onPress: confirmDelete
           }
-        }
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const renderFamily = ({ item }) => {
@@ -134,12 +143,24 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
             </View>
           </View>
         </View>
-        <TouchableOpacity 
-          style={styles.viewBtn} 
-          onPress={() => onNavigate('HealthTracker', { member: item })}
-        >
-          <Text style={styles.viewBtnText}>🩺</Text>
-        </TouchableOpacity>
+        <View style={styles.actions}>
+          <TouchableOpacity 
+            style={styles.editBtn} 
+            onPress={async () => {
+              const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
+              const currentFamily = allFamilies.find(f => f.id === item.familyId);
+              onNavigate('MemberRegistration', { member: item, family: currentFamily });
+            }}
+          >
+            <Text style={styles.editBtnText}>✏️</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.viewBtn} 
+            onPress={() => onNavigate('HealthTracker', { member: item })}
+          >
+            <Text style={styles.viewBtnText}>🩺</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };
@@ -258,6 +279,8 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 12 },
   viewBtn: { padding: 8, backgroundColor: '#F0F4FF', borderRadius: 8 },
   viewBtnText: { fontSize: 18 },
+  editBtn: { padding: 8, backgroundColor: '#F0F9FF', borderRadius: 8 },
+  editBtnText: { fontSize: 18 },
   fpBadgeRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
   badge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   badgeText: { fontSize: 10, fontWeight: '800' },

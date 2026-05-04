@@ -134,6 +134,7 @@ export default function App() {
         return <FamilyFolderScreen user={user} onNavigate={(screen, data) => {
           if (data?.member) setSelectedMember(data.member);
           if (data?.familyId) setFamilyIdFilter(data.familyId);
+          if (data?.family) setSelectedFamily(data.family);
           setCurrentScreen(screen);
         }} onBack={() => setCurrentScreen('Dashboard')} />;
       case 'FamilyRegistration':
@@ -148,12 +149,15 @@ export default function App() {
                   filterType={currentFilter} 
                   familyId={familyIdFilter}
                   onMemberSelect={(member) => {
-                    setSelectedMember(member);
-                    setCurrentScreen('HealthTracker');
+                    if (member) {
+                      setSelectedMember(member);
+                      setCurrentScreen('HealthTracker');
+                    }
                   }}
                   onNavigate={(screen, data) => {
                     if (data?.familyId) setFamilyIdFilter(data.familyId);
                     if (data?.family) setSelectedFamily(data.family);
+                    if (data?.member) setSelectedMember(data.member);
                     setCurrentScreen(screen);
                   }}
                   onBack={() => setCurrentScreen('Dashboard')} 

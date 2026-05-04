@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   TextInput,
   Alert,
+  Platform,
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
@@ -88,23 +89,31 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
   };
 
   const handleDeleteMember = (memberId, name) => {
-    Alert.alert(
-      t('delete'),
-      `${t('delete')} ${name}?`,
-      [
-        { text: t('cancel'), style: 'cancel' },
-        { 
-          text: t('delete'), 
-          style: 'destructive',
-          onPress: async () => {
-            const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
-            const updatedMembers = allMembers.filter(m => m.id !== memberId);
-            await storage.saveAll(STORAGE_KEYS.MEMBERS, updatedMembers);
-            loadMembers(); // Refresh with current filters
+    const confirmDelete = async () => {
+      const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+      const updatedMembers = allMembers.filter(m => m.id !== memberId);
+      await storage.saveAll(STORAGE_KEYS.MEMBERS, updatedMembers);
+      loadMembers(); // Refresh with current filters
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(`${t('delete')} ${name}?`)) {
+        confirmDelete();
+      }
+    } else {
+      Alert.alert(
+        t('delete'),
+        `${t('delete')} ${name}?`,
+        [
+          { text: t('cancel'), style: 'cancel' },
+          { 
+            text: t('delete'), 
+            style: 'destructive',
+            onPress: confirmDelete
           }
-        }
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const renderMember = ({ item }) => (
@@ -156,6 +165,16 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
           </View>
         )}
       </View>
+      <TouchableOpacity 
+        style={styles.editBtn}
+        onPress={async () => {
+          const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
+          const currentFamily = allFamilies.find(f => f.id === item.familyId);
+          onNavigate('MemberRegistration', { member: item, family: currentFamily });
+        }}
+      >
+        <Text style={styles.editBtnText}>✏️</Text>
+      </TouchableOpacity>
       <TouchableOpacity 
         style={styles.deleteBtn}
         onPress={() => handleDeleteMember(item.id, `${item.firstName} ${item.lastName}`)}
@@ -336,6 +355,15 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   deleteBtnText: {
+    fontSize: 16,
+  },
+  editBtn: {
+    padding: 8,
+    backgroundColor: '#F0F9FF',
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  editBtnText: {
     fontSize: 16,
   },
   center: {

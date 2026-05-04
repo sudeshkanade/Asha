@@ -34,7 +34,10 @@ export const calculateMaternalSchedule = (lmpDate) => {
  * @param {boolean} isHomeBirth 
  */
 export const calculateChildSchedule = (dob, isHomeBirth = false) => {
+  if (!dob) return { hbnc: [], hbyc: [] };
   const birth = new Date(dob);
+  if (isNaN(birth.getTime())) return { hbnc: [], hbyc: [] };
+  
   const hbncDays = isHomeBirth ? [1, 3, 7, 14, 21, 28, 42] : [3, 7, 14, 21, 28, 42];
   const hbycMonths = [3, 6, 9, 12, 15];
 
@@ -58,7 +61,10 @@ export const calculateChildSchedule = (dob, isHomeBirth = false) => {
  * @param {Date|string} dob 
  */
 export const calculateVaccinationSchedule = (dob) => {
+  if (!dob) return [];
   const birth = new Date(dob);
+  if (isNaN(birth.getTime())) return [];
+  
   const schedule = [
     { label: 'At Birth', vaccines: 'BCG, OPV-0, Hep B-0', offsetDays: 0 },
     { label: '6 Weeks', vaccines: 'OPV-1, Penta-1, Rota-1, fIPV-1, PCV-1', offsetDays: 42 },

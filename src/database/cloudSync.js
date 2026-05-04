@@ -26,7 +26,7 @@ export const cloudSyncManager = {
 
     cloudSyncManager.isSyncing = true;
     try {
-      const queue = await storage.getSyncQueue();
+      const queue = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
       if (!queue || queue.length === 0) {
         cloudSyncManager.isSyncing = false;
         return;

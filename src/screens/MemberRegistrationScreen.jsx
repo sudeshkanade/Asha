@@ -29,6 +29,7 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
     education: existingMember?.education || '',
     aadhaar: existingMember?.aadhaar || '',
     abhaId: existingMember?.abhaId || '',
+    phone: existingMember?.phone || '',
     isPwd: existingMember?.isPwd || false,
     isMigrant: existingMember?.isMigrant || false,
     isPregnant: existingMember?.healthData?.isPregnant || false,
@@ -82,7 +83,7 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
 
   const handleAgeChange = (text) => {
     setFormData(prev => ({ ...prev, age: text }));
-    // Auto-calculate dummy DOB if age is provided but dob is empty or updating
+    
     if (text && !isNaN(text)) {
       const ageNum = parseInt(text, 10);
       if (ageNum >= 0 && ageNum <= 150) {
@@ -90,10 +91,20 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
         const year = today.getFullYear() - ageNum;
         const month = String(today.getMonth() + 1).padStart(2, '0');
         const day = String(today.getDate()).padStart(2, '0');
-        setFormData(prev => ({ ...prev, age: text, dob: `${year}-${month}-${day}` }));
+        
+        // Auto-set marital status for minors to reduce clicks
+        const defaultMaritalStatus = ageNum < 18 ? 'Unmarried' : formData.maritalStatus;
+
+        setFormData(prev => ({ 
+          ...prev, 
+          age: text, 
+          dob: `${day}/${month}/${year}`,
+          internalDob: `${year}-${month}-${day}`,
+          maritalStatus: defaultMaritalStatus
+        }));
       }
     } else {
-      setFormData(prev => ({ ...prev, age: text, dob: '' }));
+      setFormData(prev => ({ ...prev, age: text, dob: '', internalDob: '' }));
     }
   };
 
@@ -104,6 +115,10 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
     }
     if (formData.aadhaar && !validateAadhaar(formData.aadhaar)) {
       Alert.alert(t('error'), 'Aadhaar must be 12 digits.');
+      return;
+    }
+    if (formData.phone && !/^\d{10}$/.test(formData.phone)) {
+      Alert.alert(t('error'), 'Phone number must be 10 digits.');
       return;
     }
     if (formData.dob && !/^\d{2}\/\d{2}\/\d{4}$/.test(formData.dob)) {
@@ -159,6 +174,14 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
     return ['Self (Head)', 'Wife', 'Husband', 'Son', 'Daughter', 'Daughter-in-law', 'Mother', 'Father', 'Brother', 'Sister', 'Grandson', 'Granddaughter', 'Other'];
   };
 
+  const handleRelationChange = (rel) => {
+    let newGender = formData.gender;
+    if (['Husband', 'Son', 'Father', 'Brother', 'Grandson'].includes(rel)) newGender = 'Male';
+    else if (['Wife', 'Daughter', 'Daughter-in-law', 'Mother', 'Sister', 'Granddaughter'].includes(rel)) newGender = 'Female';
+    
+    setFormData({ ...formData, relation: rel, gender: newGender });
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -199,7 +222,7 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
                 <TouchableOpacity
                   key={rel}
                   style={[styles.chip, formData.relation === rel && styles.chipActive]}
-                  onPress={() => setFormData({ ...formData, relation: rel })}
+                  onPress={() => handleRelationChange(rel)}
                 >
                   <Text style={[styles.chipText, formData.relation === rel && styles.chipTextActive]}>{rel}</Text>
                 </TouchableOpacity>
@@ -285,6 +308,21 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
                 keyboardType="numeric"
               />
             </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>{t('phone', 'Phone Number')}</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.phone}
+              onChangeText={(text) => {
+                const cleaned = text.replace(/[^\d]/g, '');
+                setFormData({ ...formData, phone: cleaned });
+              }}
+              placeholder="10-digit mobile number"
+              keyboardType="numeric"
+              maxLength={10}
+            />
           </View>
 
           <View style={styles.inputGroup}>
