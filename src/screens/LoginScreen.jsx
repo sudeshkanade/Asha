@@ -14,7 +14,7 @@ import {
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { db } from '../database/firebaseConfig';
-import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 
 const LoginScreen = ({ onLogin }) => {
@@ -125,26 +125,50 @@ const LoginScreen = ({ onLogin }) => {
     const performCloudReset = async () => {
       setLoading(true);
       try {
-        const collectionsToClear = ['phcs', 'sub_centers', 'villages', 'members', 'families', 'vital_events', 'vhnd_sessions'];
+        const collectionsToClear = ['phcs', 'sub_centers', 'villages', 'members', 'families', 'vital_events', 'vhnd_sessions', 'tasks', 'claims'];
+        let totalDeleted = 0;
+
         for (const colName of collectionsToClear) {
           const querySnapshot = await getDocs(collection(db, colName));
+          if (querySnapshot.empty) continue;
+
+          // Firestore has a limit of 500 operations per batch
+          let batch = writeBatch(db);
+          let count = 0;
+
           for (const docSnap of querySnapshot.docs) {
-            await deleteDoc(doc(db, colName, docSnap.id));
+            batch.delete(doc(db, colName, docSnap.id));
+            count++;
+            if (count >= 400) {
+              await batch.commit();
+              batch = writeBatch(db);
+              count = 0;
+            }
           }
+          if (count > 0) await batch.commit();
+          totalDeleted += querySnapshot.size;
+          console.log(`Cloud Wipe: Cleared ${querySnapshot.size} docs from ${colName}`);
         }
+
         await storage.wipeAllData();
-        if (Platform.OS === 'web') window.location.reload();
-        else Alert.alert('Success', 'Cloud and Local data wiped.');
+        const successMsg = `Cloud Wipe Complete: Deleted ${totalDeleted} documents across all servers.`;
+        if (Platform.OS === 'web') {
+           window.alert(successMsg);
+           window.location.reload();
+        } else {
+           Alert.alert('Success', successMsg);
+        }
       } catch (err) {
-        console.error(err);
-        Alert.alert('Error', 'Failed to clear cloud data.');
+        console.error("Cloud Wipe Error:", err);
+        if (Platform.OS === 'web') window.alert('Failed to clear cloud data. Permission denied?');
+        else Alert.alert('Error', 'Failed to clear cloud data.');
       } finally {
         setLoading(false);
       }
     };
 
-    if (window.confirm("🚨 EXTREME DANGER: This will delete EVERYTHING from the GOVERNMENT CLOUD and your phone. This cannot be undone. Proceed?")) {
-      if (window.confirm("ARE YOU ABSOLUTELY SURE? ALL FIELD DATA WILL BE LOST PERMANENTLY.")) {
+    if (window.confirm("🚨 NUCLEAR OPTION: This will delete EVERYTHING from the GOVERNMENT CLOUD and ALL PHONES. This cannot be undone. Proceed?")) {
+      if (window.confirm("FINAL WARNING: All family records, health data, and worker accounts will be PERMANENTLY ERASED. Proceed?")) {
         performCloudReset();
       }
     }
