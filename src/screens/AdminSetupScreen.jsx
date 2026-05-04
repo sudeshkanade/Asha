@@ -69,11 +69,20 @@ const AdminSetupScreen = ({ user, onBack }) => {
     loadData();
 
     // Force immediate push to cloud
-    setLoading(true);
-    await cloudSyncManager.startBackgroundSync();
-    setLoading(false);
-
-    Alert.alert('Success', editingItem ? 'PHC updated' : 'PHC added');
+    try {
+      setLoading(true);
+      const res = await cloudSyncManager.startBackgroundSync();
+      if (res.success) {
+        Alert.alert('Success', `PHC ${editingItem ? 'updated' : 'added'} and synced to cloud.`);
+      } else {
+        Alert.alert('Partially Saved', 'Saved locally, but could not sync to cloud. Check internet.');
+      }
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Success', `Saved locally. (Cloud Sync background)`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddSubCenter = async () => {
@@ -99,11 +108,19 @@ const AdminSetupScreen = ({ user, onBack }) => {
     loadData();
 
     // Force immediate push to cloud
-    setLoading(true);
-    await cloudSyncManager.startBackgroundSync();
-    setLoading(false);
-
-    Alert.alert('Success', editingItem ? 'Sub-Center updated' : 'Sub-Center added');
+    try {
+      setLoading(true);
+      const res = await cloudSyncManager.startBackgroundSync();
+      if (res.success) {
+        Alert.alert('Success', `Sub-Center ${editingItem ? 'updated' : 'added'} and synced.`);
+      } else {
+        Alert.alert('Partially Saved', 'Saved locally. Sync pending.');
+      }
+    } catch (e) {
+      Alert.alert('Success', 'Saved locally.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddVillage = async () => {
@@ -128,12 +145,20 @@ const AdminSetupScreen = ({ user, onBack }) => {
     setNewVillage({ name: '', subCenterId: '', ward: '' });
     loadData();
     
-    // Force immediate push to cloud for hierarchy changes
-    setLoading(true);
-    await cloudSyncManager.startBackgroundSync();
-    setLoading(false);
-    
-    Alert.alert('Success', editingItem ? 'Village updated' : 'Village added');
+    // Force immediate push to cloud
+    try {
+      setLoading(true);
+      const res = await cloudSyncManager.startBackgroundSync();
+      if (res.success) {
+        Alert.alert('Success', `Village ${editingItem ? 'updated' : 'added'} and synced.`);
+      } else {
+        Alert.alert('Partially Saved', 'Saved locally. Sync pending.');
+      }
+    } catch (e) {
+      Alert.alert('Success', 'Saved locally.');
+    } finally {
+      setLoading(false);
+    }
   };
   const handleEditStart = (type, item) => {
     setEditingItem({ type, id: item.id });
