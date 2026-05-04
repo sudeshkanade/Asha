@@ -22,7 +22,10 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
   const [subCenters, setSubCenters] = useState([]);
   const [villages, setVillages] = useState([]);
   const [users, setUsers] = useState([]);
+  const [stats, setStats] = useState({ memberCounts: {}, familyCounts: {} });
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [scFilter, setScFilter] = useState('all');
 
   const [newPhc, setNewPhc] = useState({ name: '', block: '' });
   const [newSubCenter, setNewSubCenter] = useState({ name: '', phcId: isAdmin ? '' : user?.phcId });
@@ -39,10 +42,24 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
     const s = await storage.getAll(STORAGE_KEYS.SUB_CENTERS);
     const v = await storage.getAll(STORAGE_KEYS.VILLAGES);
     const u = await storage.getAll(STORAGE_KEYS.USERS);
+    const members = await storage.getAll(STORAGE_KEYS.MEMBERS);
+    const families = await storage.getAll(STORAGE_KEYS.FAMILIES);
+
+    // Calculate Counts
+    const mCounts = {};
+    const fCounts = {};
+    members.forEach(m => {
+      if (m.villageId) mCounts[m.villageId] = (mCounts[m.villageId] || 0) + 1;
+    });
+    families.forEach(f => {
+      if (f.villageId) fCounts[f.villageId] = (fCounts[f.villageId] || 0) + 1;
+    });
+
     setPhcs(p);
     setSubCenters(s);
     setVillages(v);
     setUsers(u || []);
+    setStats({ memberCounts: mCounts, familyCounts: fCounts });
     setLoading(false);
   };
 
@@ -367,6 +384,31 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
         ))}
       </View>
 
+      <View style={styles.searchBarContainer}>
+        <TextInput
+          style={styles.searchBar}
+          placeholder={`Search ${activeTab}...`}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {activeTab === 'villages' && !isAdmin && (
+          <TouchableOpacity 
+            style={styles.scFilterBtn}
+            onPress={() => {
+              // Toggle through Sub-centers
+              const scIds = ['all', ...subCenters.filter(s => s.phcId === user.phcId).map(s => s.id)];
+              const currentIndex = scIds.indexOf(scFilter);
+              const nextIndex = (currentIndex + 1) % scIds.length;
+              setScFilter(scIds[nextIndex]);
+            }}
+          >
+            <Text style={styles.scFilterText}>
+              📍 {scFilter === 'all' ? 'All SCs' : subCenters.find(s => s.id === scFilter)?.name}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
       <ScrollView contentContainerStyle={styles.content}>
         {activeTab === 'phcs' && (
           <View>
@@ -397,12 +439,14 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
             </View>
 
             {phcs
+              .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
               .filter((p, index, self) => index === self.findIndex((t) => t.id === p.id)) // Deduplicate
               .map(p => (
               <View key={p.id} style={styles.listItem}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.listText}>{p.name}</Text>
                   <Text style={styles.listSubText}>Block: {p.block || 'N/A'}</Text>
+                  <Text style={styles.childCountText}>📍 {subCenters.filter(s => s.phcId === p.id).length} Sub-centers</Text>
                   
                   {users.filter(u => u.role === 'MO' && u.phcId === p.id).map(mo => (
                     <View key={mo.id} style={styles.assignedUserRow}>
@@ -475,16 +519,18 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
 
             {subCenters
               .filter(sc => isAdmin || sc.phcId === user?.phcId)
+              .filter(sc => sc.name.toLowerCase().includes(searchQuery.toLowerCase()))
               .filter((s, index, self) => index === self.findIndex((t) => t.id === s.id)) // Deduplicate
               .map(sc => (
               <View key={sc.id} style={styles.listItem}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.listText}>{sc.name}</Text>
                   <Text style={styles.listSubText}>PHC: {phcs.find(p => p.id === sc.phcId)?.name || 'Unknown'}</Text>
+                  <Text style={styles.childCountText}>🏡 {villages.filter(v => v.subCenterId === sc.id).length} Villages</Text>
                   
                   {users.filter(u => u.role === 'ANM' && u.subCenterId === sc.id).map(anm => (
                     <View key={anm.id} style={styles.assignedUserRow}>
-                      <Text style={styles.assignedUserText}>👤 ANM: {anm.name}</Text>
+                      <Text style={styles.assignedUserText}>👤 ANM: {anm.name} ({anm.approvalStatus || 'pending'})</Text>
                       <TouchableOpacity onPress={() => handleDeleteUser(anm.id, anm.name, 'ANM')}>
                         <Text style={styles.removeUserIcon}>×</Text>
                       </TouchableOpacity>
@@ -553,18 +599,27 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
               .filter(v => {
                 if (isAdmin) return true;
                 const sc = subCenters.find(s => s.id === v.subCenterId);
-                return sc && sc.phcId === user?.phcId;
+                const belongsToPhc = sc && sc.phcId === user?.phcId;
+                const matchesScFilter = scFilter === 'all' || v.subCenterId === scFilter;
+                return belongsToPhc && matchesScFilter;
               })
+              .filter(v => v.name.toLowerCase().includes(searchQuery.toLowerCase()))
               .filter((v, index, self) => index === self.findIndex((t) => t.id === v.id)) // Deduplicate
               .map(v => (
               <View key={v.id} style={styles.listItem}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.listText}>{v.name} (W{v.ward})</Text>
+                  <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
+                    <Text style={styles.listText}>{v.name} (W{v.ward})</Text>
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>Pop: {stats.memberCounts[v.id] || 0}</Text>
+                    </View>
+                  </View>
                   <Text style={styles.listSubText}>SC: {subCenters.find(sc => sc.id === v.subCenterId)?.name || 'Unknown'}</Text>
+                  <Text style={styles.popStatText}>👪 {stats.familyCounts[v.id] || 0} Families • 👥 {stats.memberCounts[v.id] || 0} Members</Text>
                   
                   {users.filter(u => u.role === 'ASHA' && u.villageId === v.id).map(asha => (
                     <View key={asha.id} style={styles.assignedUserRow}>
-                      <Text style={styles.assignedUserText}>👤 ASHA: {asha.name}</Text>
+                      <Text style={styles.assignedUserText}>👤 ASHA: {asha.name} ({asha.approvalStatus || 'pending'})</Text>
                       <TouchableOpacity onPress={() => handleDeleteUser(asha.id, asha.name, 'ASHA')}>
                         <Text style={styles.removeUserIcon}>×</Text>
                       </TouchableOpacity>
@@ -704,6 +759,14 @@ const styles = StyleSheet.create({
   approveBtnText: { color: '#FFF', fontSize: 11, fontWeight: '700' },
   emptyState: { padding: 40, alignItems: 'center', justifyContent: 'center' },
   emptyStateText: { color: COLORS.textSecondary, fontSize: 14, fontStyle: 'italic', textAlign: 'center' },
+  searchBarContainer: { padding: 16, backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border, flexDirection: 'row', gap: 10 },
+  searchBar: { flex: 1, height: 40, backgroundColor: '#F1F5F9', borderRadius: 20, paddingHorizontal: 15, fontSize: 13, color: COLORS.text },
+  scFilterBtn: { paddingHorizontal: 12, justifyContent: 'center', backgroundColor: COLORS.primary, borderRadius: 20 },
+  scFilterText: { color: '#FFF', fontSize: 11, fontWeight: '700' },
+  childCountText: { fontSize: 11, color: COLORS.primary, fontWeight: '700', marginTop: 4 },
+  popStatText: { fontSize: 11, color: COLORS.textSecondary, fontWeight: '600', marginTop: 4, backgroundColor: '#F8FAFC', padding: 4, borderRadius: 4, alignSelf: 'flex-start' },
+  badge: { backgroundColor: '#E0F2FE', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, borderWidth: 1, borderColor: '#BAE6FD' },
+  badgeText: { fontSize: 10, fontWeight: '800', color: COLORS.primary },
 });
 
 export default AdminSetupScreen;
