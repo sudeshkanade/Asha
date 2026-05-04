@@ -72,18 +72,40 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
     }
   };
 
-  const toggleTaskStatus = (id) => {
-    setTasks(tasks.map(task => {
-      if (task.id === id) {
-        return { 
-          ...task, 
-          status: task.status === 'completed' ? 'pending' : 'completed',
-          visitSummary: task.status === 'completed' ? null : completionData.reasoning,
-          visitImage: task.status === 'completed' ? null : completionData.image,
-        };
+  const toggleTaskStatus = async (id) => {
+    const taskToToggle = tasks.find(t => t.id === id);
+    if (!taskToToggle) return;
+
+    const newStatus = taskToToggle.status === 'completed' ? 'pending' : 'completed';
+
+    try {
+      if (newStatus === 'pending') {
+        const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+        const memberIndex = allMembers.findIndex(m => m.id === taskToToggle.memberId);
+        if (memberIndex >= 0) {
+          const member = allMembers[memberIndex];
+          const healthData = member.healthData || {};
+          const completedTasks = (healthData.completedTasks || []).filter(tid => tid !== id);
+          member.healthData = { ...healthData, completedTasks };
+          await storage.save(STORAGE_KEYS.MEMBERS, member);
+        }
       }
-      return task;
-    }));
+
+      setTasks(tasks.map(task => {
+        if (task.id === id) {
+          return { 
+            ...task, 
+            status: newStatus,
+            visitSummary: newStatus === 'completed' ? completionData.reasoning : null,
+            visitImage: newStatus === 'completed' ? completionData.image : null,
+          };
+        }
+        return task;
+      }));
+    } catch (e) {
+      console.error('Failed to toggle task status', e);
+    }
+    
     setCompletionModalVisible(false);
     setSelectedTask(null);
   };

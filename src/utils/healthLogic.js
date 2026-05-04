@@ -130,7 +130,7 @@ export const generateAllTasks = (members) => {
             isHighRisk: health.isHighRisk,
             status: (health.completedTasks || []).includes(`anc-${member.id}-${idx}`) ? 'completed' : 'pending',
             details: `${visit.label} is due. ${visit.actions}`,
-            priority: health.isHighRisk ? 'High' : 'Normal',
+            priority: (health.isHighRisk || dueDate <= today) ? 'High' : 'Normal',
             dueDate: visit.date
           });
         }
@@ -165,12 +165,15 @@ export const generateAllTasks = (members) => {
       const vaxSchedule = calculateVaccinationSchedule(new Date(member.dob));
       vaxSchedule.forEach((vax, idx) => {
         const dueDate = new Date(vax.date);
-        // Only show overdue tasks if they are within a reasonable past window (e.g., 2 years) 
-        // to avoid flooding with tasks from birth for a 16 year old
+        
+        // Window: Overdue (last 2 years) OR Upcoming (next 15 days)
         const twoYearsAgo = new Date(today);
         twoYearsAgo.setFullYear(today.getFullYear() - 2);
+        
+        const fifteenDaysAhead = new Date(today);
+        fifteenDaysAhead.setDate(today.getDate() + 15);
 
-        if (dueDate <= today && dueDate > twoYearsAgo) {
+        if (dueDate <= fifteenDaysAhead && dueDate > twoYearsAgo) {
            generatedTasks.push({
             id: `vax-${member.id}-${idx}`,
             memberId: member.id,
@@ -179,7 +182,7 @@ export const generateAllTasks = (members) => {
             houseNo: member.houseNo || 'N/A',
             status: (health.completedTasks || []).includes(`vax-${member.id}-${idx}`) ? 'completed' : 'pending',
             details: `Due for ${vax.label}. Vaccines: ${vax.vaccines}`,
-            priority: 'High',
+            priority: dueDate <= today ? 'High' : 'Normal', // Overdue is High, Upcoming is Normal
             dueDate: vax.date
           });
         }
