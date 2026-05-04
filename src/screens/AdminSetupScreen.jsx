@@ -298,6 +298,26 @@ const AdminSetupScreen = ({ user, onBack }) => {
       );
     }
   };
+  const handleUpdateUserStatus = async (userId, newStatus) => {
+    try {
+      const all = await storage.getAll(STORAGE_KEYS.USERS);
+      const idx = all.findIndex(u => u.id === userId);
+      if (idx >= 0) {
+        const updatedUser = { ...all[idx], approvalStatus: newStatus };
+        all[idx] = updatedUser;
+        await storage.saveAll(STORAGE_KEYS.USERS, all);
+        await storage.addToSyncQueue(STORAGE_KEYS.USERS, updatedUser);
+        
+        // Push immediately
+        await cloudSyncManager.startBackgroundSync();
+        
+        Alert.alert('User Updated', `User account ${newStatus}.`);
+        loadData();
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to update user status.');
+    }
+  };
 
   if (loading) {
     return (
@@ -329,7 +349,11 @@ const AdminSetupScreen = ({ user, onBack }) => {
       </View>
 
       <View style={styles.tabBar}>
-        {['phcs', 'sc', 'villages'].filter(t => isAdmin || t !== 'phcs').map(tab => (
+        {['phcs', 'sc', 'villages', 'approvals'].filter(t => {
+          if (isAdmin) return true;
+          if (t === 'phcs') return false;
+          return true; // MO and ANM can see SC, Villages, and Approvals
+        }).map(tab => (
           <TouchableOpacity 
             key={tab}
             style={[styles.tab, activeTab === tab && styles.activeTab]} 
@@ -561,6 +585,76 @@ const AdminSetupScreen = ({ user, onBack }) => {
             ))}
           </View>
         )}
+        {activeTab === 'approvals' && (
+          <View>
+            <View style={styles.infoBox}>
+              <Text style={styles.infoLabel}>Role-Based Control:</Text>
+              <Text style={styles.infoValue}>
+                {isAdmin ? 'Full System Approver' : 
+                 user.role === 'MO' ? `PHC Supervisor (${user.phcName})` : 
+                 `SC Supervisor (${user.subCenterName})`}
+              </Text>
+            </View>
+
+            {users
+              .filter(u => {
+                // 1. Only show non-approved or rejected users
+                if (u.approvalStatus === 'approved') return false;
+                
+                // 2. Hierarchy Filter
+                if (isAdmin) return true;
+                if (user.role === 'MO') {
+                  // MO can approve anyone in their PHC
+                  return u.phcId === user.phcId;
+                }
+                if (user.role === 'ANM') {
+                  // ANM can approve ASHAs in their SC
+                  return u.subCenterId === user.subCenterId && u.role === 'ASHA';
+                }
+                return false;
+              })
+              .map(u => (
+                <View key={u.id} style={[styles.listItem, { borderLeftColor: u.approvalStatus === 'rejected' ? COLORS.error : '#EAB308' }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.listText}>{u.name} ({u.role})</Text>
+                    <Text style={styles.listSubText}>Username: {u.username}</Text>
+                    <Text style={styles.listSubText}>Village: {u.villageName || 'N/A'}</Text>
+                    <Text style={styles.listSubText}>Status: <Text style={{fontWeight:'700', color: u.approvalStatus === 'rejected' ? COLORS.error : '#EAB308'}}>{u.approvalStatus?.toUpperCase()}</Text></Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity 
+                      style={[styles.approveBtn, { backgroundColor: COLORS.success }]} 
+                      onPress={() => handleUpdateUserStatus(u.id, 'approved')}
+                    >
+                      <Text style={styles.approveBtnText}>✓ Approve</Text>
+                    </TouchableOpacity>
+                    {u.approvalStatus !== 'rejected' && (
+                      <TouchableOpacity 
+                        style={[styles.approveBtn, { backgroundColor: COLORS.error }]} 
+                        onPress={() => handleUpdateUserStatus(u.id, 'rejected')}
+                      >
+                        <Text style={styles.approveBtnText}>✕ Reject</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              ))
+            }
+            
+            {users.filter(u => {
+                if (u.approvalStatus === 'approved') return false;
+                if (isAdmin) return true;
+                if (user.role === 'MO') return u.phcId === user.phcId;
+                if (user.role === 'ANM') return u.subCenterId === user.subCenterId && u.role === 'ASHA';
+                return false;
+              }).length === 0 && (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyStateText}>No pending user approvals for your area.</Text>
+                </View>
+              )
+            }
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -605,6 +699,10 @@ const styles = StyleSheet.create({
   infoBox: { backgroundColor: '#F1F5F9', padding: 12, borderRadius: 10, marginBottom: 15, flexDirection: 'row', alignItems: 'center' },
   infoLabel: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginRight: 8 },
   infoValue: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
+  approveBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  approveBtnText: { color: '#FFF', fontSize: 11, fontWeight: '700' },
+  emptyState: { padding: 40, alignItems: 'center', justifyContent: 'center' },
+  emptyStateText: { color: COLORS.textSecondary, fontSize: 14, fontStyle: 'italic', textAlign: 'center' },
 });
 
 export default AdminSetupScreen;

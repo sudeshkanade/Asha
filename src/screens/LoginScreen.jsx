@@ -71,19 +71,24 @@ const LoginScreen = ({ onLogin }) => {
     }
 
     if (formData.username === 'admin' && formData.password === 'admin') {
-      onLogin({ id: 'admin', name: 'Super Admin', role: 'Admin' });
+      onLogin({ id: 'admin', name: 'Super Admin', role: 'Admin', approvalStatus: 'approved' });
       return;
     }
 
     setLoading(true);
-    // Try to pull latest users before failing
     await cloudSyncManager.pullFromCloud();
     const users = await storage.getAll(STORAGE_KEYS.USERS);
     const user = users.find(u => u.username === formData.username && u.password === formData.password);
     
     setLoading(false);
     if (user) {
-      onLogin(user);
+      if (user.approvalStatus === 'approved') {
+        onLogin(user);
+      } else if (user.approvalStatus === 'rejected') {
+        Alert.alert('Access Denied', 'Your account registration was rejected by your supervisor.');
+      } else {
+        Alert.alert('Pending Approval', 'Your account is waiting for approval from your MO or ANM. Please contact them.');
+      }
     } else {
       Alert.alert('Error', 'Invalid credentials. If you just registered, tap "Sync Accounts" below.');
     }
@@ -107,11 +112,11 @@ const LoginScreen = ({ onLogin }) => {
     const newUser = {
       ...formData,
       id: 'u_' + Date.now(),
+      approvalStatus: 'pending', // Default status
       village: selectedVillage?.name,
       villageName: selectedVillage?.name,
       subCenterName: selectedSC?.name,
       phcName: selectedPHC?.name,
-      // Ensure IDs are strings for sync consistency
       phcId: formData.phcId?.toString(),
       subCenterId: formData.subCenterId?.toString(),
       villageId: formData.villageId?.toString(),
@@ -124,10 +129,9 @@ const LoginScreen = ({ onLogin }) => {
     }
 
     await storage.save(STORAGE_KEYS.USERS, newUser);
-    // Push immediately
     await cloudSyncManager.startBackgroundSync();
     
-    Alert.alert('Success', 'Registration successful. You can now login.');
+    Alert.alert('Success', 'Registration submitted! Please wait for your MO/ANM to approve your account.');
     setIsRegister(false);
   };
 
