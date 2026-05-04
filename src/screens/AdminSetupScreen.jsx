@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
+import { cloudSyncManager } from '../database/cloudSync';
 
 const AdminSetupScreen = ({ user, onBack }) => {
   const isAdmin = user?.role === 'Admin';
@@ -64,6 +65,12 @@ const AdminSetupScreen = ({ user, onBack }) => {
     }
     setNewPhc({ name: '', block: '' });
     loadData();
+
+    // Force immediate push to cloud
+    setLoading(true);
+    await cloudSyncManager.startBackgroundSync();
+    setLoading(false);
+
     Alert.alert('Success', editingItem ? 'PHC updated' : 'PHC added');
   };
 
@@ -86,6 +93,12 @@ const AdminSetupScreen = ({ user, onBack }) => {
     }
     setNewSubCenter({ name: '', phcId: isAdmin ? '' : user?.phcId });
     loadData();
+
+    // Force immediate push to cloud
+    setLoading(true);
+    await cloudSyncManager.startBackgroundSync();
+    setLoading(false);
+
     Alert.alert('Success', editingItem ? 'Sub-Center updated' : 'Sub-Center added');
   };
 
@@ -108,6 +121,12 @@ const AdminSetupScreen = ({ user, onBack }) => {
     }
     setNewVillage({ name: '', subCenterId: '', ward: '' });
     loadData();
+    
+    // Force immediate push to cloud for hierarchy changes
+    setLoading(true);
+    await cloudSyncManager.startBackgroundSync();
+    setLoading(false);
+    
     Alert.alert('Success', editingItem ? 'Village updated' : 'Village added');
   };
   const handleEditStart = (type, item) => {

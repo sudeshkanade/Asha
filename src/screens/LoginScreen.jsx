@@ -255,7 +255,12 @@ const LoginScreen = ({ onLogin }) => {
 
               {loading ? <ActivityIndicator color={COLORS.primary} /> : (
                 <View style={styles.hierarchySection}>
-                  <Text style={styles.label}>Primary Health Center (PHC)</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <Text style={styles.label}>Primary Health Center (PHC)</Text>
+                    <TouchableOpacity onPress={loadHierarchy}>
+                      <Text style={{ fontSize: 12, color: COLORS.primary, fontWeight: '700' }}>↻ Refresh List</Text>
+                    </TouchableOpacity>
+                  </View>
                   <View style={styles.chipGrid}>
                     {phcs.map(p => (
                       <TouchableOpacity 
