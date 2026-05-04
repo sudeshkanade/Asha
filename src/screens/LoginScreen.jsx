@@ -18,6 +18,8 @@ const LoginScreen = ({ onLogin }) => {
   const { t, i18n } = useTranslation();
   const [isRegister, setIsRegister] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [adminTaps, setAdminTaps] = useState(0);
+  const [showHiddenTools, setShowHiddenTools] = useState(false);
   
   const [phcs, setPhcs] = useState([]);
   const [subCenters, setSubCenters] = useState([]);
@@ -99,6 +101,35 @@ const LoginScreen = ({ onLogin }) => {
     await storage.save(STORAGE_KEYS.USERS, newUser);
     Alert.alert('Success', 'Registration successful. Please login.');
     setIsRegister(false);
+  };
+
+  const handleAdminTap = () => {
+    const newCount = adminTaps + 1;
+    setAdminTaps(newCount);
+    if (newCount === 10) {
+      setShowHiddenTools(true);
+      Alert.alert('Admin Mode', 'Hidden maintenance tools activated.');
+    }
+  };
+
+  const handleFactoryReset = async () => {
+    const confirmReset = async () => {
+      setLoading(true);
+      await storage.wipeAllData();
+      if (Platform.OS === 'web') window.location.reload();
+      else Alert.alert('Success', 'Data wiped. Please restart the app.');
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm("CRITICAL: Wipe all local data? This cannot be undone.")) {
+        confirmReset();
+      }
+    } else {
+      Alert.alert('Dangerous Action', 'Wipe all local data?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Reset Everything', style: 'destructive', onPress: confirmReset }
+      ]);
+    }
   };
 
   return (
@@ -223,10 +254,22 @@ const LoginScreen = ({ onLogin }) => {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.footer}>
+        {showHiddenTools && (
+          <View style={styles.hiddenTools}>
+            <Text style={styles.hiddenToolsTitle}>Maintenance Mode</Text>
+            <TouchableOpacity style={styles.resetBtn} onPress={handleFactoryReset}>
+              <Text style={styles.resetBtnText}>Wipe Local Data (Factory Reset)</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.closeHiddenBtn} onPress={() => setShowHiddenTools(false)}>
+              <Text style={styles.closeHiddenBtnText}>Close Tools</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <TouchableOpacity style={styles.footer} onPress={handleAdminTap} activeOpacity={1}>
           <Text style={styles.footerText}>Official Health Management System</Text>
-          <Text style={styles.footerSubText}>Validated PHC-SC-ASHA Hierarchy</Text>
-        </View>
+          <Text style={styles.footerSubText}>Validated PHC-SC-ASHA Hierarchy • v1.1.2</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -263,7 +306,13 @@ const styles = StyleSheet.create({
   noData: { color: '#EF4444', fontSize: 11, fontStyle: 'italic' },
   langToggleContainer: { position: 'absolute', top: 50, right: 20, zIndex: 10 },
   langToggle: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', elevation: 2 },
-  langToggleText: { fontSize: 12, fontWeight: '800', color: COLORS.primary }
+  langToggleText: { fontSize: 12, fontWeight: '800', color: COLORS.primary },
+  hiddenTools: { marginTop: 30, padding: 20, backgroundColor: '#FEF2F2', borderRadius: 12, borderContent: 1, borderColor: '#FCA5A5' },
+  hiddenToolsTitle: { fontSize: 14, fontWeight: '800', color: '#B91C1C', marginBottom: 15, textAlign: 'center' },
+  resetBtn: { backgroundColor: '#EF4444', padding: 15, borderRadius: 10, alignItems: 'center' },
+  resetBtnText: { color: '#FFF', fontWeight: '700', fontSize: 13 },
+  closeHiddenBtn: { marginTop: 10, padding: 10, alignItems: 'center' },
+  closeHiddenBtnText: { color: '#64748B', fontSize: 11, fontWeight: '600' }
 });
 
 export default LoginScreen;
