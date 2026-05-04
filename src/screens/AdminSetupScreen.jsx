@@ -55,8 +55,10 @@ const AdminSetupScreen = ({ user, onBack }) => {
       const all = await storage.getAll(STORAGE_KEYS.PHCS);
       const idx = all.findIndex(p => p.id === editingItem.id);
       if (idx >= 0) {
-        all[idx] = { ...all[idx], ...newPhc };
+        const updatedItem = { ...all[idx], ...newPhc };
+        all[idx] = updatedItem;
         await storage.saveAll(STORAGE_KEYS.PHCS, all);
+        await storage.addToSyncQueue(STORAGE_KEYS.PHCS, updatedItem);
       }
       setEditingItem(null);
     } else {
@@ -83,8 +85,10 @@ const AdminSetupScreen = ({ user, onBack }) => {
       const all = await storage.getAll(STORAGE_KEYS.SUB_CENTERS);
       const idx = all.findIndex(s => s.id === editingItem.id);
       if (idx >= 0) {
-        all[idx] = { ...all[idx], ...newSubCenter };
+        const updatedItem = { ...all[idx], ...newSubCenter };
+        all[idx] = updatedItem;
         await storage.saveAll(STORAGE_KEYS.SUB_CENTERS, all);
+        await storage.addToSyncQueue(STORAGE_KEYS.SUB_CENTERS, updatedItem);
       }
       setEditingItem(null);
     } else {
@@ -111,8 +115,10 @@ const AdminSetupScreen = ({ user, onBack }) => {
       const all = await storage.getAll(STORAGE_KEYS.VILLAGES);
       const idx = all.findIndex(v => v.id === editingItem.id);
       if (idx >= 0) {
-        all[idx] = { ...all[idx], ...newVillage };
+        const updatedItem = { ...all[idx], ...newVillage };
+        all[idx] = updatedItem;
         await storage.saveAll(STORAGE_KEYS.VILLAGES, all);
+        await storage.addToSyncQueue(STORAGE_KEYS.VILLAGES, updatedItem);
       }
       setEditingItem(null);
     } else {
