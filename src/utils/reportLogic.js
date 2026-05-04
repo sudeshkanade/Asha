@@ -6,7 +6,7 @@
  * Members come from MEMBERS storage with standard fields + healthData.
  */
 
-export const generateMPRStats = (members, events) => {
+export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], pendingEvents = []) => {
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
@@ -44,7 +44,7 @@ export const generateMPRStats = (members, events) => {
     }
   });
 
-  // 2. Vital Events & Stock from Sync Queue
+  // 2. Vital Events & Stock from persistent storage + pending queue
   const vitalStats = {
     births: 0,
     deaths: 0,
@@ -57,15 +57,38 @@ export const generateMPRStats = (members, events) => {
     condomsDistributed: 0,
   };
 
-  events.forEach(e => {
-    // Sync queue items have { tableName, payload, timestamp }
+  // Process persistent Vital Events
+  vitalEvents.forEach(e => {
+    if (!isCurrentMonth(e.date || e.timestamp)) return;
+    if (e.type === 'Birth') {
+      vitalStats.births++;
+      if (e.place === 'Hospital') maternalStats.hospitalDeliveries++;
+      if (e.place === 'Home') maternalStats.homeDeliveries++;
+    }
+    if (e.type === 'Death') {
+      vitalStats.deaths++;
+      if (parseInt(e.ageAtDeath) < 1) vitalStats.infantDeaths++;
+    }
+  });
+
+  // Process persistent VHND Sessions
+  vhndSessions.forEach(e => {
+    if (!isCurrentMonth(e.sessionDate || e.timestamp)) return;
+    stockStats.ironDistributed += parseInt(e.ifaDistributed || 0);
+    stockStats.orsDistributed += parseInt(e.orsDistributed || 0);
+    stockStats.condomsDistributed += parseInt(e.condomsDistributed || 0);
+  });
+
+  // Process Pending Events in Sync Queue (to show real-time changes before sync)
+  pendingEvents.forEach(e => {
     const timestamp = e.timestamp;
     if (!isCurrentMonth(timestamp)) return;
-
     const payload = e.payload || e;
 
-    // Vital events: births & deaths
-    if (e.tableName === 'vital_events') {
+    if (e.tableName === 'vital_events' || e.tableName === '@rural_health_vital_events') {
+      // Avoid double counting if already in persistent storage
+      if (vitalEvents.some(ve => ve.id === payload.id)) return;
+      
       if (payload.type === 'Birth') {
         vitalStats.births++;
         if (payload.place === 'Hospital') maternalStats.hospitalDeliveries++;
@@ -77,8 +100,8 @@ export const generateMPRStats = (members, events) => {
       }
     }
 
-    // VHND sessions: stock distribution
-    if (e.tableName === 'vhnd_sessions') {
+    if (e.tableName === 'vhnd_sessions' || e.tableName === '@rural_health_vhnd') {
+      if (vhndSessions.some(vs => vs.id === payload.id)) return;
       stockStats.ironDistributed += parseInt(payload.ifaDistributed || 0);
       stockStats.orsDistributed += parseInt(payload.orsDistributed || 0);
       stockStats.condomsDistributed += parseInt(payload.condomsDistributed || 0);
@@ -90,7 +113,9 @@ export const generateMPRStats = (members, events) => {
   const childStats = {
     samChildren: members.filter(m => m.healthData?.malnutritionStatus === 'high_risk').length,
     fullyImmunized: members.filter(m => {
-      const dob = new Date(m.dob);
+      const dobStr = m.dob;
+      if (!dobStr) return false;
+      const dob = new Date(dobStr);
       if (isNaN(dob.getTime())) return false;
       const ageInMonths = (now.getFullYear() - dob.getFullYear()) * 12 + (now.getMonth() - dob.getMonth());
       if (ageInMonths < 12) return false;
@@ -119,7 +144,6 @@ export const generateMPRStats = (members, events) => {
 
   members.forEach(m => {
     const age = parseInt(m.age);
-    // FIX C1: Only count married females as EC, matching the EC register filter
     if (m.gender === 'Female' && age >= 15 && age <= 49 &&
         (m.maritalStatus === 'Married' || m.relationToHead === 'Wife' || m.relation === 'Wife' || m.relationToHead === 'Daughter-in-law')) {
       fpStats.totalEC++;

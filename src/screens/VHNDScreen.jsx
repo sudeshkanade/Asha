@@ -65,7 +65,6 @@ const VHNDScreen = ({ user, onBack }) => {
     };
 
     await storage.save(STORAGE_KEYS.VHND_SESSIONS, session);
-    await storage.addToSyncQueue('vhnd_sessions', session);
     
     const notifySupervisor = () => {
       const beneficiaries = (parseInt(formData.pregnantAttended) || 0) + (parseInt(formData.childrenAttended) || 0) + (parseInt(formData.adolescentsAttended) || 0);

@@ -61,11 +61,11 @@ export const storage = {
       }
 
       await AsyncStorage.setItem(key, JSON.stringify(updatedCollection));
+      // Queue for cloud sync (addToSyncQueue handles triggering background sync)
       await storage.addToSyncQueue(key, newData);
-      cloudSyncManager.startBackgroundSync(); // Trigger background sync
       return true;
     } catch (e) {
-      console.error('Error saving data', e);
+      console.error('❌ Storage.save error:', e);
       return false;
     }
   },
@@ -78,7 +78,7 @@ export const storage = {
       await AsyncStorage.setItem(key, JSON.stringify(items));
       return true;
     } catch (e) {
-      console.error('Error in saveAll', e);
+      console.error('❌ Storage.saveAll error:', e);
       return false;
     }
   },
@@ -104,14 +104,45 @@ export const storage = {
   },
 
   /**
-   * Get all records for a collection
+   * Get all records for a collection with Schema Normalization
    */
   getAll: async (key) => {
     try {
       const value = await AsyncStorage.getItem(key);
-      return value != null ? JSON.parse(value) : [];
+      let data = value != null ? JSON.parse(value) : [];
+
+      // Schema Normalization Layer: Ensure legacy data formats are compatible with current UI
+      if (key === STORAGE_KEYS.MEMBERS && Array.isArray(data)) {
+        return data.map(m => ({
+          ...m,
+          firstName: m.firstName || m.fname || '',
+          lastName: m.lastName || m.lname || '',
+          middleName: m.middleName || m.mname || '',
+          phone: m.phone || m.mobile || '',
+          relation: m.relation || m.relationship || 'Other',
+          maritalStatus: m.maritalStatus || m.marital || 'Married',
+          healthData: {
+            ...(m.healthData || {}),
+            isPregnant: m.healthData?.isPregnant ?? (m.isPregnant === 'yes' || m.isPregnant === true),
+            isHighRisk: m.healthData?.isHighRisk ?? (m.isHighRisk === 'yes' || m.isHighRisk === true),
+            ancStatus: m.healthData?.ancStatus || (m.ancStatus === 'active' ? 'active' : 'none'),
+          }
+        }));
+      }
+
+      if (key === STORAGE_KEYS.FAMILIES && Array.isArray(data)) {
+        return data.map(f => ({
+          ...f,
+          houseNo: f.houseNo || f.house || '',
+          religionCaste: f.religionCaste || f.caste || '',
+          isBPL: f.isBPL ?? (f.bpl === 'Yes' || f.bpl === 'yes'),
+          villageId: f.villageId || f.village || ''
+        }));
+      }
+
+      return data;
     } catch (e) {
-      console.error('Error getting data', e);
+      console.error('❌ Storage.getAll error:', e);
       return [];
     }
   },
@@ -129,9 +160,11 @@ export const storage = {
         timestamp: new Date().toISOString() 
       }];
       await AsyncStorage.setItem(STORAGE_KEYS.SYNC_QUEUE, JSON.stringify(updatedQueue));
-      cloudSyncManager.startBackgroundSync(); // Trigger background sync
+      console.log(`📝 SyncQueue: Queued SAVE for ${tableName} (id: ${payload?.id}) — total: ${updatedQueue.length}`);
+      // Fire-and-forget background sync
+      cloudSyncManager.startBackgroundSync().catch(() => {});
     } catch (e) {
-      console.error('Sync Queue Error', e);
+      console.error('❌ Sync Queue Error:', e);
     }
   },
 
@@ -140,7 +173,7 @@ export const storage = {
    */
   addToDeleteQueue: async (tableName, id) => {
     if (!id) {
-      console.warn('Delete Queue: Missing ID for', tableName);
+      console.warn('⚠️ Delete Queue: Missing ID for', tableName);
       return;
     }
     try {
@@ -160,9 +193,11 @@ export const storage = {
         await storage.saveAll(STORAGE_KEYS.DELETED_IDS, [...tombstones, id.toString()]);
       }
 
-      cloudSyncManager.startBackgroundSync();
+      console.log(`🗑️ SyncQueue: Queued DELETE for ${tableName} (id: ${id}) — total: ${updatedQueue.length}`);
+      // Fire-and-forget background sync
+      cloudSyncManager.startBackgroundSync().catch(() => {});
     } catch (e) {
-      console.error('Delete Queue Error', e);
+      console.error('❌ Delete Queue Error:', e);
     }
   },
 
@@ -175,7 +210,7 @@ export const storage = {
       await AsyncStorage.multiRemove(keys);
       return true;
     } catch (e) {
-      console.error('Error wiping data', e);
+      console.error('❌ Error wiping data:', e);
       return false;
     }
   }

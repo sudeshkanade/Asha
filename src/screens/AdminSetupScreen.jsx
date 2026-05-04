@@ -83,7 +83,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
       await storage.save(STORAGE_KEYS.PHCS, phc);
     }
     setNewPhc({ name: '', block: '' });
-    loadData();
+    await loadData();
 
     // Force immediate push to cloud
     try {
@@ -122,7 +122,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
       await storage.save(STORAGE_KEYS.SUB_CENTERS, sc);
     }
     setNewSubCenter({ name: '', phcId: isAdmin ? '' : user?.phcId });
-    loadData();
+    await loadData();
 
     // Force immediate push to cloud
     try {
@@ -160,7 +160,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
       await storage.save(STORAGE_KEYS.VILLAGES, village);
     }
     setNewVillage({ name: '', subCenterId: '', ward: '' });
-    loadData();
+    await loadData();
     
     // Force immediate push to cloud
     try {
@@ -208,14 +208,19 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
         const all = await storage.getAll(STORAGE_KEYS.PHCS);
         const updated = all.filter(p => p.id !== id);
         await storage.saveAll(STORAGE_KEYS.PHCS, updated);
+        await storage.addToDeleteQueue(STORAGE_KEYS.PHCS, id);
         await loadData();
       } catch (e) {
         Alert.alert('Error', 'Failed to delete PHC');
       }
     };
 
-    if (Platform.OS === 'web') {
-      if (window.confirm(`Are you sure you want to delete ${name}?`)) confirmDelete();
+    const isWeb = Platform.OS === 'web' || typeof window !== 'undefined';
+    if (isWeb) {
+      if (window.confirm(`Are you sure you want to delete ${name}?`)) {
+        console.log('AdminSetup: Confirmed delete for PHC', id);
+        confirmDelete();
+      }
     } else {
       Alert.alert(
         'Delete PHC',
@@ -242,14 +247,19 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
         const all = await storage.getAll(STORAGE_KEYS.SUB_CENTERS);
         const updated = all.filter(sc => sc.id !== id);
         await storage.saveAll(STORAGE_KEYS.SUB_CENTERS, updated);
+        await storage.addToDeleteQueue(STORAGE_KEYS.SUB_CENTERS, id);
         await loadData();
       } catch (e) {
         Alert.alert('Error', 'Failed to delete Sub-Center');
       }
     };
 
-    if (Platform.OS === 'web') {
-      if (window.confirm(`Are you sure you want to delete ${name}?`)) confirmDelete();
+    const isWeb = Platform.OS === 'web' || typeof window !== 'undefined';
+    if (isWeb) {
+      if (window.confirm(`Are you sure you want to delete ${name}?`)) {
+        console.log('AdminSetup: Confirmed delete for SC', id);
+        confirmDelete();
+      }
     } else {
       Alert.alert(
         'Delete Sub-Center',
@@ -268,14 +278,19 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
         const all = await storage.getAll(STORAGE_KEYS.VILLAGES);
         const updated = all.filter(v => v.id !== id);
         await storage.saveAll(STORAGE_KEYS.VILLAGES, updated);
+        await storage.addToDeleteQueue(STORAGE_KEYS.VILLAGES, id);
         await loadData();
       } catch (e) {
         Alert.alert('Error', 'Failed to delete Village');
       }
     };
 
-    if (Platform.OS === 'web') {
-      if (window.confirm(`Are you sure you want to delete ${name}?`)) confirmDelete();
+    const isWeb = Platform.OS === 'web' || typeof window !== 'undefined';
+    if (isWeb) {
+      if (window.confirm(`Are you sure you want to delete ${name}?`)) {
+        console.log('AdminSetup: Confirmed delete for Village', id);
+        confirmDelete();
+      }
     } else {
       Alert.alert(
         'Delete Village',
@@ -294,6 +309,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
         const all = await storage.getAll(STORAGE_KEYS.USERS);
         const updated = all.filter(u => u.id !== userId);
         await storage.saveAll(STORAGE_KEYS.USERS, updated);
+        await storage.addToDeleteQueue(STORAGE_KEYS.USERS, userId);
         await loadData();
       } catch (e) {
         Alert.alert('Error', 'Failed to remove user');
@@ -301,9 +317,12 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
     };
 
     const message = `Are you sure you want to remove ${userName}? They will no longer be able to log in.`;
-    
-    if (Platform.OS === 'web') {
-      if (window.confirm(message)) confirmDelete();
+    const isWeb = Platform.OS === 'web' || typeof window !== 'undefined';
+    if (isWeb) {
+      if (window.confirm(message)) {
+        console.log('AdminSetup: Confirmed delete for User', userId);
+        confirmDelete();
+      }
     } else {
       Alert.alert(
         `Remove ${role}`,
@@ -329,7 +348,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
         await cloudSyncManager.startBackgroundSync();
         
         Alert.alert('User Updated', `User account ${newStatus}.`);
-        loadData();
+        await loadData();
       }
     } catch (e) {
       Alert.alert('Error', 'Failed to update user status.');

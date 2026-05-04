@@ -45,49 +45,56 @@ const DashboardScreen = ({ user, onNavigate }) => {
   }, []);
 
   const loadLiveStats = async () => {
-    const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
-    const events = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
-    
-    // Optimized: Filter once based on role
-    let members = allMembers;
-    if (user?.role === 'ASHA') {
-      members = allMembers.filter(m => m.ashaId === user.id || m.villageId === user.villageId);
-    } else if (user?.role === 'ANM') {
-      members = allMembers.filter(m => m.subCenterId === user.subCenterId);
-    } else if (user?.role === 'MO') {
-      members = allMembers.filter(m => m.phcId === user.phcId);
-    }
-
-    setSyncCount(events.length);
-    
-    // Aggregated counting in one pass for high performance
-    let mCount = 0, fCount = 0, a0_5 = 0, a6_18 = 0, a60plus = 0;
-    const allTasks = generateAllTasks(members);
-    const pendingCount = allTasks.filter(t => t.status !== 'completed').length;
-
-    members.forEach(m => {
-      if (m.gender === 'Male') mCount++;
-      else if (m.gender === 'Female') fCount++;
+    try {
+      const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+      const vEvents = await storage.getAll(STORAGE_KEYS.VITAL_EVENTS);
+      const vhndSessions = await storage.getAll(STORAGE_KEYS.VHND_SESSIONS);
+      const events = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
       
-      const age = parseInt(m.age);
-      if (age <= 5) a0_5++;
-      else if (age > 5 && age <= 18) a6_18++;
-      else if (age >= 60) a60plus++;
-    });
-
-    const liveStats = generateMPRStats(members, events);
-
-    setPendingTasksCount(pendingCount);
-    setStats({
-      ...liveStats,
-      demographics: {
-        total: members.length,
-        male: mCount,
-        female: fCount,
-        ageGroups: { '0-5': a0_5, '6-18': a6_18, '60+': a60plus }
+      // Filter based on role
+      let members = allMembers;
+      if (user?.role === 'ASHA') {
+        members = allMembers.filter(m => m.ashaId === user.id || m.villageId === user.villageId);
+      } else if (user?.role === 'ANM') {
+        members = allMembers.filter(m => m.subCenterId === user.subCenterId);
+      } else if (user?.role === 'MO') {
+        members = allMembers.filter(m => m.phcId === user.phcId);
       }
-    });
-    setLoading(false);
+
+      setSyncCount(events.length);
+      
+      // Demographics stats
+      let mCount = 0, fCount = 0, a0_5 = 0, a6_18 = 0, a60plus = 0;
+      const allTasks = generateAllTasks(members);
+      const pendingCount = allTasks.filter(t => t.status !== 'completed').length;
+
+      members.forEach(m => {
+        if (m.gender === 'Male') mCount++;
+        else if (m.gender === 'Female') fCount++;
+        
+        const age = parseInt(m.age);
+        if (age <= 5) a0_5++;
+        else if (age > 5 && age <= 18) a6_18++;
+        else if (age >= 60) a60plus++;
+      });
+
+      const liveStats = generateMPRStats(members, vEvents, vhndSessions, events);
+
+      setPendingTasksCount(pendingCount);
+      setStats({
+        ...liveStats,
+        demographics: {
+          total: members.length,
+          male: mCount,
+          female: fCount,
+          ageGroups: { '0-5': a0_5, '6-18': a6_18, '60+': a60plus }
+        }
+      });
+      setLoading(false);
+    } catch (e) {
+      console.error('Dashboard Stats Error:', e);
+      setLoading(false);
+    }
   };
 
   const handleManualSync = async () => {

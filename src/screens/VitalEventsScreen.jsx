@@ -157,7 +157,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
 
       await storage.save(STORAGE_KEYS.MEMBERS, newborn);
       await storage.save(STORAGE_KEYS.MEMBERS, updatedMother);
-      await storage.addToSyncQueue('vital_events', newEvent);
+      await storage.save(STORAGE_KEYS.VITAL_EVENTS, newEvent);
       
       Alert.alert(t('success'), `${t('birth')} ${t('success')}`);
     } else {
@@ -176,9 +176,8 @@ const VitalEventsScreen = ({ user, onBack }) => {
           ...(member.vitalEvents || []),
           { type: 'Death', date: formData.date, cause: formData.causeOfDeath }
         ];
-        await storage.save(STORAGE_KEYS.MEMBERS, member);
         
-        await storage.addToSyncQueue('vital_events', {
+        const deathEvent = {
           id: Date.now().toString(),
           type: 'Death',
           date: formData.date,
@@ -186,7 +185,10 @@ const VitalEventsScreen = ({ user, onBack }) => {
           name: member.firstName + ' ' + member.lastName,
           ageAtDeath: member.age || formData.ageAtDeath || 'N/A',
           causeOfDeath: formData.causeOfDeath,
-        });
+        };
+
+        await storage.save(STORAGE_KEYS.MEMBERS, member);
+        await storage.save(STORAGE_KEYS.VITAL_EVENTS, deathEvent);
         
         Alert.alert(t('success'), `${t('death')} ${t('success')}`);
       }
