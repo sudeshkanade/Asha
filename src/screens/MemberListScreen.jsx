@@ -90,9 +90,12 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
 
   const handleDeleteMember = (memberId, name) => {
     const confirmDelete = async () => {
-      const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
       const updatedMembers = allMembers.filter(m => m.id !== memberId);
       await storage.saveAll(STORAGE_KEYS.MEMBERS, updatedMembers);
+      
+      // Queue cloud deletion
+      await storage.addToDeleteQueue(STORAGE_KEYS.MEMBERS, memberId);
+      
       loadMembers(); // Refresh with current filters
     };
 

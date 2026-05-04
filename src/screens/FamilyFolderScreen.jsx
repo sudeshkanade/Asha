@@ -77,6 +77,13 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
       await storage.saveAll(STORAGE_KEYS.FAMILIES, updatedFamilies);
       await storage.saveAll(STORAGE_KEYS.MEMBERS, updatedMembers);
       
+      // Queue cloud deletions
+      await storage.addToDeleteQueue(STORAGE_KEYS.FAMILIES, familyId);
+      const deletedMembers = allMembers.filter(m => m.familyId === familyId);
+      for (const m of deletedMembers) {
+        await storage.addToDeleteQueue(STORAGE_KEYS.MEMBERS, m.id);
+      }
+      
       loadData(); // Full refresh
     };
 

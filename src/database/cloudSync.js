@@ -1,6 +1,6 @@
 import { storage, STORAGE_KEYS } from './storage';
 import { db } from './firebaseConfig';
-import { collection, addDoc, doc, setDoc, getDocs } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, getDocs, deleteDoc } from 'firebase/firestore';
 
 export const cloudSyncManager = {
   isSyncing: false,
@@ -35,24 +35,27 @@ export const cloudSyncManager = {
       const remainingQueue = [];
       let syncedCount = 0;
       
-      // Process items in small batches or one by one
       for (const item of queue) {
         try {
-          const { tableName, payload, timestamp } = item;
+          const { tableName, payload, timestamp, type } = item;
           if (!tableName || !payload) continue;
 
           const colRef = collection(db, tableName);
-          
-          // Use payload.id as document ID if available, otherwise auto-generate
           const docId = payload.id ? payload.id.toString() : null;
 
-          if (docId) {
+          if (type === 'delete' && docId) {
+            // Permanent Cloud Deletion
+            await deleteDoc(doc(db, tableName, docId));
+            console.log(`Cloud Sync: Deleted ${docId} from ${tableName}`);
+          } else if (docId) {
+             // Save/Update
              await setDoc(doc(db, tableName, docId), {
                 ...payload,
                 _lastSyncedAt: new Date().toISOString(),
                 _originalTimestamp: timestamp
              }, { merge: true });
           } else {
+             // New entry without ID
              await addDoc(colRef, {
                 ...payload,
                 _lastSyncedAt: new Date().toISOString(),
@@ -62,7 +65,7 @@ export const cloudSyncManager = {
           syncedCount++;
         } catch (err) {
           console.error("Cloud Sync: Item failed", err);
-          remainingQueue.push(item); // Keep for retry
+          remainingQueue.push(item);
         }
       }
 
@@ -95,12 +98,16 @@ export const cloudSyncManager = {
       ];
 
       let totalPulled = 0;
+      const tombstones = await storage.getAll(STORAGE_KEYS.DELETED_IDS);
 
       for (const col of collectionsToPull) {
         const querySnapshot = await getDocs(collection(db, col.table));
         const cloudData = [];
         querySnapshot.forEach((doc) => {
-          cloudData.push({ id: doc.id, ...doc.data() });
+          // Filter out items that were deleted locally
+          if (!tombstones.includes(doc.id)) {
+            cloudData.push({ id: doc.id, ...doc.data() });
+          }
         });
 
         if (cloudData.length > 0) {

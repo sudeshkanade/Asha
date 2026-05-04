@@ -18,6 +18,7 @@ export const STORAGE_KEYS = {
   USERS: '@rural_health_users',
   PHCS: '@rural_health_phcs',
   SUB_CENTERS: '@rural_health_subcenters',
+  DELETED_IDS: 'asha_deleted_ids',
   VHND_SESSIONS: '@rural_health_vhnd',
   VITAL_EVENTS: '@rural_health_vital_events',
 };
@@ -124,12 +125,40 @@ export const storage = {
       const updatedQueue = [...queue, { 
         tableName, 
         payload, 
+        type: 'save',
         timestamp: new Date().toISOString() 
       }];
       await AsyncStorage.setItem(STORAGE_KEYS.SYNC_QUEUE, JSON.stringify(updatedQueue));
       cloudSyncManager.startBackgroundSync(); // Trigger background sync
     } catch (e) {
       console.error('Sync Queue Error', e);
+    }
+  },
+
+  /**
+   * Specifically queue a deletion for the cloud
+   */
+  addToDeleteQueue: async (tableName, id) => {
+    try {
+      // 1. Add to Sync Queue
+      const queue = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
+      const updatedQueue = [...queue, { 
+        tableName, 
+        payload: { id }, 
+        type: 'delete',
+        timestamp: new Date().toISOString() 
+      }];
+      await AsyncStorage.setItem(STORAGE_KEYS.SYNC_QUEUE, JSON.stringify(updatedQueue));
+      
+      // 2. Add to local Tombstones to prevent re-pulling before sync finishes
+      const tombstones = await storage.getAll(STORAGE_KEYS.DELETED_IDS);
+      if (!tombstones.includes(id.toString())) {
+        await storage.saveAll(STORAGE_KEYS.DELETED_IDS, [...tombstones, id.toString()]);
+      }
+
+      cloudSyncManager.startBackgroundSync();
+    } catch (e) {
+      console.error('Delete Queue Error', e);
     }
   },
 
