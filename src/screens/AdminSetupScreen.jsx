@@ -15,7 +15,8 @@ import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 
 const AdminSetupScreen = ({ user, onBack }) => {
-  const [activeTab, setActiveTab] = useState('phcs'); // phcs, sc, villages
+  const isAdmin = user?.role === 'Admin';
+  const [activeTab, setActiveTab] = useState(isAdmin ? 'phcs' : 'sc'); // phcs, sc, villages
   const [phcs, setPhcs] = useState([]);
   const [subCenters, setSubCenters] = useState([]);
   const [villages, setVillages] = useState([]);
@@ -23,7 +24,7 @@ const AdminSetupScreen = ({ user, onBack }) => {
   const [loading, setLoading] = useState(true);
 
   const [newPhc, setNewPhc] = useState({ name: '', block: '' });
-  const [newSubCenter, setNewSubCenter] = useState({ name: '', phcId: '' });
+  const [newSubCenter, setNewSubCenter] = useState({ name: '', phcId: isAdmin ? '' : user?.phcId });
   const [newVillage, setNewVillage] = useState({ name: '', subCenterId: '', ward: '' });
 
   useEffect(() => {
@@ -219,7 +220,7 @@ const AdminSetupScreen = ({ user, onBack }) => {
       </View>
 
       <View style={styles.tabBar}>
-        {['phcs', 'sc', 'villages'].map(tab => (
+        {['phcs', 'sc', 'villages'].filter(t => isAdmin || t !== 'phcs').map(tab => (
           <TouchableOpacity 
             key={tab}
             style={[styles.tab, activeTab === tab && styles.activeTab]} 
@@ -295,25 +296,36 @@ const AdminSetupScreen = ({ user, onBack }) => {
                 value={newSubCenter.name}
                 onChangeText={(t) => setNewSubCenter({...newSubCenter, name: t})}
               />
-              <Text style={styles.label}>Select Parent PHC</Text>
-              <View style={styles.chipGrid}>
-                {phcs.map(p => (
-                  <TouchableOpacity 
-                    key={p.id}
-                    style={[styles.chip, newSubCenter.phcId === p.id && styles.activeChip]}
-                    onPress={() => setNewSubCenter({...newSubCenter, phcId: p.id})}
-                  >
-                    <Text style={[styles.chipText, newSubCenter.phcId === p.id && styles.activeChipText]}>{p.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              {isAdmin ? (
+                <>
+                  <Text style={styles.label}>Select Parent PHC</Text>
+                  <View style={styles.chipGrid}>
+                    {phcs.map(p => (
+                      <TouchableOpacity 
+                        key={p.id}
+                        style={[styles.chip, newSubCenter.phcId === p.id && styles.activeChip]}
+                        onPress={() => setNewSubCenter({...newSubCenter, phcId: p.id})}
+                      >
+                        <Text style={[styles.chipText, newSubCenter.phcId === p.id && styles.activeChipText]}>{p.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
+              ) : (
+                <View style={styles.infoBox}>
+                  <Text style={styles.infoLabel}>Parent PHC:</Text>
+                  <Text style={styles.infoValue}>{phcs.find(p => p.id === user?.phcId)?.name || 'My PHC'}</Text>
+                </View>
+              )}
               <TouchableOpacity style={styles.saveBtn} onPress={handleAddSubCenter}>
                 <Text style={styles.saveBtnText}>Save Sub-Center</Text>
               </TouchableOpacity>
             </View>
 
             <Text style={styles.sectionHeader}>Registered Sub-Centers</Text>
-            {subCenters.map(sc => (
+            {subCenters
+              .filter(sc => isAdmin || sc.phcId === user?.phcId)
+              .map(sc => (
               <View key={sc.id} style={styles.listItem}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.listText}>{sc.name}</Text>
@@ -360,7 +372,9 @@ const AdminSetupScreen = ({ user, onBack }) => {
               />
               <Text style={styles.label}>Select Parent Sub-Center</Text>
               <View style={styles.chipGrid}>
-                {subCenters.map(sc => (
+                {subCenters
+                  .filter(sc => isAdmin || sc.phcId === user?.phcId)
+                  .map(sc => (
                   <TouchableOpacity 
                     key={sc.id}
                     style={[styles.chip, newVillage.subCenterId === sc.id && styles.activeChip]}
@@ -376,7 +390,13 @@ const AdminSetupScreen = ({ user, onBack }) => {
             </View>
 
             <Text style={styles.sectionHeader}>Registered Villages</Text>
-            {villages.map(v => (
+            {villages
+              .filter(v => {
+                if (isAdmin) return true;
+                const sc = subCenters.find(s => s.id === v.subCenterId);
+                return sc && sc.phcId === user?.phcId;
+              })
+              .map(v => (
               <View key={v.id} style={styles.listItem}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.listText}>{v.name} (W{v.ward})</Text>
@@ -441,6 +461,9 @@ const styles = StyleSheet.create({
   assignedUserRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F0FDF4', padding: 8, borderRadius: 8, marginTop: 8, borderWidth: 1, borderColor: '#DCFCE7' },
   assignedUserText: { fontSize: 12, fontWeight: '600', color: COLORS.text },
   removeUserIcon: { fontSize: 16, color: COLORS.error, fontWeight: '800', paddingHorizontal: 5 },
+  infoBox: { backgroundColor: '#F1F5F9', padding: 12, borderRadius: 10, marginBottom: 15, flexDirection: 'row', alignItems: 'center' },
+  infoLabel: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginRight: 8 },
+  infoValue: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
 });
 
 export default AdminSetupScreen;

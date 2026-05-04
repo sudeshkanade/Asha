@@ -209,7 +209,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
               <>
                 <TouchableOpacity style={[styles.shortcutCard, {backgroundColor: '#F1F5F9'}]} onPress={() => onNavigate('AdminSetup')}>
                   <Text style={styles.shortcutIcon}>⚙️</Text>
-                  <Text style={styles.shortcutLabel}>{t('setupHierarchy')}</Text>
+                  <Text style={styles.shortcutLabel}>{user?.role === 'Admin' ? t('setupHierarchy') : 'Manage Area'}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.shortcutCard, {backgroundColor: '#FFF7ED'}]} onPress={() => onNavigate('RateSettings')}>
                   <Text style={styles.shortcutIcon}>💲</Text>
