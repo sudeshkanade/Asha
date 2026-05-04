@@ -16,6 +16,7 @@ import { storage, STORAGE_KEYS } from '../database/storage';
 import { db } from '../database/firebaseConfig';
 import { collection, getDocs, doc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
+import { cloudSyncManager } from '../database/cloudSync';
 
 const LoginScreen = ({ onLogin }) => {
   const { t, i18n } = useTranslation();
@@ -46,6 +47,10 @@ const LoginScreen = ({ onLogin }) => {
   const loadHierarchy = async () => {
     if (!isRegister) return;
     setLoading(true);
+    
+    // Auto-pull latest hierarchy from cloud on new devices
+    await cloudSyncManager.pullFromCloud();
+    
     const p = await storage.getAll(STORAGE_KEYS.PHCS);
     const s = await storage.getAll(STORAGE_KEYS.SUB_CENTERS);
     const v = await storage.getAll(STORAGE_KEYS.VILLAGES);
