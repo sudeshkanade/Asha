@@ -258,17 +258,23 @@ const DashboardScreen = ({ user, onNavigate }) => {
               <Text style={styles.shortcutLabel}>{t('myTeam')}</Text>
             </TouchableOpacity>
 
-            {(user?.role === 'Admin' || user?.role === 'ANM') && (
+            {(user?.role === 'Admin' || user?.role === 'ANM' || user?.role === 'MO') && (
               <>
                 <TouchableOpacity style={[styles.shortcutCard, {backgroundColor: '#F1F5F9'}]} onPress={() => onNavigate('AdminSetup')}>
                   <Text style={styles.shortcutIcon}>⚙️</Text>
                   <Text style={styles.shortcutLabel}>{user?.role === 'Admin' ? t('setupHierarchy') : 'Manage Area'}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.shortcutCard, {backgroundColor: '#FFF7ED'}]} onPress={() => onNavigate('RateSettings')}>
-                  <Text style={styles.shortcutIcon}>💲</Text>
-                  <Text style={styles.shortcutLabel}>{t('rateSettings')}</Text>
+                <TouchableOpacity style={[styles.shortcutCard, {backgroundColor: '#FEF2F2'}]} onPress={() => onNavigate('AdminSetup', { initialTab: 'approvals' })}>
+                  <Text style={styles.shortcutIcon}>🛡️</Text>
+                  <Text style={styles.shortcutLabel}>Approvals</Text>
                 </TouchableOpacity>
               </>
+            )}
+            {(user?.role === 'Admin' || user?.role === 'ANM') && (
+              <TouchableOpacity style={[styles.shortcutCard, {backgroundColor: '#FFF7ED'}]} onPress={() => onNavigate('RateSettings')}>
+                <Text style={styles.shortcutIcon}>💲</Text>
+                <Text style={styles.shortcutLabel}>{t('rateSettings')}</Text>
+              </TouchableOpacity>
             )}
           </View>
         </View>

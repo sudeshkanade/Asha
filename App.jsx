@@ -117,6 +117,8 @@ export default function App() {
     }
   };
 
+  const [adminSetupData, setAdminSetupData] = useState(null);
+
   const renderScreen = () => {
     switch (currentScreen) {
       case 'Login':
@@ -132,13 +134,15 @@ export default function App() {
                      setSelectedFamily(null);
                      setCurrentFilter(null);
                      setFamilyIdFilter(null);
+                     setAdminSetupData(null);
                      setCurrentScreen('Login');
                      return;
                    }
                    if (data?.member) setSelectedMember(data.member);
                    if (data?.filter) setCurrentFilter(data.filter);
                    if (data?.familyId) setFamilyIdFilter(data.familyId);
-                   else setFamilyIdFilter(null);
+                   if (data?.initialTab) setAdminSetupData(data.initialTab);
+                   else setAdminSetupData(null);
                    setCurrentScreen(screen);
                  }} 
                />;
@@ -180,7 +184,7 @@ export default function App() {
       case 'GoshwaraReport':
         return <GoshwaraReportScreen user={user} onBack={() => setCurrentScreen('Dashboard')} />;
       case 'AdminSetup':
-        return <AdminSetupScreen user={user} onBack={() => setCurrentScreen('Dashboard')} />;
+        return <AdminSetupScreen user={user} initialTab={adminSetupData} onBack={() => setCurrentScreen('Dashboard')} />;
       case 'HealthTracker':
         return <HealthTrackerScreen 
                   member={selectedMember} 
