@@ -75,7 +75,7 @@ const AdminSetupScreen = ({ user, onBack }) => {
       if (res.success) {
         Alert.alert('Success', `PHC ${editingItem ? 'updated' : 'added'} and synced to cloud.`);
       } else {
-        Alert.alert('Partially Saved', 'Saved locally, but could not sync to cloud. Check internet.');
+        Alert.alert('Partially Saved', `Saved locally, but cloud push failed: ${res.error || 'Check connection'}`);
       }
     } catch (e) {
       console.error(e);

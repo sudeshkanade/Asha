@@ -34,6 +34,7 @@ export const cloudSyncManager = {
       
       const remainingQueue = [];
       let syncedCount = 0;
+      let firstError = null;
       
       const getFirestoreCollectionName = (storageKey) => {
         const mapping = {
@@ -85,15 +86,17 @@ export const cloudSyncManager = {
           syncedCount++;
         } catch (err) {
           console.error("Cloud Sync: Item failed", err);
+          if (!firstError) firstError = err.message;
           remainingQueue.push(item);
         }
       }
 
       await storage.saveAll(STORAGE_KEYS.SYNC_QUEUE, remainingQueue);
       return { 
-        success: true, 
+        success: syncedCount > 0 || queue.length === 0, 
         syncedCount, 
-        remainingCount: remainingQueue.length 
+        remainingCount: remainingQueue.length,
+        error: firstError
       };
     } catch (e) {
       console.error("Cloud Sync Error:", e);
