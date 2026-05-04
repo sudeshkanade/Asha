@@ -139,6 +139,10 @@ export const storage = {
    * Specifically queue a deletion for the cloud
    */
   addToDeleteQueue: async (tableName, id) => {
+    if (!id) {
+      console.warn('Delete Queue: Missing ID for', tableName);
+      return;
+    }
     try {
       // 1. Add to Sync Queue
       const queue = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);

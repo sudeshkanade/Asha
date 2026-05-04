@@ -89,18 +89,24 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
   };
 
   const handleDeleteMember = (memberId, name) => {
+    const displayName = name.trim() === 'undefined undefined' ? 'Unnamed Member' : name;
+    
     const confirmDelete = async () => {
+      const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+      // Remove locally (fallback to matching object if id is missing, though rare)
       const updatedMembers = allMembers.filter(m => m.id !== memberId);
       await storage.saveAll(STORAGE_KEYS.MEMBERS, updatedMembers);
       
       // Queue cloud deletion
-      await storage.addToDeleteQueue(STORAGE_KEYS.MEMBERS, memberId);
+      if (memberId) {
+        await storage.addToDeleteQueue(STORAGE_KEYS.MEMBERS, memberId);
+      }
       
       loadMembers(); // Refresh with current filters
     };
 
     if (Platform.OS === 'web') {
-      if (window.confirm(`${t('delete')} ${name}?`)) {
+      if (window.confirm(`${t('delete')} ${displayName}?`)) {
         confirmDelete();
       }
     } else {
