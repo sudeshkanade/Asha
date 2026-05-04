@@ -33,15 +33,30 @@ export default function App() {
 
 
   useEffect(() => {
+    const APP_VERSION = '1.1.3';
+    
+    const initApp = async () => {
+      // 1. Version Check (Cache Buster)
+      const storedVersion = await storage.getRaw('app_version');
+      if (storedVersion && storedVersion !== APP_VERSION) {
+        await storage.saveRaw('app_version', APP_VERSION);
+        if (typeof window !== 'undefined') window.location.reload(true);
+      } else {
+        await storage.saveRaw('app_version', APP_VERSION);
+      }
+
+      // 2. Initial Sync (Pull hierarchy and updates)
+      console.log("App: Performing initial cloud pull...");
+      await cloudSyncManager.pullFromCloud();
+      await cloudSyncManager.startBackgroundSync();
+    };
+
+    initApp();
+
     // Start background sync polling every 2 minutes
     const intervalId = setInterval(() => {
       cloudSyncManager.startBackgroundSync();
     }, 2 * 60 * 1000);
-
-    // Initial check after 5 seconds
-    setTimeout(() => {
-      cloudSyncManager.startBackgroundSync();
-    }, 5000);
 
     return () => clearInterval(intervalId);
   }, []);

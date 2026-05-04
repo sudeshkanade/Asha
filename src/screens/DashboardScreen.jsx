@@ -563,7 +563,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   langBtn: { padding: 6 },
-  langBtnText: { color: COLORS.primary, fontWeight: '800', fontSize: 12 },
+  langBtnText: { color: '#FFF', fontWeight: '800', fontSize: 12 },
   syncIndicator: {
     backgroundColor: 'rgba(255,255,255,0.2)',
     paddingHorizontal: 12,

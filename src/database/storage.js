@@ -83,6 +83,26 @@ export const storage = {
   },
 
   /**
+   * Get raw string value
+   */
+  getRaw: async (key) => {
+    try {
+      return await AsyncStorage.getItem(key);
+    } catch (e) {
+      return null;
+    }
+  },
+
+  /**
+   * Save raw string value
+   */
+  saveRaw: async (key, value) => {
+    try {
+      await AsyncStorage.setItem(key, value);
+    } catch (e) {}
+  },
+
+  /**
    * Get all records for a collection
    */
   getAll: async (key) => {
