@@ -309,7 +309,7 @@ const LoginScreen = ({ onLogin }) => {
 
         <TouchableOpacity style={styles.footer} onPress={handleAdminTap} activeOpacity={1}>
           <Text style={styles.footerText}>Official Health Management System</Text>
-          <Text style={styles.footerSubText}>Validated PHC-SC-ASHA Hierarchy • v1.1.2</Text>
+          <Text style={styles.footerSubText}>Validated PHC-SC-ASHA Hierarchy • v1.1.3</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
