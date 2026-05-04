@@ -98,7 +98,23 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
     else if (onBack) onBack();
   };
 
+  const isPeriodLocked = async () => {
+    try {
+      const locked = await storage.getRaw(STORAGE_KEYS.LOCKED_PERIODS) || [];
+      const currentMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+      return locked.includes(currentMonth);
+    } catch (e) {
+      return false;
+    }
+  };
+
   const handleSave = async () => {
+    const locked = await isPeriodLocked();
+    if (locked && user?.role !== 'Admin') {
+      Alert.alert('Reporting Locked', 'This month is locked for reporting. You can no longer edit health data for this period.');
+      return;
+    }
+
     const redFlags = checkRedFlags();
     if (redFlags.length > 0) {
       if (Platform.OS === 'web') {

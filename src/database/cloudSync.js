@@ -145,19 +145,29 @@ export const cloudSyncManager = {
         if (cloudData.length > 0 || deletedInCloud.length > 0) {
           const localData = await storage.getAll(col.key);
           
-          // Merge logic: Cloud wins but only for non-deleted items
+          // Advanced Merge: Protect local pending changes and compare timestamps
           let merged = [...localData];
           
           cloudData.forEach(cd => {
             const idx = merged.findIndex(ld => ld.id === cd.id);
             if (idx >= 0) {
-              merged[idx] = { ...merged[idx], ...cd };
+              const localItem = merged[idx];
+              
+              // Only overwrite if:
+              // 1. Local item is NOT pending sync, OR
+              // 2. Cloud item has a strictly newer timestamp
+              const cloudTime = cd.lastUpdatedAt || 0;
+              const localTime = localItem.lastUpdatedAt || 0;
+              
+              if (localItem.syncStatus !== 'pending' || cloudTime > localTime) {
+                merged[idx] = { ...localItem, ...cd, syncStatus: 'synced' };
+              }
             } else {
-              merged.push(cd);
+              merged.push({ ...cd, syncStatus: 'synced' });
             }
           });
 
-          // Remove items deleted in cloud
+          // Remove items deleted in cloud (Tombstone enforcement)
           merged = merged.filter(item => !deletedInCloud.includes(item.id));
 
           await storage.saveAll(col.key, merged);

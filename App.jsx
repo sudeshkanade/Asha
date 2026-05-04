@@ -53,13 +53,28 @@ export default function App() {
 
     initApp();
 
-    // Start background sync polling every 2 minutes
-    const intervalId = setInterval(() => {
-      cloudSyncManager.startBackgroundSync();
-    }, 2 * 60 * 1000);
+    // 3. Security Heartbeat: Ensure user is still approved
+    const securityCheck = async () => {
+      if (!user || user.id === 'admin') return;
+      
+      const allUsers = await storage.getAll(STORAGE_KEYS.USERS);
+      const currentUser = allUsers.find(u => u.id === user.id);
+      
+      if (!currentUser || currentUser.approvalStatus !== 'approved') {
+        console.warn("Security: User no longer approved. Forcing logout.");
+        setUser(null);
+        setCurrentScreen('Login');
+      }
+    };
 
-    return () => clearInterval(intervalId);
-  }, []);
+    // Run heartbeat every 30 seconds
+    const heartbeatId = setInterval(securityCheck, 30 * 1000);
+
+    return () => {
+      clearInterval(intervalId);
+      clearInterval(heartbeatId);
+    };
+  }, [user]);
 
   const handleLogin = (userData) => {
     setUser(userData);
@@ -80,18 +95,22 @@ export default function App() {
     // FIX A1: Map 'relation' field to 'relationToHead' for all downstream consumers
     const { relation, ...restMemberData } = memberData;
     const finalMember = {
-      ...selectedMember,
+      ...selectedMember, // Preserve existing IDs and metadata
       ...restMemberData,
-      relation: relation,                        // keep original for form re-editing
-      relationToHead: relation,                   // canonical field used everywhere else
+      relation: relation,
+      relationToHead: relation,
       id: selectedMember?.id || Date.now().toString(),
       familyId: selectedFamily?.id || selectedMember?.familyId,
       houseNo: selectedFamily?.houseNo || selectedMember?.houseNo,
       status: selectedMember?.status || 'Active',
-      ashaId: user?.id,
-      villageId: user?.villageId || selectedFamily?.villageId,
-      subCenterId: user?.subCenterId,
-      phcId: user?.phcId
+      // Hierarchy Preservation Logic:
+      // 1. If worker is ASHA, use her IDs
+      // 2. If worker is ANM/MO and member already has IDs, keep them
+      // 3. Fallback to family IDs
+      ashaId: (user?.role === 'ASHA' ? user.id : selectedMember?.ashaId) || selectedFamily?.ashaId,
+      villageId: (user?.role === 'ASHA' ? user.villageId : selectedMember?.villageId) || selectedFamily?.villageId,
+      subCenterId: (user?.role === 'ANM' ? user.subCenterId : selectedMember?.subCenterId) || selectedFamily?.subCenterId || user?.subCenterId,
+      phcId: selectedMember?.phcId || selectedFamily?.phcId || user?.phcId
     };
     
     await storage.save(STORAGE_KEYS.MEMBERS, finalMember);
@@ -187,6 +206,7 @@ export default function App() {
         return <AdminSetupScreen user={user} initialTab={adminSetupData} onBack={() => setCurrentScreen('Dashboard')} />;
       case 'HealthTracker':
         return <HealthTrackerScreen 
+                  user={user}
                   member={selectedMember} 
                   onSave={(updatedMember) => {
                     setSelectedMember(null);

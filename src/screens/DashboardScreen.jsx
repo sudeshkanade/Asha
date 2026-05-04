@@ -59,10 +59,12 @@ const DashboardScreen = ({ user, onNavigate }) => {
     }
 
     setSyncCount(events.length);
-    const liveStats = generateMPRStats(members, events);
     
-    // Aggregated counting in one pass for performance
+    // Aggregated counting in one pass for high performance
     let mCount = 0, fCount = 0, a0_5 = 0, a6_18 = 0, a60plus = 0;
+    const allTasks = generateAllTasks(members);
+    const pendingCount = allTasks.filter(t => t.status !== 'completed').length;
+
     members.forEach(m => {
       if (m.gender === 'Male') mCount++;
       else if (m.gender === 'Female') fCount++;
@@ -73,10 +75,9 @@ const DashboardScreen = ({ user, onNavigate }) => {
       else if (age >= 60) a60plus++;
     });
 
-    const allTasks = generateAllTasks(members);
-    const pendingCount = allTasks.filter(t => t.status !== 'completed').length;
-    setPendingTasksCount(pendingCount);
+    const liveStats = generateMPRStats(members, events);
 
+    setPendingTasksCount(pendingCount);
     setStats({
       ...liveStats,
       demographics: {
