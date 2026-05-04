@@ -1,0 +1,312 @@
+import React, { useState, useEffect } from 'react';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Switch,
+  SafeAreaView,
+} from 'react-native';
+import { COLORS } from '../constants/colors';
+import { storage, STORAGE_KEYS } from '../database/storage';
+import { Alert } from 'react-native';
+import { useTranslation } from 'react-i18next';
+
+const FamilyRegistrationScreen = ({ user, onSave, onBack }) => {
+  const { t } = useTranslation();
+  const [villages, setVillages] = useState([]);
+  const [formData, setFormData] = useState({
+    villageId: user?.villageId || '',
+    villageName: user?.village || '',
+    houseNo: '',
+    religionCaste: '',
+    isBPL: false,
+    rationCardNo: '',
+    ward: user?.ward || '',
+  });
+
+  useEffect(() => {
+    loadVillages();
+  }, []);
+
+  const loadVillages = async () => {
+    const v = await storage.getAll(STORAGE_KEYS.VILLAGES);
+    // FIX A4: Scope village picker by user's hierarchy
+    let scopedVillages = v;
+    if (user?.role === 'ANM' && user?.subCenterId) {
+      scopedVillages = v.filter(vil => vil.subCenterId === user.subCenterId);
+    } else if (user?.role === 'MO' && user?.phcId) {
+      scopedVillages = v.filter(vil => vil.phcId === user.phcId);
+    }
+    setVillages(scopedVillages);
+  };
+
+  const handleSave = () => {
+    if (!formData.houseNo || !formData.villageId) {
+      Alert.alert(t('error'), t('houseAndVillageRequired'));
+      return;
+    }
+    
+    const finalData = {
+      ...formData,
+      subCenterId: user?.subCenterId,
+      phcId: user?.phcId,
+      villageName: villages.find(v => v.id === formData.villageId)?.name || formData.villageName
+    };
+
+    onSave(finalData);
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+          <Text style={styles.backBtnText}>←</Text>
+        </TouchableOpacity>
+        <View>
+          <Text style={styles.headerTitle}>{t('familyRegistration')}</Text>
+          <Text style={styles.headerSubtitle}>{user?.village || 'Selective Assignment'}</Text>
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>{t('identityLocation')}</Text>
+          
+          {user?.role !== 'ASHA' && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('selectVillage')}</Text>
+              <View style={styles.pickerContainer}>
+                {villages.map((v) => (
+                  <TouchableOpacity
+                    key={v.id}
+                    style={[styles.chip, formData.villageId === v.id && styles.chipActive]}
+                    onPress={() => setFormData({ ...formData, villageId: v.id, villageName: v.name, ward: v.ward })}
+                  >
+                    <Text style={[styles.chipText, formData.villageId === v.id && styles.chipTextActive]}>{v.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>{t('houseNumber')} <Text style={styles.required}>*</Text></Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. 101/A"
+              value={formData.houseNo}
+              onChangeText={(text) => setFormData({ ...formData, houseNo: text })}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>{t('categoryCaste')} <Text style={styles.required}>*</Text></Text>
+            <View style={styles.pickerContainer}>
+              {['General', 'SC', 'ST', 'OBC', 'Minority'].map((c) => (
+                <TouchableOpacity
+                  key={c}
+                  style={[
+                    styles.chip,
+                    formData.religionCaste === c && styles.chipActive
+                  ]}
+                  onPress={() => setFormData({ ...formData, religionCaste: c })}
+                >
+                  <Text style={[
+                    styles.chipText,
+                    formData.religionCaste === c && styles.chipTextActive
+                  ]}>{t(c.toLowerCase())}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>{t('rationCardNo')}</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="12-digit number"
+              value={formData.rationCardNo}
+              onChangeText={(text) => setFormData({ ...formData, rationCardNo: text })}
+              keyboardType="numeric"
+            />
+          </View>
+
+          <View style={styles.switchRow}>
+            <View>
+              <Text style={styles.switchLabel}>{t('bplStatus')}</Text>
+              <Text style={styles.switchSubLabel}>{t('bplStatusDesc')}</Text>
+            </View>
+            <Switch
+              trackColor={{ false: '#767577', true: COLORS.secondary }}
+              thumbColor={formData.isBPL ? COLORS.primary : '#f4f3f4'}
+              onValueChange={(val) => setFormData({ ...formData, isBPL: val })}
+              value={formData.isBPL}
+            />
+          </View>
+        </View>
+
+        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+          <Text style={styles.saveButtonText}>{t('registerFamilyAddMembers')}</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.cancelButton} onPress={onBack}>
+          <Text style={styles.cancelButtonText}>{t('cancelBack')}</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  header: {
+    padding: 24,
+    backgroundColor: COLORS.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  backBtn: {
+    padding: 10,
+    marginRight: 10,
+  },
+  backBtnText: {
+    fontSize: 24,
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: COLORS.primary,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  scrollContent: {
+    padding: 20,
+  },
+  card: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: COLORS.cardShadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 10,
+    elevation: 3,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 20,
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    marginBottom: 8,
+  },
+  input: {
+    height: 50,
+    backgroundColor: '#FAFAFA',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    color: COLORS.text,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  switchLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  switchSubLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  saveButton: {
+    height: 56,
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  saveButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  cancelButton: {
+    height: 56,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  cancelButtonText: {
+    color: COLORS.error,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  pickerContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: '#FFF',
+  },
+  chipActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  chipText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  chipTextActive: {
+    color: '#FFF',
+    fontWeight: '600',
+  },
+  required: {
+    color: COLORS.error,
+    fontWeight: '700',
+  },
+});
+
+export default FamilyRegistrationScreen;
