@@ -136,6 +136,13 @@ const DashboardScreen = ({ user, onNavigate }) => {
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <TouchableOpacity 
+            style={[styles.syncContainer, { backgroundColor: COLORS.secondary }]} 
+            onPress={() => setFabOpen(!fabOpen)}
+          >
+            <Text style={[styles.syncText, { fontSize: 16 }]}>+</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
             style={[styles.syncContainer, { backgroundColor: 'rgba(255,255,255,0.1)' }]} 
             onPress={() => onNavigate('Tasks')}
           >
@@ -644,7 +651,7 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 24,
-    bottom: 24,
+    bottom: 40,
     width: 60,
     height: 60,
     borderRadius: 30,
@@ -661,7 +668,7 @@ const styles = StyleSheet.create({
   fabMenu: {
     position: 'absolute',
     right: 24,
-    bottom: 90,
+    bottom: 110,
     alignItems: 'flex-end',
   },
   fabMenuItem: {

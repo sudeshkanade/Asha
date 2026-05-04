@@ -43,6 +43,7 @@ export const cloudSyncManager = {
           [STORAGE_KEYS.VILLAGES]: 'villages',
           [STORAGE_KEYS.MEMBERS]: 'members',
           [STORAGE_KEYS.FAMILIES]: 'families',
+          [STORAGE_KEYS.USERS]: 'users',
           [STORAGE_KEYS.VITAL_EVENTS]: 'vital_events',
           [STORAGE_KEYS.VHND_SESSIONS]: 'vhnd_sessions',
           'tasks': 'tasks',
@@ -119,7 +120,8 @@ export const cloudSyncManager = {
         { key: STORAGE_KEYS.SUB_CENTERS, table: 'sub_centers' },
         { key: STORAGE_KEYS.VILLAGES, table: 'villages' },
         { key: STORAGE_KEYS.MEMBERS, table: 'members' },
-        { key: STORAGE_KEYS.FAMILIES, table: 'families' }
+        { key: STORAGE_KEYS.FAMILIES, table: 'families' },
+        { key: STORAGE_KEYS.USERS, table: 'users' }
       ];
 
       let totalPulled = 0;

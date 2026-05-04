@@ -10,40 +10,59 @@ import {
 import { COLORS } from '../constants/colors';
 
 const TeamScreen = ({ user, onBack }) => {
-  const teamMembers = [
-    {
-      role: 'ANM (Supervisor)',
-      name: 'Smt. Kavita Sharma',
-      designation: 'Auxiliary Nurse Midwife',
-      phone: '9876543210',
-      subCenter: 'SC Kishanpur',
-      icon: '👩‍⚕️',
-    },
-    {
-      role: 'Medical Officer',
-      name: 'Dr. Rajesh Kumar',
-      designation: 'MBBS, PHC In-Charge',
-      phone: '9876543211',
-      subCenter: 'PHC Mainpuri',
-      icon: '🏥',
-    },
-    {
-      role: 'ASHA Facilitator',
-      name: 'Smt. Sunita Devi',
-      designation: 'Block ASHA Facilitator',
-      phone: '9876543212',
-      subCenter: 'Block Office',
-      icon: '📋',
-    },
-    {
-      role: 'District Coordinator',
-      name: 'Shri R.P. Singh',
-      designation: 'DPMU Coordinator',
-      phone: '9876543213',
-      subCenter: 'District HQ',
-      icon: '🏛️',
-    },
-  ];
+  const [team, setTeam] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    loadTeam();
+  }, []);
+
+  const loadTeam = async () => {
+    setLoading(true);
+    const allUsers = await storage.getAll(STORAGE_KEYS.USERS);
+    const hierarchy = [];
+
+    // 1. Find the Medical Officer (MO) for this PHC
+    const mo = allUsers.find(u => u.role === 'MO' && u.phcId === user?.phcId);
+    if (mo) {
+      hierarchy.push({
+        role: 'Medical Officer (MO)',
+        name: mo.name,
+        designation: 'PHC In-Charge',
+        phone: mo.phone || 'Contact PHC',
+        location: mo.phcName || 'Primary Health Center',
+        icon: '🏥',
+      });
+    }
+
+    // 2. Find the ANM for this Sub-Center
+    const anm = allUsers.find(u => u.role === 'ANM' && u.subCenterId === user?.subCenterId);
+    if (anm) {
+      hierarchy.push({
+        role: 'ANM (Supervisor)',
+        name: anm.name,
+        designation: 'Auxiliary Nurse Midwife',
+        phone: anm.phone || 'Contact SC',
+        location: anm.subCenterName || 'Sub-Center',
+        icon: '👩‍⚕️',
+      });
+    }
+
+    // 3. Fallback/Default Team Members if none found in DB
+    if (hierarchy.length === 0) {
+      hierarchy.push({
+        role: 'System Support',
+        name: 'Hierarchy Not Assigned',
+        designation: 'Please contact Admin to link MO/ANM',
+        phone: '',
+        location: 'District Health Office',
+        icon: '⚠️',
+      });
+    }
+
+    setTeam(hierarchy);
+    setLoading(false);
+  };
 
   const emergencyContacts = [
     { label: 'Ambulance (108)', number: '108', icon: '🚑' },
@@ -60,7 +79,7 @@ const TeamScreen = ({ user, onBack }) => {
         </TouchableOpacity>
         <View>
           <Text style={styles.headerTitle}>My Health Team</Text>
-          <Text style={styles.headerSubtitle}>Supervisors & Emergency Contacts</Text>
+          <Text style={styles.headerSubtitle}>Reporting Hierarchy Check</Text>
         </View>
       </View>
 
@@ -68,20 +87,26 @@ const TeamScreen = ({ user, onBack }) => {
         {/* Team Hierarchy */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Reporting Hierarchy</Text>
-          {teamMembers.map((member, i) => (
-            <View key={i} style={styles.memberCard}>
-              <Text style={styles.memberIcon}>{member.icon}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.memberRole}>{member.role}</Text>
-                <Text style={styles.memberName}>{member.name}</Text>
-                <Text style={styles.memberDesig}>{member.designation}</Text>
-                <Text style={styles.memberLocation}>{member.subCenter}</Text>
+          {loading ? (
+            <ActivityIndicator color={COLORS.primary} />
+          ) : (
+            team.map((member, i) => (
+              <View key={i} style={styles.memberCard}>
+                <Text style={styles.memberIcon}>{member.icon}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.memberRole}>{member.role}</Text>
+                  <Text style={styles.memberName}>{member.name}</Text>
+                  <Text style={styles.memberDesig}>{member.designation}</Text>
+                  <Text style={styles.memberLocation}>{member.location}</Text>
+                </View>
+                {member.phone && (
+                  <TouchableOpacity style={styles.callBtn}>
+                    <Text style={styles.callBtnText}>📞</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-              <TouchableOpacity style={styles.callBtn}>
-                <Text style={styles.callBtnText}>📞</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
+            ))
+          )}
         </View>
 
         {/* Emergency Numbers */}

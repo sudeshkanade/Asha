@@ -314,6 +314,18 @@ const AdminSetupScreen = ({ user, onBack }) => {
           <Text style={styles.backBtnText}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Hierarchy Management</Text>
+        <TouchableOpacity 
+          style={styles.refreshBtn} 
+          onPress={async () => {
+            setLoading(true);
+            await cloudSyncManager.pullFromCloud();
+            await loadData();
+            setLoading(false);
+            Alert.alert('Synced', 'Data updated from cloud.');
+          }}
+        >
+          <Text style={styles.refreshBtnText}>↻ Sync</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.tabBar}>
@@ -359,8 +371,9 @@ const AdminSetupScreen = ({ user, onBack }) => {
               </View>
             </View>
 
-            <Text style={styles.sectionHeader}>Registered PHCs</Text>
-            {phcs.map(p => (
+            {phcs
+              .filter((p, index, self) => index === self.findIndex((t) => t.id === p.id)) // Deduplicate
+              .map(p => (
               <View key={p.id} style={styles.listItem}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.listText}>{p.name}</Text>
@@ -368,25 +381,22 @@ const AdminSetupScreen = ({ user, onBack }) => {
                   
                   {users.filter(u => u.role === 'MO' && u.phcId === p.id).map(mo => (
                     <View key={mo.id} style={styles.assignedUserRow}>
-                      <Text style={styles.assignedUserText}>👨‍⚕️ MO: {mo.name}</Text>
+                      <Text style={styles.assignedUserText}>👤 MO: {mo.name}</Text>
                       <TouchableOpacity onPress={() => handleDeleteUser(mo.id, mo.name, 'MO')}>
-                        <Text style={styles.removeUserIcon}>✕</Text>
+                        <Text style={styles.removeUserIcon}>×</Text>
                       </TouchableOpacity>
                     </View>
                   ))}
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <TouchableOpacity onPress={() => handleEditStart('phcs', p)}>
-                    <Text style={styles.editIcon}>✏️</Text>
+                  <TouchableOpacity onPress={() => handleEditStart('phcs', p)} style={styles.iconBtn}>
+                    <Text style={styles.editIcon}>✎</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    onPress={() => {
-                      console.log('Delete PHC pressed:', p.id);
-                      handleDeletePhc(p.id, p.name);
-                    }}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    onPress={() => handleDeletePhc(p.id, p.name)}
+                    style={styles.iconBtn}
                   >
-                    <Text style={styles.deleteIcon}>🗑️</Text>
+                    <Text style={styles.deleteIcon}>✕</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -438,9 +448,9 @@ const AdminSetupScreen = ({ user, onBack }) => {
               </View>
             </View>
 
-            <Text style={styles.sectionHeader}>Registered Sub-Centers</Text>
             {subCenters
               .filter(sc => isAdmin || sc.phcId === user?.phcId)
+              .filter((s, index, self) => index === self.findIndex((t) => t.id === s.id)) // Deduplicate
               .map(sc => (
               <View key={sc.id} style={styles.listItem}>
                 <View style={{ flex: 1 }}>
@@ -449,25 +459,22 @@ const AdminSetupScreen = ({ user, onBack }) => {
                   
                   {users.filter(u => u.role === 'ANM' && u.subCenterId === sc.id).map(anm => (
                     <View key={anm.id} style={styles.assignedUserRow}>
-                      <Text style={styles.assignedUserText}>👩‍⚕️ ANM: {anm.name}</Text>
+                      <Text style={styles.assignedUserText}>👤 ANM: {anm.name}</Text>
                       <TouchableOpacity onPress={() => handleDeleteUser(anm.id, anm.name, 'ANM')}>
-                        <Text style={styles.removeUserIcon}>✕</Text>
+                        <Text style={styles.removeUserIcon}>×</Text>
                       </TouchableOpacity>
                     </View>
                   ))}
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <TouchableOpacity onPress={() => handleEditStart('sc', sc)}>
-                    <Text style={styles.editIcon}>✏️</Text>
+                  <TouchableOpacity onPress={() => handleEditStart('sc', sc)} style={styles.iconBtn}>
+                    <Text style={styles.editIcon}>✎</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    onPress={() => {
-                      console.log('Delete SC pressed:', sc.id);
-                      handleDeleteSubCenter(sc.id, sc.name);
-                    }}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    onPress={() => handleDeleteSubCenter(sc.id, sc.name)}
+                    style={styles.iconBtn}
                   >
-                    <Text style={styles.deleteIcon}>🗑️</Text>
+                    <Text style={styles.deleteIcon}>✕</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -517,13 +524,13 @@ const AdminSetupScreen = ({ user, onBack }) => {
               </View>
             </View>
 
-            <Text style={styles.sectionHeader}>Registered Villages</Text>
             {villages
               .filter(v => {
                 if (isAdmin) return true;
                 const sc = subCenters.find(s => s.id === v.subCenterId);
                 return sc && sc.phcId === user?.phcId;
               })
+              .filter((v, index, self) => index === self.findIndex((t) => t.id === v.id)) // Deduplicate
               .map(v => (
               <View key={v.id} style={styles.listItem}>
                 <View style={{ flex: 1 }}>
@@ -532,25 +539,22 @@ const AdminSetupScreen = ({ user, onBack }) => {
                   
                   {users.filter(u => u.role === 'ASHA' && u.villageId === v.id).map(asha => (
                     <View key={asha.id} style={styles.assignedUserRow}>
-                      <Text style={styles.assignedUserText}>👩‍⚕️ ASHA: {asha.name}</Text>
+                      <Text style={styles.assignedUserText}>👤 ASHA: {asha.name}</Text>
                       <TouchableOpacity onPress={() => handleDeleteUser(asha.id, asha.name, 'ASHA')}>
-                        <Text style={styles.removeUserIcon}>✕</Text>
+                        <Text style={styles.removeUserIcon}>×</Text>
                       </TouchableOpacity>
                     </View>
                   ))}
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <TouchableOpacity onPress={() => handleEditStart('villages', v)}>
-                    <Text style={styles.editIcon}>✏️</Text>
+                  <TouchableOpacity onPress={() => handleEditStart('villages', v)} style={styles.iconBtn}>
+                    <Text style={styles.editIcon}>✎</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    onPress={() => {
-                      console.log('Delete Village pressed:', v.id);
-                      handleDeleteVillage(v.id, v.name);
-                    }}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    onPress={() => handleDeleteVillage(v.id, v.name)}
+                    style={styles.iconBtn}
                   >
-                    <Text style={styles.deleteIcon}>🗑️</Text>
+                    <Text style={styles.deleteIcon}>✕</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -573,7 +577,7 @@ const styles = StyleSheet.create({
   activeTab: { borderBottomWidth: 3, borderBottomColor: COLORS.primary },
   tabText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 12 },
   activeTabText: { color: COLORS.primary },
-  content: { padding: 20 },
+  content: { padding: 20, maxWidth: 600, width: '100%', alignSelf: 'center' },
   formCard: { backgroundColor: COLORS.surface, padding: 20, borderRadius: 16, marginBottom: 24, elevation: 3 },
   cardTitle: { fontSize: 16, fontWeight: '700', marginBottom: 15, color: COLORS.text },
   input: { height: 48, backgroundColor: '#F8FAFC', borderRadius: 10, paddingHorizontal: 15, marginBottom: 15, borderWidth: 1, borderColor: COLORS.border, color: COLORS.text },
@@ -589,12 +593,15 @@ const styles = StyleSheet.create({
   listItem: { backgroundColor: COLORS.surface, padding: 16, borderRadius: 16, marginBottom: 12, borderLeftWidth: 5, borderLeftColor: COLORS.secondary, elevation: 1, flexDirection: 'row', alignItems: 'center' },
   listText: { fontSize: 16, fontWeight: '700', color: COLORS.text },
   listSubText: { fontSize: 12, color: COLORS.textSecondary, marginTop: 4 },
-  deleteIcon: { fontSize: 18, color: COLORS.error, padding: 10 },
-  editIcon: { fontSize: 18, color: COLORS.primary, padding: 10 },
+  deleteIcon: { fontSize: 20, color: COLORS.error, fontWeight: '600' },
+  editIcon: { fontSize: 20, color: COLORS.primary, fontWeight: '600' },
+  iconBtn: { padding: 10, marginLeft: 5 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   assignedUserRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F0FDF4', padding: 8, borderRadius: 8, marginTop: 8, borderWidth: 1, borderColor: '#DCFCE7' },
   assignedUserText: { fontSize: 12, fontWeight: '600', color: COLORS.text },
-  removeUserIcon: { fontSize: 16, color: COLORS.error, fontWeight: '800', paddingHorizontal: 5 },
+  removeUserIcon: { fontSize: 18, color: COLORS.error, fontWeight: '800', paddingHorizontal: 5 },
+  refreshBtn: { paddingVertical: 6, paddingHorizontal: 12, backgroundColor: '#F1F5F9', borderRadius: 20, borderWidth: 1, borderColor: COLORS.border },
+  refreshBtnText: { fontSize: 12, fontWeight: '700', color: COLORS.primary },
   infoBox: { backgroundColor: '#F1F5F9', padding: 12, borderRadius: 10, marginBottom: 15, flexDirection: 'row', alignItems: 'center' },
   infoLabel: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginRight: 8 },
   infoValue: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
