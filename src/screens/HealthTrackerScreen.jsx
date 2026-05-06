@@ -40,6 +40,12 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
     usesTobacco: member?.healthData?.usesTobacco || false,
     usesAlcohol: member?.healthData?.usesAlcohol || false,
     lmp: member?.healthData?.lmp || '',
+    tbScreening: {
+      hasCoughTwoWeeks: member?.healthData?.tbScreening?.hasCoughTwoWeeks || false,
+      hasFever: member?.healthData?.tbScreening?.hasFever || false,
+      hasWeightLoss: member?.healthData?.tbScreening?.hasWeightLoss || false,
+      hasNightSweats: member?.healthData?.tbScreening?.hasNightSweats || false,
+    }
   });
 
   const hbncSchedule = member?.dob ? calculateChildSchedule(member.dob).hbnc : [];
@@ -73,6 +79,9 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
     }
     if (parseFloat(tracker.hbLevel) > 0 && parseFloat(tracker.hbLevel) < 7) {
       alerts.push('🚨 ' + t('severeAnemiaHb') + ' (Hb: ' + tracker.hbLevel + '). Immediate iron supplementation and referral required.');
+    }
+    if (tracker.tbScreening.hasCoughTwoWeeks || (tracker.tbScreening.hasFever && tracker.tbScreening.hasWeightLoss)) {
+      alerts.push('🧪 ' + t('tbSuspectAlert', 'TB Suspect Detected! Sputum collection task has been generated.'));
     }
     return alerts;
   };
@@ -324,6 +333,21 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
             <View style={styles.switchRow}>
               <Text style={styles.switchLabel}>{t('consumesAlcohol')}</Text>
               <Switch value={tracker.usesAlcohol} onValueChange={(v) => setTracker({...tracker, usesAlcohol: v})} trackColor={{ true: COLORS.primary, false: '#D1DBCE' }} />
+            </View>
+
+            <View style={styles.divider} />
+            <Text style={styles.sectionTitle}>{t('tbScreening', 'TB Screening')}</Text>
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>{t('coughTwoWeeks', 'Cough > 2 Weeks')}</Text>
+              <Switch value={tracker.tbScreening.hasCoughTwoWeeks} onValueChange={(v) => setTracker({...tracker, tbScreening: {...tracker.tbScreening, hasCoughTwoWeeks: v}})} trackColor={{ true: COLORS.primary, false: '#D1DBCE' }} />
+            </View>
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>{t('fever', 'Fever')}</Text>
+              <Switch value={tracker.tbScreening.hasFever} onValueChange={(v) => setTracker({...tracker, tbScreening: {...tracker.tbScreening, hasFever: v}})} trackColor={{ true: COLORS.primary, false: '#D1DBCE' }} />
+            </View>
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>{t('weightLoss', 'Weight Loss')}</Text>
+              <Switch value={tracker.tbScreening.hasWeightLoss} onValueChange={(v) => setTracker({...tracker, tbScreening: {...tracker.tbScreening, hasWeightLoss: v}})} trackColor={{ true: COLORS.primary, false: '#D1DBCE' }} />
             </View>
           </View>
         )}

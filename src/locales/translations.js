@@ -420,7 +420,13 @@ export const resources = {
       "sixteenYears": "16 Years",
       "ncdScreeningDue": "NCD Screening Due",
       "sputumTestRequired": "Sputum Test Required",
-      "bloodSlideRequired": "Blood Slide Required"
+      "bloodSlideRequired": "Blood Slide Required",
+      "tbScreening": "TB Screening",
+      "coughTwoWeeks": "Cough > 2 Weeks",
+      "fever": "Fever",
+      "weightLoss": "Weight Loss",
+      "tbSuspectAlert": "TB Suspect Detected! Sputum collection task generated.",
+      "tbSampleCollection": "TB Sample Collection"
     }
   },
   mr: {
@@ -809,7 +815,7 @@ export const resources = {
       "atBirth": "जन्माच्या वेळी",
       "sixWeeks": "६ आठवडे",
       "tenWeeks": "१० आठवडे",
-      "fourteenWeeks: '१४ आठवडे",
+      "fourteenWeeks": "१४ आठवडे",
       "nineMonths": "९ महिने",
       "sixteenTwentyFourMonths": "१६-२४ महिने",
       "fiveSixYears": "५-६ वर्षे",
@@ -817,7 +823,13 @@ export const resources = {
       "sixteenYears": "१६ वर्षे",
       "ncdScreeningDue": "NCD स्क्रीनिंग बाकी",
       "sputumTestRequired": "थुंकी चाचणी आवश्यक",
-      "bloodSlideRequired": "रक्त चाचणी (Slide) आवश्यक"
+      "bloodSlideRequired": "रक्त चाचणी (Slide) आवश्यक",
+      "tbScreening": "क्षयरोग (TB) तपासणी",
+      "coughTwoWeeks": "२ आठवड्यांपेक्षा जास्त खोकला",
+      "fever": "ताप",
+      "weightLoss": "वजन कमी होणे",
+      "tbSuspectAlert": "क्षयरोग संशयित आढळला! बेडका तपासणीचे काम तयार झाले आहे.",
+      "tbSampleCollection": "बेडका (Sputum) नमुना संकलन"
     }
   }
 };

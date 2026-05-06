@@ -288,6 +288,21 @@ export const generateAllTasks = (members) => {
         });
       }
     }
+
+    // 5. TB Follow-up (If screening was positive)
+    if (health.tbScreening?.hasCoughTwoWeeks || (health.tbScreening?.hasFever && health.tbScreening?.hasWeightLoss)) {
+      generatedTasks.push({
+        id: `tb-${member.id}`,
+        memberId: member.id,
+        memberName: `${member.firstName} ${member.lastName}`,
+        serviceType: 'TB Sample Collection',
+        houseNo: member.houseNo || 'N/A',
+        status: (health.completedTasks || []).includes(`tb-${member.id}`) ? 'completed' : 'pending',
+        details: 'Positive TB screening. Collect sputum sample and refer to PHC.',
+        priority: 'High',
+        dueDate: today
+      });
+    }
   });
 
   return generatedTasks;
