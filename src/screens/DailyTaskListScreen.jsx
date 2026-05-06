@@ -115,8 +115,8 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
     const reasoningToSave = isQuick ? 'Routine task completed' : completionData.reasoning;
 
     if (!isQuick && !reasoningToSave.trim()) {
-      if (Platform.OS === 'web') window.alert('Please provide a visit summary.');
-      else Alert.alert(t('error'), 'Please provide a visit summary.');
+      if (Platform.OS === 'web') window.alert(t('provideVisitSummary'));
+      else Alert.alert(t('error'), t('provideVisitSummary'));
       return;
     }
 
@@ -161,13 +161,13 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
       setSelectedTask(null);
       
       if (!isQuick) {
-        if (Platform.OS === 'web') window.alert('Task marked as completed.');
-        else Alert.alert(t('success'), 'Task marked as completed.');
+        if (Platform.OS === 'web') window.alert(t('taskMarkedDone'));
+        else Alert.alert(t('success'), t('taskMarkedDone'));
       }
     } catch (e) {
       console.error(e);
-      if (Platform.OS === 'web') window.alert('Failed to save task completion.');
-      else Alert.alert(t('error'), 'Failed to save task completion.');
+      if (Platform.OS === 'web') window.alert(t('taskSaveFailed'));
+      else Alert.alert(t('error'), t('taskSaveFailed'));
     }
   };
 
@@ -221,7 +221,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
           if (item.status !== 'completed') submitCompletion(item, true);
         }}
       >
-        <Text style={styles.actionButtonText}>{item.status === 'completed' ? 'Reset' : 'Done'}</Text>
+        <Text style={styles.actionButtonText}>{item.status === 'completed' ? t('reset') : t('done')}</Text>
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -262,7 +262,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
         renderItem={renderTask}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContent}
-        ListEmptyComponent={<Text style={styles.emptyText}>No tasks for today!</Text>}
+        ListEmptyComponent={<Text style={styles.emptyText}>{t('noTasksToday')}</Text>}
       />
 
       {/* Task Details Modal */}
@@ -275,7 +275,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Task Details</Text>
+              <Text style={styles.modalTitle}>{t('taskDetails')}</Text>
               <TouchableOpacity onPress={() => setSelectedTask(null)}>
                 <Text style={styles.closeButton}>✕</Text>
               </TouchableOpacity>
@@ -284,16 +284,16 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
             {selectedTask && (
               <ScrollView style={styles.modalBody}>
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Member Name</Text>
+                  <Text style={styles.detailLabel}>{t('memberDetails')}</Text>
                   <Text style={styles.detailValue}>{selectedTask.memberName}</Text>
                 </View>
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Service Required</Text>
+                  <Text style={styles.detailLabel}>{t('serviceRequired')}</Text>
                   <Text style={styles.detailValue}>{selectedTask.serviceType}</Text>
                 </View>
                 
                 <View style={styles.descriptionBox}>
-                  <Text style={styles.detailLabel}>Task Instructions</Text>
+                  <Text style={styles.detailLabel}>{t('taskInstructions')}</Text>
                   <Text style={styles.descriptionText}>{selectedTask.details}</Text>
                 </View>
 
@@ -316,7 +316,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
                     onPress={() => handleStatusChange(selectedTask)}
                   >
                     <Text style={[styles.statusToggleText, { color: selectedTask.status === 'completed' ? COLORS.text : '#FFF' }]}>
-                      {selectedTask.status === 'completed' ? 'Mark as Pending' : 'Mark as Completed'}
+                      {selectedTask.status === 'completed' ? t('markAsPending') : t('markAsCompleted')}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -336,20 +336,20 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { maxHeight: '90%' }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Complete Visit</Text>
+              <Text style={styles.modalTitle}>{t('completeVisit')}</Text>
               <TouchableOpacity onPress={() => setCompletionModalVisible(false)}>
                 <Text style={styles.closeButton}>✕</Text>
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.modalBody}>
-              <Text style={styles.completionHeading}>Confirm details for {selectedTask?.memberName}</Text>
+              <Text style={styles.completionHeading}>{t('confirmDetailsFor')} {selectedTask?.memberName}</Text>
               
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Visit Summary / Reasoning *</Text>
+                <Text style={styles.label}>{t('visitSummaryReasoning')}</Text>
                 <TextInput
                   style={styles.textArea}
-                  placeholder="What was the outcome of the visit? (e.g. Meds given, BP normal, Patient referred)"
+                  placeholder={t('visitSummary')}
                   multiline
                   numberOfLines={4}
                   value={completionData.reasoning}
@@ -379,7 +379,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
                     onPress={mockCaptureImage}
                   >
                     <Text style={styles.cameraIcon}>📷</Text>
-                    <Text style={styles.cameraBtnText}>Open Camera</Text>
+                    <Text style={styles.cameraBtnText}>{t('openCamera')}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -388,7 +388,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
                 style={styles.submitBtn}
                 onPress={submitCompletion}
               >
-                <Text style={styles.submitBtnText}>Submit & Mark Done</Text>
+                <Text style={styles.submitBtnText}>{t('submitMarkDone')}</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>

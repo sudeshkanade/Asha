@@ -12,6 +12,9 @@ export const STORAGE_KEYS = {
   MEMBERS: '@rural_health_members',
   FAMILIES: '@rural_health_families',
   SYNC_QUEUE: 'asha_sync_queue',
+  TASKS: 'asha_tasks',
+  CLAIMS: 'asha_claims',
+  TASK_COMPLETIONS: 'asha_task_completions',
   APP_CONFIG: 'asha_app_config',
   LOCKED_PERIODS: 'asha_locked_periods',
   VILLAGES: '@rural_health_villages',
@@ -24,6 +27,13 @@ export const STORAGE_KEYS = {
 };
 
 export const storage = {
+  /**
+   * Generate a globally unique ID (timestamp + user prefix + random)
+   */
+  generateId: (prefix = 'id', userId = 'unknown') => {
+    return `${prefix}_${Date.now()}_${userId.slice(-4)}_${Math.random().toString(36).substr(2, 5)}`;
+  },
+
   /**
    * Check if a specific month/year is locked for editing
    */
@@ -42,7 +52,7 @@ export const storage = {
       
       const newData = { 
         ...data, 
-        id: data.id || Date.now().toString(), 
+        id: data.id || storage.generateId(key.replace('@rural_health_', '').slice(0, 3), data.ashaId || 'sys'), 
         syncStatus: 'pending',
         lastUpdatedAt: timestamp 
       };

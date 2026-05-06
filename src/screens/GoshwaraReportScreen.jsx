@@ -174,15 +174,18 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
     try {
       let success = false;
       switch (type) {
+        case 'VITAL_BIRTHS': 
         case 'BIRTHS': success = await exportVitalEvents(user, 'Birth'); break;
+        case 'VITAL_DEATHS':
         case 'DEATHS': success = await exportVitalEvents(user, 'Death'); break;
+        case 'VHND_SESSIONS':
         case 'VHND': success = await exportVHNDSessions(user); break;
+        case 'FP_REGISTER':
         case 'FP': success = await exportFPRegister(user); break;
         case 'HRP': success = await exportMasterPopulation(user, 'HIGH_RISK_ANC'); break;
         case 'ANEMIA': success = await exportMasterPopulation(user, 'SEVERE_ANEMIA'); break;
         case 'SAM': success = await exportMasterPopulation(user, 'SAM_CHILDREN'); break;
-        case 'MASTER': success = await exportMasterPopulation(user, null); break;
-        default: success = false;
+        default: success = await exportMasterPopulation(user, type);
       }
       if (success) Alert.alert('Success', 'Excel downloaded.');
       else Alert.alert('Error', 'Export failed.');
@@ -262,8 +265,8 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
           <Text style={styles.backBtnText}>←</Text>
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Goshwara Abstract</Text>
-          <Text style={styles.headerSubtitle}>Sub-Centre Monthly Summary • {monthName} {currentYear}</Text>
+          <Text style={styles.headerTitle}>{t('goshwaraAbstract', 'Goshwara Abstract')}</Text>
+          <Text style={styles.headerSubtitle}>{t('scMonthlySummary', 'Sub-Centre Monthly Summary')} • {monthName} {currentYear}</Text>
         </View>
         <TouchableOpacity 
           style={styles.masterExportBtn} 
@@ -288,78 +291,87 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
           {exporting === 'GOSHWARA' ? (
             <ActivityIndicator size="small" color="#FFF" />
           ) : (
-            <Text style={styles.fullExportText}>📥 Download Full Goshwara Abstract (Multi-Sheet Excel)</Text>
+            <Text style={styles.fullExportText}>📥 {t('downloadFullGoshwara', 'Download Full Goshwara Abstract (Multi-Sheet Excel)')}</Text>
           )}
         </TouchableOpacity>
 
         <RenderTable 
-          title="Population Abstract (Demographics)"
+          title={t('popAbstract', 'Population Abstract (Demographics)')}
           rows={[
-            { label: '0-12 Months', ...data.stats.demographics.age_0_12m },
-            { label: '13-24 Months', ...data.stats.demographics.age_13_24m },
-            { label: '5-6 Years', ...data.stats.demographics.age_5_6y },
-            { label: '10-11 Years', ...data.stats.demographics.age_10_11y },
-            { label: '16-17 Years', ...data.stats.demographics.age_16_17y },
-            { label: '17-19 Years', ...data.stats.demographics.age_17_19y },
-            { label: '40-60 Years', ...data.stats.demographics.age_40_60y },
-            { label: '60+ Years', ...data.stats.demographics.age_60plus },
+            { label: t('0_12m', '0-12 Months'), ...data.stats.demographics.age_0_12m },
+            { label: t('13_24m', '13-24 Months'), ...data.stats.demographics.age_13_24m },
+            { label: t('5_6y', '5-6 Years'), ...data.stats.demographics.age_5_6y },
+            { label: t('10_11y', '10-11 Years'), ...data.stats.demographics.age_10_11y },
+            { label: t('16_17y', '16-17 Years'), ...data.stats.demographics.age_16_17y },
+            { label: t('17_19y', '17-19 Years'), ...data.stats.demographics.age_17_19y },
+            { label: t('40_60y', '40-60 Years'), ...data.stats.demographics.age_40_60y },
+            { label: t('60plus', '60+ Years'), ...data.stats.demographics.age_60plus },
           ]}
         />
 
         <RenderSection 
-          title="1. Maternal Health Abstract"
-          downloadType="HRP" downloadLabel="HRP List"
+          title={t('maternalHealthAbstract', '1. Maternal Health Abstract')}
+          downloadType="HRP" downloadLabel={t('hrpList', 'HRP List')}
           items={[
-            { label: 'New ANC', value: data.stats.maternal.mh01_newANC },
-            { label: 'Early Reg', value: data.stats.maternal.mh02_earlyANC },
-            { label: 'High Risk', value: data.stats.maternal.mh05_hrpIdentified, drillKey: 'mh05_hrpIdentified' },
-            { label: 'Severe Anemia', value: data.stats.maternal.mh06_severeAnemia, drillKey: 'mh06_severeAnemia' },
+            { label: t('newAnc'), value: data.stats.maternal.mh01_newANC },
+            { label: t('earlyReg'), value: data.stats.maternal.mh02_earlyANC },
+            { label: t('highRisk'), value: data.stats.maternal.mh05_hrpIdentified, drillKey: 'mh05_hrpIdentified' },
+            { label: t('severeAnemia'), value: data.stats.maternal.mh06_severeAnemia, drillKey: 'mh06_severeAnemia' },
           ]}
         />
 
         <RenderSection 
-          title="2. Delivery Abstract"
-          downloadType="BIRTHS" downloadLabel="Birth Register"
+          title={t('deliveryAbstract', '2. Delivery Abstract')}
+          downloadType="BIRTHS" downloadLabel={t('birthRegister')}
           items={[
-            { label: 'Inst. Public', value: data.stats.delivery.dl01_instPublic },
-            { label: 'Inst. Private', value: data.stats.delivery.dl02_instPrivate },
-            { label: 'Live Births', value: data.stats.delivery.dl05_liveBirthM + data.stats.delivery.dl06_liveBirthF },
-            { label: 'Still Births', value: data.stats.delivery.dl07_stillBirths },
+            { label: t('instPublic'), value: data.stats.delivery.dl01_instPublic },
+            { label: t('instPrivate'), value: data.stats.delivery.dl02_instPrivate },
+            { label: t('liveBirths'), value: data.stats.delivery.dl05_liveBirthM + data.stats.delivery.dl06_liveBirthF },
+            { label: t('stillBirths'), value: data.stats.delivery.dl07_stillBirths },
           ]}
         />
 
         <RenderSection 
-          title="3. Child Health & Vital"
-          downloadType="SAM" downloadLabel="SAM List"
+          title={t('childHealthVitalAbstract', '3. Child Health & Vital')}
+          downloadType="SAM" downloadLabel={t('samList', 'SAM List')}
           items={[
-            { label: 'LBW Babies', value: data.stats.child.ch02_lbw },
-            { label: 'Fully Imm.', value: data.stats.child.ch07_fullyImm_M + data.stats.child.ch08_fullyImm_F },
-            { label: 'SAM Referral', value: data.stats.child.ch11_samReferral, drillKey: 'ch11_samReferral' },
-            { label: 'Mat. Deaths', value: data.stats.vital.vs04_maternalDeath, drillKey: 'vs04_maternalDeath' },
+            { label: t('lbwBabies'), value: data.stats.child.ch02_lbw },
+            { label: t('fullyImm'), value: data.stats.child.ch07_fullyImm_M + data.stats.child.ch08_fullyImm_F },
+            { label: t('samReferral'), value: data.stats.child.ch11_samReferral, drillKey: 'ch11_samReferral' },
+            { label: t('matDeaths'), value: data.stats.vital.vs04_maternalDeath, drillKey: 'vs04_maternalDeath' },
           ]}
         />
 
         <RenderSection 
-          title="4. Family Planning"
-          downloadType="FP" downloadLabel="FP Register"
+          title={t('familyPlanningAbstract', '4. Family Planning')}
+          downloadType="FP" downloadLabel={t('fpRegister')}
           items={[
-            { label: 'Tubectomy', value: data.stats.fp.fp01_tubectomy },
-            { label: 'Vasectomy', value: data.stats.fp.fp02_vasectomy },
-            { label: 'IUCD', value: data.stats.fp.fp03_iucd },
-            { label: 'OCP', value: data.stats.fp.fp05_ocp },
-            { label: 'Condoms', value: data.stats.fp.fp06_condoms },
+            { label: t('tubectomy'), value: data.stats.fp.fp01_tubectomy },
+            { label: t('vasectomy'), value: data.stats.fp.fp02_vasectomy },
+            { label: t('iucd'), value: data.stats.fp.fp03_iucd },
+            { label: t('ocp'), value: data.stats.fp.fp05_ocp },
+            { label: t('condoms'), value: data.stats.fp.fp06_condoms },
           ]}
         />
 
         <View style={styles.downloadGrid}>
           <DownloadBtn type="MASTER" label="Master Population" />
-          <DownloadBtn type="DEATHS" label="Death Register" />
-          <DownloadBtn type="VHND" label="VHND Sessions" />
-          <DownloadBtn type="ANEMIA" label="Anemia Cases" />
+          <DownloadBtn type="HRP" label="High Risk ANC" />
+          <DownloadBtn type="NEW_ANC" label="All ANC Register" />
+          <DownloadBtn type="ANEMIA" label="Severe Anemia" />
+          <DownloadBtn type="SAM" label="SAM Children" />
+          <DownloadBtn type="NCD_SCREENING" label="NCD Screenings" />
+          <DownloadBtn type="PNC_CASES" label="PNC Register" />
+          <DownloadBtn type="VITAL_BIRTHS" label="Birth Register" />
+          <DownloadBtn type="VITAL_DEATHS" label="Death Register" />
+          <DownloadBtn type="VHND_SESSIONS" label="VHND Sessions" />
+          <DownloadBtn type="FP_REGISTER" label="FP Register" />
+          <DownloadBtn type="PWD" label="PwD List" />
+          <DownloadBtn type="BPL_FAMILIES" label="BPL Families" />
         </View>
 
         <TouchableOpacity style={styles.finalizeButton} onPress={handleFinalize}>
-          <Text style={styles.finalizeButtonText}>Finalize & Submit Report</Text>
+          <Text style={styles.finalizeButtonText}>{t('finalizeAndSubmit', 'Finalize & Submit Report')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.backButton} onPress={onBack}>

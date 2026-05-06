@@ -44,6 +44,27 @@ const DashboardScreen = ({ user, onNavigate }) => {
     cloudSyncManager.startBackgroundSync();
   }, []);
 
+  const handleAddClosedBuilding = async () => {
+    const houseNo = window.prompt(t('enterHouseNo') || 'Enter House Number:');
+    if (!houseNo) return;
+
+    const closedFamily = {
+      id: 'closed-' + Date.now(),
+      houseNo: houseNo,
+      headName: 'Closed / Locked Building',
+      isClosed: true,
+      ashaId: user.id,
+      villageId: user.villageId,
+      subCenterId: user.subCenterId,
+      phcId: user.phcId,
+      createdAt: new Date().toISOString(),
+      lastUpdatedAt: Date.now()
+    };
+
+    await storage.save(STORAGE_KEYS.FAMILIES, closedFamily);
+    Alert.alert(t('success'), t('closedBuildingAdded') || 'Building marked as closed.');
+  };
+
   const loadLiveStats = async () => {
     try {
       const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
@@ -137,9 +158,9 @@ const DashboardScreen = ({ user, onNavigate }) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>{user?.role === 'ASHA' ? 'आशा' : user?.role} {t('login')}</Text>
+          <Text style={styles.headerTitle}>{user?.role === 'ASHA' ? t('asha') : user?.role} {t('login')}</Text>
           <Text style={styles.headerSubtitle}>
-            {user?.role === 'ASHA' ? `${user.village} (Ward ${user.ward || 'N/A'})` : user?.name}
+            {user?.role === 'ASHA' ? `${user.village} (${t('ward')} ${user.ward || t('na')})` : user?.name}
           </Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -191,7 +212,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
         <View style={styles.welcomeCard}>
           <View style={{ flex: 1 }}>
             <Text style={styles.welcomeText}>{t('welcome')}, {user?.name}</Text>
-            <Text style={styles.roleLabel}>{user?.role} • {user?.phcName || user?.phcId || 'Primary Health Centre'}</Text>
+            <Text style={styles.roleLabel}>{user?.role} • {user?.phcName || user?.phcId || t('phc')}</Text>
           </View>
           <TouchableOpacity 
             style={styles.masterDownloadBtn}
@@ -270,11 +291,11 @@ const DashboardScreen = ({ user, onNavigate }) => {
               <>
                 <TouchableOpacity style={[styles.shortcutCard, {backgroundColor: '#F1F5F9'}]} onPress={() => onNavigate('AdminSetup')}>
                   <Text style={styles.shortcutIcon}>⚙️</Text>
-                  <Text style={styles.shortcutLabel}>{user?.role === 'Admin' ? t('setupHierarchy') : 'Manage Area'}</Text>
+                  <Text style={styles.shortcutLabel}>{user?.role === 'Admin' ? t('setupHierarchy') : t('manageArea', 'Manage Area')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.shortcutCard, {backgroundColor: '#FEF2F2'}]} onPress={() => onNavigate('AdminSetup', { initialTab: 'approvals' })}>
                   <Text style={styles.shortcutIcon}>🛡️</Text>
-                  <Text style={styles.shortcutLabel}>Approvals</Text>
+                  <Text style={styles.shortcutLabel}>{t('approvals')}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -291,14 +312,17 @@ const DashboardScreen = ({ user, onNavigate }) => {
       {/* Quick Action FAB */}
       {fabOpen && (
         <View style={styles.fabMenu}>
-          <TouchableOpacity style={styles.fabMenuItem} onPress={() => { setFabOpen(false); onNavigate('FamilyFolder'); }}>
-            <Text style={styles.fabMenuText}>📝 New Family</Text>
+          <TouchableOpacity style={styles.fabMenuItem} onPress={() => { setFabOpen(false); onNavigate('FamilyRegistration'); }}>
+            <Text style={styles.fabMenuText}>📝 {t('newFamily')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.fabMenuItem} onPress={() => { setFabOpen(false); handleAddClosedBuilding(); }}>
+            <Text style={styles.fabMenuText}>🏠 {t('addClosedBuilding')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.fabMenuItem} onPress={() => { setFabOpen(false); onNavigate('VitalEvents'); }}>
-            <Text style={styles.fabMenuText}>👶 Record Birth/Death</Text>
+            <Text style={styles.fabMenuText}>👶 {t('recordBirthDeath', 'Record Birth/Death')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.fabMenuItem} onPress={() => { setFabOpen(false); onNavigate('VHND'); }}>
-            <Text style={styles.fabMenuText}>💊 Log VHND</Text>
+            <Text style={styles.fabMenuText}>💊 {t('logVHND', 'Log VHND')}</Text>
           </TouchableOpacity>
         </View>
       )}

@@ -67,7 +67,7 @@ const FamilyRegistrationScreen = ({ user, onSave, onBack }) => {
         </TouchableOpacity>
         <View>
           <Text style={styles.headerTitle}>{t('familyRegistration')}</Text>
-          <Text style={styles.headerSubtitle}>{user?.village || 'Selective Assignment'}</Text>
+          <Text style={styles.headerSubtitle}>{user?.village || t('selectiveAssignment')}</Text>
         </View>
       </View>
 
@@ -94,12 +94,28 @@ const FamilyRegistrationScreen = ({ user, onSave, onBack }) => {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>{t('houseNumber')} <Text style={styles.required}>*</Text></Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. 101/A"
-              value={formData.houseNo}
-              onChangeText={(text) => setFormData({ ...formData, houseNo: text })}
-            />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TextInput
+                style={[styles.input, { flex: 1 }]}
+                placeholder={t('houseNoExample')}
+                value={formData.houseNo}
+                onChangeText={(text) => setFormData({ ...formData, houseNo: text })}
+              />
+              <TouchableOpacity 
+                style={styles.suggestBtn} 
+                onPress={async () => {
+                  const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
+                  const villageFamilies = allFamilies.filter(f => f.villageId === formData.villageId);
+                  const houseNos = villageFamilies
+                    .map(f => parseInt(f.houseNo))
+                    .filter(n => !isNaN(n));
+                  const nextNo = houseNos.length > 0 ? Math.max(...houseNos) + 1 : 1;
+                  setFormData({ ...formData, houseNo: nextNo.toString() });
+                }}
+              >
+                <Text style={styles.suggestBtnText}>{t('suggest')}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.inputGroup}>
@@ -127,7 +143,7 @@ const FamilyRegistrationScreen = ({ user, onSave, onBack }) => {
             <Text style={styles.label}>{t('rationCardNo')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="12-digit number"
+              placeholder={t('twelveDigitNumber')}
               value={formData.rationCardNo}
               onChangeText={(text) => setFormData({ ...formData, rationCardNo: text })}
               keyboardType="numeric"
@@ -306,6 +322,20 @@ const styles = StyleSheet.create({
   required: {
     color: COLORS.error,
     fontWeight: '700',
+  },
+  suggestBtn: {
+    backgroundColor: '#F0F4FF',
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  suggestBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
 });
 

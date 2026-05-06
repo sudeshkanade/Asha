@@ -55,54 +55,54 @@ const ClaimsScreen = ({ user, onBack }) => {
           <Text style={styles.backBtnText}>←</Text>
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Claims & Incentives</Text>
-          <Text style={styles.headerSubtitle}>Monthly Earnings Breakdown</Text>
+          <Text style={styles.headerTitle}>{t('claimsIncentives')}</Text>
+          <Text style={styles.headerSubtitle}>{t('earningsBreakdown')}</Text>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Earnings Summary */}
         <View style={styles.earningsCard}>
-          <Text style={styles.earningsLabel}>Total Earnings This Month</Text>
+          <Text style={styles.earningsLabel}>{t('totalEarningsMonth')}</Text>
           <Text style={styles.earningsAmount}>₹{claims?.totalEarnings || 0}</Text>
-          <Text style={styles.earningsCount}>{claims?.claimsCount || 0} Activities Claimed</Text>
+          <Text style={styles.earningsCount}>{claims?.claimsCount || 0} {t('activitiesClaimed')}</Text>
         </View>
 
         {/* Claims Breakdown */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Activity Breakdown</Text>
+          <Text style={styles.sectionTitle}>{t('activityBreakdown')}</Text>
           {claims?.claimsList?.length > 0 ? (
             claims.claimsList.map((claim, i) => (
               <View key={i} style={styles.claimRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.claimType}>{claim.type}</Text>
+                  <Text style={styles.claimType}>{t(claim.type.toLowerCase().replace(/[^a-z]/g, '')) || claim.type}</Text>
                   <Text style={styles.claimMember}>{claim.member}</Text>
                 </View>
                 <Text style={styles.claimAmount}>₹{claim.amount}</Text>
               </View>
             ))
           ) : (
-            <Text style={styles.emptyText}>No claims recorded this month. Register ANC, complete immunizations, or log VHND sessions to earn incentives.</Text>
+            <Text style={styles.emptyText}>{t('noClaimsMonth')}</Text>
           )}
         </View>
 
         {/* Rate Card */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Current Incentive Rates</Text>
+          <Text style={styles.sectionTitle}>{t('currentRates')}</Text>
           {[
-            { label: 'ANC Registration', rate: '₹25' },
-            { label: 'Institutional Delivery', rate: '₹300' },
-            { label: 'Full Immunization', rate: '₹100' },
-            { label: 'HBNC Home Visit', rate: '₹50' },
-            { label: 'VHND Session', rate: '₹200' },
-            { label: 'NCD Screening', rate: '₹10' },
+            { label: t('ancRegistration'), rate: '₹25' },
+            { label: t('instDelivery'), rate: '₹300' },
+            { label: t('fullImmunization'), rate: '₹100' },
+            { label: t('hbncHomeVisit'), rate: '₹50' },
+            { label: t('vhndSession'), rate: '₹200' },
+            { label: t('ncdScreening'), rate: '₹10' },
           ].map((item, i) => (
             <View key={i} style={styles.rateRow}>
               <Text style={styles.rateLabel}>{item.label}</Text>
               <Text style={styles.rateAmount}>{item.rate}</Text>
             </View>
           ))}
-          <Text style={styles.rateNote}>Rates set by ANM/Admin. Contact supervisor for updates.</Text>
+          <Text style={styles.rateNote}>{t('ratesNote')}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>

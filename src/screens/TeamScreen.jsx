@@ -26,11 +26,11 @@ const TeamScreen = ({ user, onBack }) => {
     const mo = allUsers.find(u => u.role === 'MO' && u.phcId === user?.phcId);
     if (mo) {
       hierarchy.push({
-        role: 'Medical Officer (MO)',
+        role: t('mo'),
         name: mo.name,
-        designation: 'PHC In-Charge',
-        phone: mo.phone || 'Contact PHC',
-        location: mo.phcName || 'Primary Health Center',
+        designation: t('phcInCharge', 'PHC In-Charge'),
+        phone: mo.phone || t('contactPhc', 'Contact PHC'),
+        location: mo.phcName || t('phc'),
         icon: '🏥',
       });
     }
@@ -39,11 +39,11 @@ const TeamScreen = ({ user, onBack }) => {
     const anm = allUsers.find(u => u.role === 'ANM' && u.subCenterId === user?.subCenterId);
     if (anm) {
       hierarchy.push({
-        role: 'ANM (Supervisor)',
+        role: t('anmSupervisor', 'ANM (Supervisor)'),
         name: anm.name,
-        designation: 'Auxiliary Nurse Midwife',
-        phone: anm.phone || 'Contact SC',
-        location: anm.subCenterName || 'Sub-Center',
+        designation: t('anmFull', 'Auxiliary Nurse Midwife'),
+        phone: anm.phone || t('contactSc', 'Contact SC'),
+        location: anm.subCenterName || t('subCenter'),
         icon: '👩‍⚕️',
       });
     }
@@ -78,15 +78,15 @@ const TeamScreen = ({ user, onBack }) => {
           <Text style={styles.backBtnText}>←</Text>
         </TouchableOpacity>
         <View>
-          <Text style={styles.headerTitle}>My Health Team</Text>
-          <Text style={styles.headerSubtitle}>Reporting Hierarchy Check</Text>
+          <Text style={styles.headerTitle}>{t('myTeam')}</Text>
+          <Text style={styles.headerSubtitle}>{t('reportingHierarchyCheck', 'Reporting Hierarchy Check')}</Text>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Team Hierarchy */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Reporting Hierarchy</Text>
+          <Text style={styles.sectionTitle}>{t('reportingHierarchy')}</Text>
           {loading ? (
             <ActivityIndicator color={COLORS.primary} />
           ) : (
@@ -111,7 +111,7 @@ const TeamScreen = ({ user, onBack }) => {
 
         {/* Emergency Numbers */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Emergency Numbers</Text>
+          <Text style={styles.sectionTitle}>{t('emergencyNumbers')}</Text>
           <View style={styles.emergencyGrid}>
             {emergencyContacts.map((contact, i) => (
               <TouchableOpacity key={i} style={styles.emergencyCard}>
@@ -125,13 +125,12 @@ const TeamScreen = ({ user, onBack }) => {
 
         {/* Info Card */}
         <View style={[styles.card, { backgroundColor: '#FFF7ED' }]}>
-          <Text style={[styles.sectionTitle, { color: '#EA580C' }]}>⚡ Quick Escalation</Text>
+          <Text style={[styles.sectionTitle, { color: '#EA580C' }]}>⚡ {t('quickEscalation', 'Quick Escalation')}</Text>
           <Text style={styles.infoText}>
-            For high-risk pregnancies (Hb {'<'} 7, BP {'>'} 140/90), contact the ANM immediately.
-            If unreachable, escalate to the Medical Officer.
+            {t('hrpEscalationMsg', 'For high-risk pregnancies (Hb < 7, BP > 140/90), contact the ANM immediately. If unreachable, escalate to the Medical Officer.')}
           </Text>
           <Text style={[styles.infoText, { marginTop: 8 }]}>
-            For maternal/neonatal emergencies, call 108 (Ambulance) immediately and inform the ANM.
+            {t('maternalEmergencyMsg', 'For maternal/neonatal emergencies, call 108 (Ambulance) immediately and inform the ANM.')}
           </Text>
         </View>
       </ScrollView>

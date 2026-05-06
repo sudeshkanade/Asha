@@ -4,6 +4,7 @@ import {
   View,
   Text,
   FlatList,
+  SectionList,
   TouchableOpacity,
   SafeAreaView,
   TextInput,
@@ -25,6 +26,8 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
   const [activeTab, setActiveTab] = useState('Families'); // Families or EC
   const [eligibleCouples, setEligibleCouples] = useState([]);
 
+  const [villages, setVillages] = useState([]);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -33,6 +36,8 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
     setLoading(true);
     const f = await storage.getAll(STORAGE_KEYS.FAMILIES);
     const m = await storage.getAll(STORAGE_KEYS.MEMBERS);
+    const v = await storage.getAll(STORAGE_KEYS.VILLAGES);
+    setVillages(v);
     
     // 1. Filter Families by Hierarchy
     let scopedFamilies = f;
@@ -74,7 +79,8 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
     const q = query.toLowerCase();
     const filtered = families.filter(fam => 
       fam.houseNo?.toLowerCase().includes(q) || 
-      fam.headName?.toLowerCase().includes(q)
+      fam.headName?.toLowerCase().includes(q) ||
+      villages.find(v => v.id === fam.villageId)?.name.toLowerCase().includes(q)
     );
     setFilteredFamilies(filtered);
   };
@@ -101,13 +107,13 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
     };
 
     if (Platform.OS === 'web') {
-      if (window.confirm('Are you sure? This will delete the entire family folder and all its members.')) {
+      if (window.confirm(t('deleteFamilyConfirm', 'Are you sure? This will delete the entire family folder and all its members.'))) {
         confirmDelete();
       }
     } else {
       Alert.alert(
         t('delete'),
-        'Are you sure? This will delete the entire family folder and all its members.',
+        t('deleteFamilyConfirm', 'Are you sure? This will delete the entire family folder and all its members.'),
         [
           { text: t('cancel'), style: 'cancel' },
           { 
@@ -122,12 +128,17 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
 
   const renderFamily = ({ item }) => {
     const members = allMembers.filter(m => m.familyId === item.id);
+    const village = villages.find(v => v.id === item.villageId);
     return (
       <View style={styles.familyCard}>
         <View style={styles.familyInfo}>
-          <Text style={styles.houseNo}>{t('houseNo')}: {item.houseNo}</Text>
+          <Text style={styles.villageName}>{village?.name || t('village')}</Text>
           <Text style={styles.headName}>{item.headName || t('folder')}</Text>
-          <Text style={styles.memberCount}>{members.length} {t('myMembers')}</Text>
+          <View style={styles.familyDetailsRow}>
+            <Text style={styles.houseNo}>{t('houseNo')}: {item.houseNo}</Text>
+            <Text style={styles.dotSeparator}> • </Text>
+            <Text style={styles.memberCount}>{members.length} {t('myMembers')}</Text>
+          </View>
         </View>
         <View style={styles.actions}>
           <TouchableOpacity 
@@ -195,12 +206,38 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
           <Text style={styles.headerTitle}>{t('familyRegister')}</Text>
           <Text style={styles.headerSubtitle}>{families.length} {t('registeredFolders')}</Text>
         </View>
-        <TouchableOpacity 
-          style={styles.headerActionBtn} 
-          onPress={() => onNavigate('FamilyRegistration')}
-        >
-          <Text style={styles.headerActionText}>➕ {t('add')}</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity 
+            style={[styles.headerActionBtn, { backgroundColor: COLORS.accent }]} 
+            onPress={() => {
+              const houseNo = window.prompt(t('enterHouseNo'));
+              if (houseNo) {
+                storage.save(STORAGE_KEYS.FAMILIES, {
+                  id: 'closed-' + Date.now(),
+                  houseNo: houseNo,
+                  headName: 'Closed / Locked Building',
+                  isClosed: true,
+                  ashaId: user.id,
+                  villageId: user.villageId,
+                  subCenterId: user.subCenterId,
+                  phcId: user.phcId,
+                  lastUpdatedAt: Date.now()
+                }).then(() => {
+                  Alert.alert(t('success'), t('closedBuildingAdded'));
+                  loadData();
+                });
+              }
+            }}
+          >
+            <Text style={styles.headerActionText}>🏠 {t('closed')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.headerActionBtn} 
+            onPress={() => onNavigate('FamilyRegistration')}
+          >
+            <Text style={styles.headerActionText}>➕ {t('add')}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.tabBar}>
@@ -233,13 +270,42 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
         <View style={styles.center}>
           <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
-      ) : (
-        <FlatList
-          data={activeTab === 'Families' ? filteredFamilies : eligibleCouples}
-          renderItem={activeTab === 'Families' ? renderFamily : renderEC}
+      ) : activeTab === 'Families' ? (
+        <SectionList
+          sections={(() => {
+            if (user?.role === 'ASHA') {
+              return [{ title: user.village || t('village'), data: filteredFamilies }];
+            }
+            // Group by village
+            const grouped = filteredFamilies.reduce((acc, fam) => {
+              const vName = villages.find(v => v.id === fam.villageId)?.name || t('unknownVillage');
+              if (!acc[vName]) acc[vName] = [];
+              acc[vName].push(fam);
+              return acc;
+            }, {});
+            return Object.keys(grouped).sort().map(vName => ({
+              title: vName,
+              data: grouped[vName]
+            }));
+          })()}
+          renderItem={renderFamily}
+          renderSectionHeader={({ section: { title } }) => (
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionHeaderText}>{title}</Text>
+            </View>
+          )}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
-          ListEmptyComponent={<Text style={styles.emptyText}>{activeTab === 'Families' ? t('viewList') : t('registeredEC')}</Text>}
+          stickySectionHeadersEnabled={false}
+          ListEmptyComponent={<Text style={styles.emptyText}>{t('viewList')}</Text>}
+        />
+      ) : (
+        <FlatList
+          data={eligibleCouples}
+          renderItem={renderEC}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={<Text style={styles.emptyText}>{t('registeredEC')}</Text>}
         />
       )}
     </SafeAreaView>
@@ -291,11 +357,14 @@ const styles = StyleSheet.create({
   searchContainer: { padding: 16, backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   searchInput: { height: 44, backgroundColor: '#F3F4F6', borderRadius: 10, paddingHorizontal: 16, fontSize: 14, color: COLORS.text },
   listContent: { padding: 16 },
-  familyCard: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 12, elevation: 2 },
+  familyCard: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 12, elevation: 2, borderLeftWidth: 4, borderLeftColor: COLORS.secondary },
   familyInfo: { flex: 1 },
+  villageName: { fontSize: 10, fontWeight: '800', color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
   houseNo: { fontSize: 12, fontWeight: '600', color: COLORS.primary },
   headName: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginTop: 2 },
-  memberCount: { fontSize: 12, color: COLORS.textSecondary, marginTop: 4 },
+  memberCount: { fontSize: 12, color: COLORS.textSecondary },
+  familyDetailsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  dotSeparator: { color: COLORS.border, marginHorizontal: 4 },
   actions: { flexDirection: 'row', gap: 12 },
   viewBtn: { padding: 8, backgroundColor: '#F0F4FF', borderRadius: 8 },
   viewBtnText: { fontSize: 18 },
@@ -306,6 +375,8 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 10, fontWeight: '800' },
   deleteBtn: { padding: 8, backgroundColor: '#FFF0F0', borderRadius: 8 },
   deleteBtnText: { fontSize: 18 },
+  sectionHeader: { backgroundColor: 'transparent', paddingVertical: 8, marginTop: 8 },
+  sectionHeaderText: { fontSize: 13, fontWeight: '800', color: COLORS.primary, letterSpacing: 1, textTransform: 'uppercase' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { textAlign: 'center', marginTop: 40, color: COLORS.textSecondary },
 });

@@ -212,22 +212,22 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
         await loadData();
       } catch (e) {
         Alert.alert('Error', 'Failed to delete PHC');
+        Alert.alert(t('error'), t('deletePhcFailed'));
       }
     };
 
     const isWeb = Platform.OS === 'web' || typeof window !== 'undefined';
     if (isWeb) {
-      if (window.confirm(`Are you sure you want to delete ${name}?`)) {
-        console.log('AdminSetup: Confirmed delete for PHC', id);
+      if (window.confirm(`${t('deleteConfirm')} ${name}?`)) {
         confirmDelete();
       }
     } else {
       Alert.alert(
-        'Delete PHC',
-        `Are you sure you want to delete ${name}?`,
+        t('deletePhc'),
+        `${t('deleteConfirm')} ${name}?`,
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Delete', style: 'destructive', onPress: confirmDelete }
+          { text: t('cancel'), style: 'cancel' },
+          { text: t('delete'), style: 'destructive', onPress: confirmDelete }
         ]
       );
     }
@@ -238,7 +238,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
     const hasChildren = currentVillages.some(v => v.subCenterId === id);
     
     if (hasChildren) {
-      Alert.alert('Cannot Delete', 'This Sub-Center has linked Villages. Delete them first.');
+      Alert.alert(t('cannotDelete'), t('hasLinkedVillages'));
       return;
     }
 
@@ -250,23 +250,22 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
         await storage.addToDeleteQueue(STORAGE_KEYS.SUB_CENTERS, id);
         await loadData();
       } catch (e) {
-        Alert.alert('Error', 'Failed to delete Sub-Center');
+        Alert.alert(t('error'), t('deleteScFailed'));
       }
     };
 
     const isWeb = Platform.OS === 'web' || typeof window !== 'undefined';
     if (isWeb) {
-      if (window.confirm(`Are you sure you want to delete ${name}?`)) {
-        console.log('AdminSetup: Confirmed delete for SC', id);
+      if (window.confirm(`${t('deleteConfirm')} ${name}?`)) {
         confirmDelete();
       }
     } else {
       Alert.alert(
-        'Delete Sub-Center',
-        `Are you sure you want to delete ${name}?`,
+        t('deleteSubCenter'),
+        `${t('deleteConfirm')} ${name}?`,
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Delete', style: 'destructive', onPress: confirmDelete }
+          { text: t('cancel'), style: 'cancel' },
+          { text: t('delete'), style: 'destructive', onPress: confirmDelete }
         ]
       );
     }
@@ -281,23 +280,22 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
         await storage.addToDeleteQueue(STORAGE_KEYS.VILLAGES, id);
         await loadData();
       } catch (e) {
-        Alert.alert('Error', 'Failed to delete Village');
+        Alert.alert(t('error'), t('deleteVillageFailed'));
       }
     };
 
     const isWeb = Platform.OS === 'web' || typeof window !== 'undefined';
     if (isWeb) {
-      if (window.confirm(`Are you sure you want to delete ${name}?`)) {
-        console.log('AdminSetup: Confirmed delete for Village', id);
+      if (window.confirm(`${t('deleteConfirm')} ${name}?`)) {
         confirmDelete();
       }
     } else {
       Alert.alert(
-        'Delete Village',
-        `Are you sure you want to delete ${name}?`,
+        t('deleteVillage'),
+        `${t('deleteConfirm')} ${name}?`,
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Delete', style: 'destructive', onPress: confirmDelete }
+          { text: t('cancel'), style: 'cancel' },
+          { text: t('delete'), style: 'destructive', onPress: confirmDelete }
         ]
       );
     }
@@ -312,24 +310,23 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
         await storage.addToDeleteQueue(STORAGE_KEYS.USERS, userId);
         await loadData();
       } catch (e) {
-        Alert.alert('Error', 'Failed to remove user');
+        Alert.alert(t('error'), t('removeUserFailed'));
       }
     };
 
-    const message = `Are you sure you want to remove ${userName}? They will no longer be able to log in.`;
+    const message = `${t('confirmRemove')} ${userName}?`;
     const isWeb = Platform.OS === 'web' || typeof window !== 'undefined';
     if (isWeb) {
       if (window.confirm(message)) {
-        console.log('AdminSetup: Confirmed delete for User', userId);
         confirmDelete();
       }
     } else {
       Alert.alert(
-        `Remove ${role}`,
+        `${t('remove')} ${role}`,
         message,
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Remove', style: 'destructive', onPress: confirmDelete }
+          { text: t('cancel'), style: 'cancel' },
+          { text: t('remove'), style: 'destructive', onPress: confirmDelete }
         ]
       );
     }
@@ -344,14 +341,13 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
         await storage.saveAll(STORAGE_KEYS.USERS, all);
         await storage.addToSyncQueue(STORAGE_KEYS.USERS, updatedUser);
         
-        // Push immediately
         await cloudSyncManager.startBackgroundSync();
         
-        Alert.alert('User Updated', `User account ${newStatus}.`);
+        Alert.alert(t('userUpdated'), `${t('userAccount')} ${t(newStatus)}.`);
         await loadData();
       }
     } catch (e) {
-      Alert.alert('Error', 'Failed to update user status.');
+      Alert.alert(t('error'), t('updateUserStatusFailed'));
     }
   };
 
@@ -369,7 +365,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
         <TouchableOpacity onPress={onBack} style={styles.backBtn}>
           <Text style={styles.backBtnText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Hierarchy Management</Text>
+        <Text style={styles.headerTitle}>{t('hierarchyManagement')}</Text>
         <TouchableOpacity 
           style={styles.refreshBtn} 
           onPress={async () => {
@@ -377,19 +373,19 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
             await cloudSyncManager.pullFromCloud();
             await loadData();
             setLoading(false);
-            Alert.alert('Synced', 'Data updated from cloud.');
+            Alert.alert(t('synced'), t('dataUpdated'));
           }}
         >
-          <Text style={styles.refreshBtnText}>↻ Sync</Text>
+          <Text style={styles.refreshBtnText}>↻ {t('sync')}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.tabBar}>
         {['phcs', 'sc', 'villages', 'approvals'].filter(tabKey => {
           if (user?.role === 'Admin') return true;
-          if (tabKey === 'phcs') return false; // Supervisors can't manage PHCs
+          if (tabKey === 'phcs') return false;
           if (tabKey === 'approvals') return user?.role === 'MO' || user?.role === 'ANM';
-          return true; // Both MO and ANM can see SC and Villages
+          return true;
         }).map(tab => (
           <TouchableOpacity 
             key={tab}
@@ -397,7 +393,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
             onPress={() => setActiveTab(tab)}
           >
             <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-              {tab === 'phcs' ? 'PHCs' : tab === 'sc' ? 'Sub-Centers' : tab === 'villages' ? 'Villages' : 'Approvals'}
+              {t(tab)}
             </Text>
           </TouchableOpacity>
         ))}
@@ -406,7 +402,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
       <View style={styles.searchBarContainer}>
         <TextInput
           style={styles.searchBar}
-          placeholder={`Search ${activeTab}...`}
+          placeholder={`${t('search')} ${t(activeTab)}...`}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -414,7 +410,6 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
           <TouchableOpacity 
             style={styles.scFilterBtn}
             onPress={() => {
-              // Toggle through Sub-centers
               const scIds = ['all', ...subCenters.filter(s => s.phcId === user.phcId).map(s => s.id)];
               const currentIndex = scIds.indexOf(scFilter);
               const nextIndex = (currentIndex + 1) % scIds.length;
@@ -422,7 +417,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
             }}
           >
             <Text style={styles.scFilterText}>
-              📍 {scFilter === 'all' ? 'All SCs' : subCenters.find(s => s.id === scFilter)?.name}
+              📍 {scFilter === 'all' ? t('allScs') : subCenters.find(s => s.id === scFilter)?.name}
             </Text>
           </TouchableOpacity>
         )}
@@ -432,26 +427,26 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
         {activeTab === 'phcs' && (
           <View>
             <View style={styles.formCard}>
-              <Text style={styles.cardTitle}>{editingItem ? 'Edit PHC' : 'Add Primary Health Center (PHC)'}</Text>
+              <Text style={styles.cardTitle}>{editingItem ? t('editPhc') : t('addPhc')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="PHC Name"
+                placeholder={t('phcName')}
                 value={newPhc.name}
                 onChangeText={(t) => setNewPhc({...newPhc, name: t})}
               />
               <TextInput
                 style={styles.input}
-                placeholder="Block Name"
+                placeholder={t('blockName')}
                 value={newPhc.block}
                 onChangeText={(t) => setNewPhc({...newPhc, block: t})}
               />
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <TouchableOpacity style={[styles.saveBtn, { flex: 1 }]} onPress={handleAddPhc}>
-                  <Text style={styles.saveBtnText}>{editingItem ? 'Update PHC' : 'Save PHC'}</Text>
+                  <Text style={styles.saveBtnText}>{editingItem ? t('updatePhc') : t('savePhc')}</Text>
                 </TouchableOpacity>
                 {editingItem && (
                   <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: '#64748B' }]} onPress={handleCancelEdit}>
-                    <Text style={styles.saveBtnText}>Cancel</Text>
+                    <Text style={styles.saveBtnText}>{t('cancel')}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -459,13 +454,13 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
 
             {phcs
               .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
-              .filter((p, index, self) => index === self.findIndex((t) => t.id === p.id)) // Deduplicate
+              .filter((p, index, self) => index === self.findIndex((t) => t.id === p.id))
               .map(p => (
               <View key={p.id} style={styles.listItem}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.listText}>{p.name}</Text>
-                  <Text style={styles.listSubText}>Block: {p.block || 'N/A'}</Text>
-                  <Text style={styles.childCountText}>📍 {subCenters.filter(s => s.phcId === p.id).length} Sub-centers</Text>
+                  <Text style={styles.listSubText}>{t('block')}: {p.block || t('na')}</Text>
+                  <Text style={styles.childCountText}>📍 {subCenters.filter(s => s.phcId === p.id).length} {t('subCenters')}</Text>
                   
                   {users.filter(u => u.role === 'MO' && u.phcId === p.id).map(mo => (
                     <View key={mo.id} style={styles.assignedUserRow}>
@@ -494,18 +489,17 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
 
         {activeTab === 'sc' && (
           <View>
-            {/* ... SC Form ... */}
             <View style={styles.formCard}>
-              <Text style={styles.cardTitle}>{editingItem ? 'Edit Sub-Center' : 'Add Sub-Center (SC)'}</Text>
+              <Text style={styles.cardTitle}>{editingItem ? t('editSc') : t('addSc')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Sub-Center Name"
+                placeholder={t('scName')}
                 value={newSubCenter.name}
                 onChangeText={(t) => setNewSubCenter({...newSubCenter, name: t})}
               />
               {isAdmin ? (
                 <>
-                  <Text style={styles.label}>Select Parent PHC</Text>
+                  <Text style={styles.label}>{t('selectParentPhc')}</Text>
                   <View style={styles.chipGrid}>
                     {phcs.map(p => (
                       <TouchableOpacity 
@@ -520,17 +514,17 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
                 </>
               ) : (
                 <View style={styles.infoBox}>
-                  <Text style={styles.infoLabel}>Parent PHC:</Text>
-                  <Text style={styles.infoValue}>{phcs.find(p => p.id === user?.phcId)?.name || 'My PHC'}</Text>
+                  <Text style={styles.infoLabel}>{t('parentPhc')}:</Text>
+                  <Text style={styles.infoValue}>{phcs.find(p => p.id === user?.phcId)?.name || t('myPhc')}</Text>
                 </View>
               )}
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <TouchableOpacity style={[styles.saveBtn, { flex: 1 }]} onPress={handleAddSubCenter}>
-                  <Text style={styles.saveBtnText}>{editingItem ? 'Update SC' : 'Save Sub-Center'}</Text>
+                  <Text style={styles.saveBtnText}>{editingItem ? t('updateSc') : t('saveSc')}</Text>
                 </TouchableOpacity>
                 {editingItem && (
                   <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: '#64748B' }]} onPress={handleCancelEdit}>
-                    <Text style={styles.saveBtnText}>Cancel</Text>
+                    <Text style={styles.saveBtnText}>{t('cancel')}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -539,17 +533,17 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
             {subCenters
               .filter(sc => isAdmin || sc.phcId === user?.phcId)
               .filter(sc => sc.name.toLowerCase().includes(searchQuery.toLowerCase()))
-              .filter((s, index, self) => index === self.findIndex((t) => t.id === s.id)) // Deduplicate
+              .filter((s, index, self) => index === self.findIndex((t) => t.id === s.id))
               .map(sc => (
               <View key={sc.id} style={styles.listItem}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.listText}>{sc.name}</Text>
-                  <Text style={styles.listSubText}>PHC: {phcs.find(p => p.id === sc.phcId)?.name || 'Unknown'}</Text>
-                  <Text style={styles.childCountText}>🏡 {villages.filter(v => v.subCenterId === sc.id).length} Villages</Text>
+                  <Text style={styles.listSubText}>{t('phc')}: {phcs.find(p => p.id === sc.phcId)?.name || t('unknown')}</Text>
+                  <Text style={styles.childCountText}>🏡 {villages.filter(v => v.subCenterId === sc.id).length} {t('villages')}</Text>
                   
                   {users.filter(u => u.role === 'ANM' && u.subCenterId === sc.id).map(anm => (
                     <View key={anm.id} style={styles.assignedUserRow}>
-                      <Text style={styles.assignedUserText}>👤 ANM: {anm.name} ({anm.approvalStatus || 'pending'})</Text>
+                      <Text style={styles.assignedUserText}>👤 ANM: {anm.name} ({t(anm.approvalStatus) || t('pending')})</Text>
                       <TouchableOpacity onPress={() => handleDeleteUser(anm.id, anm.name, 'ANM')}>
                         <Text style={styles.removeUserIcon}>×</Text>
                       </TouchableOpacity>
@@ -575,20 +569,20 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
         {activeTab === 'villages' && (
           <View>
             <View style={styles.formCard}>
-              <Text style={styles.cardTitle}>{editingItem ? 'Edit Village' : 'Add Village'}</Text>
+              <Text style={styles.cardTitle}>{editingItem ? t('editVillage') : t('addVillage')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Village Name"
+                placeholder={t('villageName')}
                 value={newVillage.name}
                 onChangeText={(t) => setNewVillage({...newVillage, name: t})}
               />
               <TextInput
                 style={styles.input}
-                placeholder="Ward No"
+                placeholder={t('wardNo')}
                 value={newVillage.ward}
                 onChangeText={(t) => setNewVillage({...newVillage, ward: t})}
               />
-              <Text style={styles.label}>Select Parent Sub-Center</Text>
+              <Text style={styles.label}>{t('selectParentSc')}</Text>
               <View style={styles.chipGrid}>
                 {subCenters
                   .filter(sc => isAdmin || sc.phcId === user?.phcId)
@@ -604,11 +598,11 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
               </View>
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <TouchableOpacity style={[styles.saveBtn, { flex: 1 }]} onPress={handleAddVillage}>
-                  <Text style={styles.saveBtnText}>{editingItem ? 'Update Village' : 'Save Village'}</Text>
+                  <Text style={styles.saveBtnText}>{editingItem ? t('updateVillage') : t('saveVillage')}</Text>
                 </TouchableOpacity>
                 {editingItem && (
                   <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: '#64748B' }]} onPress={handleCancelEdit}>
-                    <Text style={styles.saveBtnText}>Cancel</Text>
+                    <Text style={styles.saveBtnText}>{t('cancel')}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -623,22 +617,22 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
                 return belongsToPhc && matchesScFilter;
               })
               .filter(v => v.name.toLowerCase().includes(searchQuery.toLowerCase()))
-              .filter((v, index, self) => index === self.findIndex((t) => t.id === v.id)) // Deduplicate
+              .filter((v, index, self) => index === self.findIndex((t) => t.id === v.id))
               .map(v => (
               <View key={v.id} style={styles.listItem}>
                 <View style={{ flex: 1 }}>
                   <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
-                    <Text style={styles.listText}>{v.name} (W{v.ward})</Text>
+                    <Text style={styles.listText}>{v.name} ({t('ward')} {v.ward})</Text>
                     <View style={styles.badge}>
-                      <Text style={styles.badgeText}>Pop: {stats.memberCounts[v.id] || 0}</Text>
+                      <Text style={styles.badgeText}>{t('pop')}: {stats.memberCounts[v.id] || 0}</Text>
                     </View>
                   </View>
-                  <Text style={styles.listSubText}>SC: {subCenters.find(sc => sc.id === v.subCenterId)?.name || 'Unknown'}</Text>
-                  <Text style={styles.popStatText}>👪 {stats.familyCounts[v.id] || 0} Families • 👥 {stats.memberCounts[v.id] || 0} Members</Text>
+                  <Text style={styles.listSubText}>{t('sc')}: {subCenters.find(sc => sc.id === v.subCenterId)?.name || t('unknown')}</Text>
+                  <Text style={styles.popStatText}>👪 {stats.familyCounts[v.id] || 0} {t('families')} • 👥 {stats.memberCounts[v.id] || 0} {t('members')}</Text>
                   
                   {users.filter(u => u.role === 'ASHA' && u.villageId === v.id).map(asha => (
                     <View key={asha.id} style={styles.assignedUserRow}>
-                      <Text style={styles.assignedUserText}>👤 ASHA: {asha.name} ({asha.approvalStatus || 'pending'})</Text>
+                      <Text style={styles.assignedUserText}>👤 ASHA: {asha.name} ({t(asha.approvalStatus) || t('pending')})</Text>
                       <TouchableOpacity onPress={() => handleDeleteUser(asha.id, asha.name, 'ASHA')}>
                         <Text style={styles.removeUserIcon}>×</Text>
                       </TouchableOpacity>
@@ -663,27 +657,22 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
         {activeTab === 'approvals' && (
           <View>
             <View style={styles.infoBox}>
-              <Text style={styles.infoLabel}>Role-Based Control:</Text>
+              <Text style={styles.infoLabel}>{t('roleBasedControl')}:</Text>
               <Text style={styles.infoValue}>
-                {isAdmin ? 'Full System Approver' : 
-                 user.role === 'MO' ? `PHC Supervisor (${user.phcName})` : 
-                 `SC Supervisor (${user.subCenterName})`}
+                {isAdmin ? t('fullAdmin') : 
+                 user.role === 'MO' ? `${t('phcSupervisor')} (${user.phcName})` : 
+                 `${t('scSupervisor')} (${user.subCenterName})`}
               </Text>
             </View>
 
             {users
               .filter(u => {
-                // 1. Only show non-approved or rejected users
                 if (u.approvalStatus === 'approved') return false;
-                
-                // 2. Hierarchy Filter
                 if (isAdmin) return true;
                 if (user.role === 'MO') {
-                  // MO can approve anyone in their PHC
                   return u.phcId === user.phcId;
                 }
                 if (user.role === 'ANM') {
-                  // ANM can approve ASHAs in their SC
                   return u.subCenterId === user.subCenterId && u.role === 'ASHA';
                 }
                 return false;
@@ -692,23 +681,23 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
                 <View key={u.id} style={[styles.listItem, { borderLeftColor: u.approvalStatus === 'rejected' ? COLORS.error : '#EAB308' }]}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.listText}>{u.name} ({u.role})</Text>
-                    <Text style={styles.listSubText}>Username: {u.username}</Text>
-                    <Text style={styles.listSubText}>Village: {u.villageName || 'N/A'}</Text>
-                    <Text style={styles.listSubText}>Status: <Text style={{fontWeight:'700', color: u.approvalStatus === 'rejected' ? COLORS.error : '#EAB308'}}>{u.approvalStatus?.toUpperCase()}</Text></Text>
+                    <Text style={styles.listSubText}>{t('username')}: {u.username}</Text>
+                    <Text style={styles.listSubText}>{t('village')}: {u.villageName || t('na')}</Text>
+                    <Text style={styles.listSubText}>{t('status')}: <Text style={{fontWeight:'700', color: u.approvalStatus === 'rejected' ? COLORS.error : '#EAB308'}}>{t(u.approvalStatus || 'pending').toUpperCase()}</Text></Text>
                   </View>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     <TouchableOpacity 
                       style={[styles.approveBtn, { backgroundColor: COLORS.success }]} 
                       onPress={() => handleUpdateUserStatus(u.id, 'approved')}
                     >
-                      <Text style={styles.approveBtnText}>✓ Approve</Text>
+                      <Text style={styles.approveBtnText}>✓ {t('approve')}</Text>
                     </TouchableOpacity>
                     {u.approvalStatus !== 'rejected' && (
                       <TouchableOpacity 
                         style={[styles.approveBtn, { backgroundColor: COLORS.error }]} 
                         onPress={() => handleUpdateUserStatus(u.id, 'rejected')}
                       >
-                        <Text style={styles.approveBtnText}>✕ Reject</Text>
+                        <Text style={styles.approveBtnText}>✕ {t('reject')}</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -724,7 +713,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
                 return false;
               }).length === 0 && (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>No pending user approvals for your area.</Text>
+                  <Text style={styles.emptyStateText}>{t('noPendingApprovals')}</Text>
                 </View>
               )
             }

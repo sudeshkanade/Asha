@@ -30,11 +30,11 @@ const VHNDScreen = ({ user, onBack }) => {
   });
 
   const stockItems = [
-    { key: 'ifaDistributed', label: 'Iron (IFA) Tablets', icon: '💊', placeholder: '0' },
-    { key: 'orsDistributed', label: 'ORS Packets', icon: '🧂', placeholder: '0' },
-    { key: 'condomsDistributed', label: 'Condoms', icon: '🔒', placeholder: '0' },
-    { key: 'ocpDistributed', label: 'OCP Strips', icon: '💊', placeholder: '0' },
-    { key: 'ecpDistributed', label: 'ECP Strips', icon: '⚡', placeholder: '0' },
+    { key: 'ifaDistributed', label: t('ironTablets'), icon: '💊', placeholder: '0' },
+    { key: 'orsDistributed', label: t('orsPackets'), icon: '🧂', placeholder: '0' },
+    { key: 'condomsDistributed', label: t('condoms'), icon: '🔒', placeholder: '0' },
+    { key: 'ocpDistributed', label: t('ocpStrips'), icon: '💊', placeholder: '0' },
+    { key: 'ecpDistributed', label: t('ecpStrips'), icon: '⚡', placeholder: '0' },
   ];
 
   const handleSave = async () => {
@@ -44,7 +44,7 @@ const VHNDScreen = ({ user, onBack }) => {
     }
 
     const session = {
-      id: Date.now().toString(),
+      id: storage.generateId('vhnd', user?.id),
       type: 'VHND',
       ashaId: user?.id,
       villageId: user?.villageId,
@@ -98,50 +98,50 @@ const VHNDScreen = ({ user, onBack }) => {
           <Text style={styles.backBtnText}>←</Text>
         </TouchableOpacity>
         <View>
-          <Text style={styles.headerTitle}>VHND Session Log</Text>
-          <Text style={styles.headerSubtitle}>Village Health & Nutrition Day</Text>
+          <Text style={styles.headerTitle}>{t('vhndLog')}</Text>
+          <Text style={styles.headerSubtitle}>{t('vhndFull')}</Text>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Session Info */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Session Details</Text>
+          <Text style={styles.sectionTitle}>{t('sessionDetails')}</Text>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Session Date <Text style={styles.required}>*</Text></Text>
+            <Text style={styles.label}>{t('sessionDate')} <Text style={styles.required}>*</Text></Text>
             <TextInput style={styles.input} value={formData.sessionDate}
               onChangeText={(t) => setFormData({ ...formData, sessionDate: t })}
               placeholder="YYYY-MM-DD" />
           </View>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Venue / Anganwadi</Text>
+            <Text style={styles.label}>{t('venueAWC')}</Text>
             <TextInput style={styles.input} value={formData.venue}
               onChangeText={(t) => setFormData({ ...formData, venue: t })}
-              placeholder="AWC Name or Location" />
+              placeholder={t('awcPlaceholder')} />
           </View>
         </View>
 
         {/* Beneficiaries */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Beneficiaries Attended</Text>
+          <Text style={styles.sectionTitle}>{t('beneficiariesAttended')}</Text>
           <View style={styles.statBar}>
-            <Text style={styles.statBarText}>Total: {totalBeneficiaries}</Text>
+            <Text style={styles.statBarText}>{t('total')}: {totalBeneficiaries}</Text>
           </View>
           <View style={styles.row}>
             <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-              <Text style={styles.label}>🤰 Pregnant Women</Text>
+              <Text style={styles.label}>🤰 {t('pregnantWomen')}</Text>
               <TextInput style={styles.input} value={formData.pregnantAttended}
                 onChangeText={(t) => setFormData({ ...formData, pregnantAttended: t })}
                 placeholder="0" keyboardType="numeric" />
             </View>
             <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-              <Text style={styles.label}>👶 Children (0-5)</Text>
+              <Text style={styles.label}>👶 {t('children05')}</Text>
               <TextInput style={styles.input} value={formData.childrenAttended}
                 onChangeText={(t) => setFormData({ ...formData, childrenAttended: t })}
                 placeholder="0" keyboardType="numeric" />
             </View>
             <View style={[styles.inputGroup, { flex: 1 }]}>
-              <Text style={styles.label}>🧑 Adolescents</Text>
+              <Text style={styles.label}>🧑 {t('adolescents')}</Text>
               <TextInput style={styles.input} value={formData.adolescentsAttended}
                 onChangeText={(t) => setFormData({ ...formData, adolescentsAttended: t })}
                 placeholder="0" keyboardType="numeric" />
@@ -151,7 +151,7 @@ const VHNDScreen = ({ user, onBack }) => {
 
         {/* Stock Distribution */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Stock Distribution Ledger</Text>
+          <Text style={styles.sectionTitle}>{t('stockLedger')}</Text>
           {stockItems.map(item => (
             <View key={item.key} style={styles.stockRow}>
               <Text style={styles.stockLabel}>{item.icon} {item.label}</Text>
@@ -168,18 +168,18 @@ const VHNDScreen = ({ user, onBack }) => {
 
         {/* Notes */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Session Notes</Text>
+          <Text style={styles.sectionTitle}>{t('sessionNotes')}</Text>
           <TextInput
             style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
             value={formData.notes}
             onChangeText={(t) => setFormData({ ...formData, notes: t })}
-            placeholder="Key observations, issues, referrals made..."
+            placeholder={t('notesPlaceholder')}
             multiline
           />
         </View>
 
         <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveButtonText}>Submit VHND Session</Text>
+          <Text style={styles.saveButtonText}>{t('submitVHND')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

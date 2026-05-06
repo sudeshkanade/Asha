@@ -69,10 +69,10 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
   const checkRedFlags = () => {
     const alerts = [];
     if (parseInt(tracker.bpSystolic) > 140 || parseInt(tracker.bpDiastolic) > 90) {
-      alerts.push('⚠️ HIGH BP DETECTED (' + tracker.bpSystolic + '/' + tracker.bpDiastolic + '). Refer to PHC immediately.');
+      alerts.push('⚠️ ' + t('highRisk') + ' BP DETECTED (' + tracker.bpSystolic + '/' + tracker.bpDiastolic + '). Refer to PHC immediately.');
     }
     if (parseFloat(tracker.hbLevel) > 0 && parseFloat(tracker.hbLevel) < 7) {
-      alerts.push('🚨 SEVERE ANEMIA (Hb: ' + tracker.hbLevel + '). Immediate iron supplementation and referral required.');
+      alerts.push('🚨 ' + t('severeAnemiaHb') + ' (Hb: ' + tracker.hbLevel + '). Immediate iron supplementation and referral required.');
     }
     return alerts;
   };
@@ -111,20 +111,20 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
   const handleSave = async () => {
     const locked = await isPeriodLocked();
     if (locked && user?.role !== 'Admin') {
-      Alert.alert('Reporting Locked', 'This month is locked for reporting. You can no longer edit health data for this period.');
+      Alert.alert(t('reportingLocked'), t('reportingLockedDesc'));
       return;
     }
 
     const redFlags = checkRedFlags();
     if (redFlags.length > 0) {
       if (Platform.OS === 'web') {
-        if (window.confirm('🚨 Clinical Alert\n\n' + redFlags.join('\n\n') + '\n\nDo you want to acknowledge and save?')) {
+        if (window.confirm('🚨 ' + t('clinicalAlert') + '\n\n' + redFlags.join('\n\n') + '\n\n' + t('ackAndSaveConfirm'))) {
           persistData();
         }
       } else {
-        Alert.alert('🚨 Clinical Alert', redFlags.join('\n\n'), [
+        Alert.alert('🚨 ' + t('clinicalAlert'), redFlags.join('\n\n'), [
           { text: t('cancel'), style: 'cancel' },
-          { text: 'Acknowledge & Save', onPress: () => persistData() }
+          { text: t('ackAndSave'), onPress: () => persistData() }
         ]);
       }
     } else {
@@ -148,7 +148,7 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
         </TouchableOpacity>
         <View>
           <Text style={styles.headerTitle}>{member?.firstName} {member?.lastName}</Text>
-          <Text style={styles.headerSubtitle}>{t('houseNo')}: {member?.houseNo} • {member?.gender} • Age: {member?.age}</Text>
+          <Text style={styles.headerSubtitle}>{t('houseNo')}: {member?.houseNo} • {member?.gender} • {t('age')}: {member?.age}</Text>
         </View>
       </View>
 
@@ -172,7 +172,7 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
             <Text style={styles.sectionTitle}>{t('ancDetails')}</Text>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Last Menstrual Period (LMP) - DD/MM/YYYY</Text>
+              <Text style={styles.label}>{t('lmp')} - DD/MM/YYYY</Text>
               <TextInput style={styles.input} value={tracker.lmp}
                 onChangeText={(t) => {
                   let cleaned = t.replace(/[^\d/]/g, '');
@@ -197,7 +197,7 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
             
             {tracker.edd ? (
               <Text style={{ fontSize: 13, color: COLORS.primary, marginBottom: 16, fontWeight: '600' }}>
-                Auto-calculated EDD: {tracker.edd}
+                {t('autoEdd')}: {tracker.edd}
               </Text>
             ) : null}
 
@@ -238,7 +238,7 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
                 <View style={[styles.checkbox, tracker.selectedRiskFactors.includes(factor) && styles.checkboxActive]}>
                   {tracker.selectedRiskFactors.includes(factor) && <Text style={styles.checkmark}>✓</Text>}
                 </View>
-                <Text style={styles.riskLabel}>{factor}</Text>
+                <Text style={styles.riskLabel}>{t(factor.toLowerCase().replace(/[^a-z]/g, '')) || factor}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -253,12 +253,12 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
         {activeTab === 'CHILD' && (
           <>
             <View style={styles.card}>
-              <Text style={styles.sectionTitle}>{t('childHealthScreening', 'Growth Monitoring')}</Text>
+              <Text style={styles.sectionTitle}>{t('growthMonitoring')}</Text>
               <RenderInput label={t('weight')} value={tracker.weight} onChange={(t) => setTracker({...tracker, weight: t})} placeholder="e.g. 10.5" keyboardType="numeric" />
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.sectionTitle}>HBNC / HBYC Visit Schedule</Text>
+              <Text style={styles.sectionTitle}>{t('visitSchedule')}</Text>
               {hbncSchedule.length > 0 ? (
                 hbncSchedule.map((visit, i) => (
                   <View key={i} style={styles.visitRow}>
@@ -274,7 +274,7 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.sectionTitle}>UIP Immunization Schedule</Text>
+              <Text style={styles.sectionTitle}>{t('immunizationSchedule')}</Text>
               {vaccinationSchedule.length > 0 ? (
                 vaccinationSchedule.map((vax, i) => (
                   <View key={i} style={styles.visitRow}>
@@ -316,13 +316,13 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
             <RenderInput label={t('weight')} value={tracker.weight} onChange={(t) => setTracker({...tracker, weight: t})} placeholder="60" keyboardType="numeric" />
             
             <View style={styles.divider} />
-            <Text style={styles.sectionTitle}>Substance Use</Text>
+            <Text style={styles.sectionTitle}>{t('substanceUse')}</Text>
             <View style={styles.switchRow}>
-              <Text style={styles.switchLabel}>Uses Tobacco?</Text>
+              <Text style={styles.switchLabel}>{t('usesTobacco')}</Text>
               <Switch value={tracker.usesTobacco} onValueChange={(v) => setTracker({...tracker, usesTobacco: v})} trackColor={{ true: COLORS.primary, false: '#D1DBCE' }} />
             </View>
             <View style={styles.switchRow}>
-              <Text style={styles.switchLabel}>Consumes Alcohol?</Text>
+              <Text style={styles.switchLabel}>{t('consumesAlcohol')}</Text>
               <Switch value={tracker.usesAlcohol} onValueChange={(v) => setTracker({...tracker, usesAlcohol: v})} trackColor={{ true: COLORS.primary, false: '#D1DBCE' }} />
             </View>
           </View>

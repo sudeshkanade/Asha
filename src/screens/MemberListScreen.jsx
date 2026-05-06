@@ -80,11 +80,11 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
 
   const getFilterLabel = () => {
     switch (filterType) {
-      case 'high_risk': return 'High-Risk Pregnancies';
-      case 'anemia': return 'Severe Anemia Cases';
-      case 'sam': return 'Malnourished Children (SAM)';
+      case 'high_risk': return t('highRiskPreg');
+      case 'anemia': return t('severeAnemiaHb');
+      case 'sam': return t('samChildren');
       case 'eligible_couple': return t('eligibleCouples');
-      default: return 'Village Members';
+      default: return t('villageMembers', 'Village Members');
     }
   };
 
@@ -134,43 +134,43 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
       >
         <Text style={styles.memberName}>{item.firstName} {item.lastName}</Text>
         <Text style={styles.memberSubText}>
-          {item.gender} • Age: {item.age} • House: {item.houseNo || 'N/A'}
+          {item.gender} • {t('age')}: {item.age} • {t('house') || 'House'}: {item.houseNo || t('na')}
         </Text>
       </TouchableOpacity>
       <View style={styles.badgeContainer}>
         {item.healthData?.isPregnant && item.healthData?.isHighRisk && (
           <View style={[styles.badge, { backgroundColor: '#FEE2E2', borderColor: COLORS.error, borderWidth: 1 }]}>
-            <Text style={[styles.badgeText, { color: COLORS.error }]}>🔴 HRP</Text>
+            <Text style={[styles.badgeText, { color: COLORS.error }]}>🔴 {t('hrp', 'HRP')}</Text>
           </View>
         )}
         {item.healthData?.hbLevel && parseFloat(item.healthData.hbLevel) < 7 && (
           <View style={[styles.badge, { backgroundColor: '#FFEDD5', borderColor: '#EA580C', borderWidth: 1 }]}>
-            <Text style={[styles.badgeText, { color: '#EA580C' }]}>🟠 ANEMIA</Text>
+            <Text style={[styles.badgeText, { color: '#EA580C' }]}>🟠 {t('anemia', 'ANEMIA')}</Text>
           </View>
         )}
         {item.healthData?.hasNcd && (
           <View style={[styles.badge, { backgroundColor: '#FEF9C3', borderColor: '#CA8A04', borderWidth: 1 }]}>
-            <Text style={[styles.badgeText, { color: '#CA8A04' }]}>🟡 NCD</Text>
+            <Text style={[styles.badgeText, { color: '#CA8A04' }]}>🟡 {t('ncd', 'NCD')}</Text>
           </View>
         )}
         {parseInt(item.age) <= 5 && item.healthData?.weight && (parseFloat(item.healthData.weight) < 10) && (
           <View style={[styles.badge, { backgroundColor: '#FEE2E2', borderColor: COLORS.error, borderWidth: 1 }]}>
-            <Text style={[styles.badgeText, { color: COLORS.error }]}>🔴 SAM</Text>
+            <Text style={[styles.badgeText, { color: COLORS.error }]}>🔴 {t('sam', 'SAM')}</Text>
           </View>
         )}
         {item.status === 'Deceased' && (
           <View style={[styles.badge, { backgroundColor: '#475569', borderColor: '#334155', borderWidth: 1 }]}>
-            <Text style={[styles.badgeText, { color: '#FFF' }]}>DECEASED</Text>
+            <Text style={[styles.badgeText, { color: '#FFF' }]}>{t('deceased', 'DECEASED')}</Text>
           </View>
         )}
         {item.isMigrant && (
           <View style={[styles.badge, { backgroundColor: '#E0E7FF', borderColor: '#4F46E5', borderWidth: 1 }]}>
-            <Text style={[styles.badgeText, { color: '#4F46E5' }]}>MIGRANT</Text>
+            <Text style={[styles.badgeText, { color: '#4F46E5' }]}>{t('migrant', 'MIGRANT')}</Text>
           </View>
         )}
         {item.isPwd && (
           <View style={[styles.badge, { backgroundColor: '#F3E8FF', borderColor: '#9333EA', borderWidth: 1 }]}>
-            <Text style={[styles.badgeText, { color: '#9333EA' }]}>PwD</Text>
+            <Text style={[styles.badgeText, { color: '#9333EA' }]}>{t('pwd', 'PwD')}</Text>
           </View>
         )}
       </View>
@@ -215,7 +215,7 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
               onNavigate('MemberRegistration', { family: currentFamily });
             }}
           >
-            <Text style={styles.addMemberBtnText}>+ Add Member</Text>
+            <Text style={styles.addMemberBtnText}>+ {t('addMember', 'Add Member')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -223,7 +223,7 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchInput}
-          placeholder="Search by name or house no..."
+          placeholder={t('searchHouseName')}
           value={searchQuery}
           onChangeText={handleSearch}
         />
@@ -241,7 +241,7 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No patients found for this category.</Text>
+              <Text style={styles.emptyText}>{t('noMembersFound', 'No patients found for this category.')}</Text>
             </View>
           }
         />

@@ -92,15 +92,19 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
         const month = String(today.getMonth() + 1).padStart(2, '0');
         const day = String(today.getDate()).padStart(2, '0');
         
-        // Auto-set marital status for minors to reduce clicks
+        // Auto-set values for minors to reduce clicks
         const defaultMaritalStatus = ageNum < 18 ? 'Unmarried' : formData.maritalStatus;
+        const defaultEducation = ageNum < 5 ? 'notApplicable' : formData.education;
+        const defaultRelation = ageNum < 18 ? (formData.gender === 'Male' ? 'Son' : 'Daughter') : formData.relation;
 
         setFormData(prev => ({ 
           ...prev, 
           age: text, 
           dob: `${day}/${month}/${year}`,
           internalDob: `${year}-${month}-${day}`,
-          maritalStatus: defaultMaritalStatus
+          maritalStatus: defaultMaritalStatus,
+          education: defaultEducation,
+          relation: defaultRelation
         }));
       }
     } else {
@@ -189,9 +193,9 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
           <Text style={styles.backBtnText}>←</Text>
         </TouchableOpacity>
         <View>
-          <Text style={styles.headerTitle}>{existingMember ? 'Edit Profile' : t('memberDetails')}</Text>
+          <Text style={styles.headerTitle}>{isEdit ? t('editProfile') : t('memberRegistration')}</Text>
           <Text style={styles.headerSubtitle}>
-            {existingMember ? `Updating record for ${existingMember.firstName}` : `Family ID: ${familyHead?.familyId || 'NEW'}`}
+            {isEdit ? `${t('updatingRecord')} ${formData.firstName}` : `${t('familyId')}: ${familyId}`}
           </Text>
         </View>
       </View>
@@ -224,103 +228,68 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
                   style={[styles.chip, formData.relation === rel && styles.chipActive]}
                   onPress={() => handleRelationChange(rel)}
                 >
-                  <Text style={[styles.chipText, formData.relation === rel && styles.chipTextActive]}>{rel}</Text>
+                  <Text style={[styles.chipText, formData.relation === rel && styles.chipTextActive]}>{t(rel.toLowerCase().replace(/[^a-z]/g, '')) || rel}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           </View>
 
-          <View style={styles.row}>
-            <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-              <Text style={styles.label}>{t('firstName')} <Text style={styles.required}>*</Text></Text>
-              <TextInput
-                style={styles.input}
-                value={formData.firstName}
-                onChangeText={(text) => setFormData({ ...formData, firstName: text })}
-                placeholder="Name"
-              />
-            </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>{t('firstName')} <Text style={styles.required}>*</Text></Text>
+            <TextInput
+              style={styles.input}
+              placeholder={t('firstName')}
+              value={formData.firstName}
+              onChangeText={(text) => setFormData({ ...formData, firstName: text })}
+            />
           </View>
 
-          <View style={styles.row}>
-            <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-              <Text style={styles.label}>Middle Name</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.middleName}
-                onChangeText={(text) => setFormData({ ...formData, middleName: text })}
-                placeholder="Father/Husband"
-              />
-            </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>{t('middleName')} <Text style={styles.required}>*</Text></Text>
+            <TextInput
+              style={styles.input}
+              placeholder={t('fatherHusband')}
+              value={formData.middleName}
+              onChangeText={(text) => setFormData({ ...formData, middleName: text })}
+            />
           </View>
 
-          <View style={styles.row}>
-            <View style={[styles.inputGroup, { flex: 1 }]}>
-              <Text style={styles.label}>{t('lastName')} <Text style={styles.required}>*</Text></Text>
-              <TextInput
-                style={styles.input}
-                value={formData.lastName}
-                onChangeText={(text) => setFormData({ ...formData, lastName: text })}
-                placeholder="Surname"
-              />
-            </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>{t('surname')} <Text style={styles.required}>*</Text></Text>
+            <TextInput
+              style={styles.input}
+              placeholder={t('lastName')}
+              value={formData.lastName}
+              onChangeText={(text) => setFormData({ ...formData, lastName: text })}
+            />
           </View>
 
-          <View style={styles.row}>
-            <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-              <Text style={styles.label}>{t('dob')} (DD/MM/YYYY) <Text style={styles.required}>*</Text></Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <TextInput
-                  style={[styles.input, { flex: 1 }]}
-                  value={formData.dob}
-                  onChangeText={handleDobChange}
-                  placeholder="DD/MM/YYYY"
-                  keyboardType="numeric"
-                  maxLength={10}
-                />
-                {Platform.OS === 'web' && (
-                  <View style={{ position: 'relative', width: 44, height: 48, marginLeft: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FAFAFA', borderRadius: 8, borderWidth: 1, borderColor: COLORS.border }}>
-                    <Text style={{ fontSize: 20 }}>📅</Text>
-                    <input
-                      type="date"
-                      value={formData.internalDob || ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val) {
-                          const [y, m, d] = val.split('-');
-                          const display = `${d}/${m}/${y}`;
-                          setFormData(prev => ({ ...prev, dob: display, internalDob: val, age: calculateAge(val).toString() }));
-                        }
-                      }}
-                      style={{ position: 'absolute', opacity: 0, width: '100%', height: '100%', cursor: 'pointer', right: 0, top: 0 }}
-                    />
-                  </View>
-                )}
-              </View>
-            </View>
-            <View style={[styles.inputGroup, { width: 80 }]}>
-              <Text style={styles.label}>Age</Text>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>{t('dob')} (DD/MM/YYYY) <Text style={styles.required}>*</Text></Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <TextInput
-                style={styles.input}
-                value={formData.age}
-                onChangeText={handleAgeChange}
-                placeholder="Age"
+                style={[styles.input, { flex: 1 }]}
+                placeholder="DD/MM/YYYY"
+                value={formData.dob}
+                onChangeText={handleDobChange}
                 keyboardType="numeric"
+                maxLength={10}
               />
+              <View style={styles.ageBadge}>
+                <Text style={styles.ageBadgeLabel}>{t('age')}</Text>
+                <Text style={styles.ageBadgeValue}>{formData.age || '0'}</Text>
+              </View>
             </View>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>{t('phone', 'Phone Number')}</Text>
+            <Text style={styles.label}>{t('mobile')}</Text>
             <TextInput
               style={styles.input}
-              value={formData.phone}
-              onChangeText={(text) => {
-                const cleaned = text.replace(/[^\d]/g, '');
-                setFormData({ ...formData, phone: cleaned });
-              }}
-              placeholder="10-digit mobile number"
-              keyboardType="numeric"
+              placeholder={t('mobilePlaceholder')}
+              value={formData.mobile}
+              onChangeText={(text) => setFormData({ ...formData, mobile: text })}
+              keyboardType="phone-pad"
               maxLength={10}
             />
           </View>
@@ -356,20 +325,25 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
                   style={[styles.chip, formData.maritalStatus === s && styles.chipActive]}
                   onPress={() => setFormData({ ...formData, maritalStatus: s })}
                 >
-                  <Text style={[styles.chipText, formData.maritalStatus === s && styles.chipTextActive]}>{s}</Text>
+                  <Text style={[styles.chipText, formData.maritalStatus === s && styles.chipTextActive]}>{t(s.toLowerCase())}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>{t('educationStatus', 'Education Status')}</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.education}
-              onChangeText={(text) => setFormData({ ...formData, education: text })}
-              placeholder="e.g. 10th Pass, Graduate"
-            />
+            <Text style={styles.label}>{t('education')}</Text>
+            <View style={styles.pickerContainer}>
+              {['Illiterate', 'Primary', 'Secondary', 'Higher Secondary', 'Graduate', 'Post Graduate', 'notApplicable'].map((e) => (
+                <TouchableOpacity
+                  key={e}
+                  style={[styles.chip, formData.education === e && styles.chipActive]}
+                  onPress={() => setFormData({ ...formData, education: e })}
+                >
+                  <Text style={[styles.chipText, formData.education === e && styles.chipTextActive]}>{t(e === 'notApplicable' ? 'na' : e.toLowerCase().replace(/ /g, '')) || e}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
 
           <View style={styles.divider} />
@@ -411,18 +385,18 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
               </View>
               
               {formData.isPregnant && (
-                <View style={[styles.inputGroup, { marginTop: 8 }]}>
-                  <Text style={styles.label}>Last Menstrual Period (LMP) - DD/MM/YYYY</Text>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>{t('lmp')} <Text style={styles.required}>*</Text></Text>
                   <TextInput
                     style={styles.input}
+                    placeholder="DD/MM/YYYY"
                     value={formData.lmp}
-                    onChangeText={(t) => {
-                      let cleaned = t.replace(/[^\d/]/g, '');
+                    onChangeText={(text) => {
+                      let cleaned = text.replace(/[^\d/]/g, '');
                       if (cleaned.length === 2 && !formData.lmp?.endsWith('/')) cleaned += '/';
                       else if (cleaned.length === 5 && !formData.lmp?.endsWith('/')) cleaned += '/';
-                      setFormData({...formData, lmp: cleaned});
+                      setFormData({ ...formData, lmp: cleaned });
                     }}
-                    placeholder="DD/MM/YYYY"
                     keyboardType="numeric"
                     maxLength={10}
                   />
@@ -443,16 +417,16 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
           </View>
         </View>
 
-        <TouchableOpacity style={styles.saveButton} onPress={() => validateAndSave(false)}>
-          <Text style={styles.saveButtonText}>{existingMember ? t('completeReg') : 'Save Member'}</Text>
+        <TouchableOpacity style={styles.saveButton} onPress={() => handleSave(false)}>
+          <Text style={styles.saveButtonText}>{isEdit ? t('updateProfile') : t('saveMember')}</Text>
         </TouchableOpacity>
 
-        {!existingMember && (
+        {!isEdit && (
           <TouchableOpacity 
             style={[styles.saveButton, { backgroundColor: COLORS.secondary, marginTop: 12 }]} 
-            onPress={() => validateAndSave(true)}
+            onPress={() => handleSave(true)}
           >
-            <Text style={styles.saveButtonText}>Save & Add Another</Text>
+            <Text style={styles.saveButtonText}>{t('saveAddAnother')}</Text>
           </TouchableOpacity>
         )}
 

@@ -87,7 +87,8 @@ export default function App() {
   const handleFamilySave = async (familyData) => {
     const finalFamily = {
       ...familyData,
-      id: familyData.id || Date.now().toString(),
+      ashaId: familyData.ashaId || user?.id,
+      id: familyData.id || storage.generateId('fam', user?.id || 'sys'),
     };
     await storage.save(STORAGE_KEYS.FAMILIES, finalFamily);
     setSelectedFamily(finalFamily);
@@ -102,7 +103,7 @@ export default function App() {
       ...restMemberData,
       relation: relation,
       relationToHead: relation,
-      id: selectedMember?.id || Date.now().toString(),
+      id: selectedMember?.id || storage.generateId('mem', user?.id || 'sys'),
       familyId: selectedFamily?.id || selectedMember?.familyId,
       houseNo: selectedFamily?.houseNo || selectedMember?.houseNo,
       status: selectedMember?.status || 'Active',

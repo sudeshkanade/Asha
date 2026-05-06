@@ -188,6 +188,26 @@ export const generateAllTasks = (members) => {
         }
       });
     }
+    // 3. NCD Screening Tasks (Age >= 30, every 6 months)
+    if (age >= 30) {
+      const lastNcdDate = health.lastNcdDate ? new Date(health.lastNcdDate) : null;
+      const sixMonthsAgo = new Date(today);
+      sixMonthsAgo.setMonth(today.getMonth() - 6);
+
+      if (!lastNcdDate || lastNcdDate <= sixMonthsAgo) {
+        generatedTasks.push({
+          id: `ncd-${member.id}`,
+          memberId: member.id,
+          memberName: `${member.firstName} ${member.lastName}`,
+          serviceType: 'NCD Screening',
+          houseNo: member.houseNo || 'N/A',
+          status: (health.completedTasks || []).includes(`ncd-${member.id}`) ? 'completed' : 'pending',
+          details: 'Routine NCD Screening (BP/Sugar) due.',
+          priority: 'Normal',
+          dueDate: lastNcdDate ? new Date(lastNcdDate.getTime() + 180 * 24 * 60 * 60 * 1000) : today
+        });
+      }
+    }
   });
 
   return generatedTasks;

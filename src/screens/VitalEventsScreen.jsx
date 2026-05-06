@@ -86,7 +86,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
   const handleSave = async () => {
     if (eventType === 'Birth') {
       if (!formData.name || !selectedMemberId) {
-        Alert.alert(t('error'), 'Child Name and Mother selection are required.');
+        Alert.alert(t('error'), t('childAndMotherRequired', 'Child Name and Mother selection are required.'));
         return;
       }
       
@@ -94,12 +94,12 @@ const VitalEventsScreen = ({ user, onBack }) => {
       const mother = allMembers.find(m => m.id === selectedMemberId);
       
       if (!mother) {
-        Alert.alert(t('error'), 'Mother not found in register.');
+        Alert.alert(t('error'), t('motherNotFound', 'Mother not found in register.'));
         return;
       }
 
       const newEvent = {
-        id: Date.now().toString(),
+        id: storage.generateId('birth', user?.id),
         type: 'Birth',
         date: formData.date,
         name: formData.name,
@@ -114,7 +114,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
 
       // Create Newborn Member automatically
       const newborn = {
-        id: 'child_' + Date.now(),
+        id: storage.generateId('child', user?.id),
         familyId: mother.familyId,
         houseNo: mother.houseNo,
         villageId: mother.villageId,
@@ -162,7 +162,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
       Alert.alert(t('success'), `${t('birth')} ${t('success')}`);
     } else {
       if (!selectedMemberId) {
-        Alert.alert(t('error'), 'Please select a member.');
+        Alert.alert(t('error'), t('selectMember', 'Please select a member.'));
         return;
       }
       const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
@@ -178,7 +178,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
         ];
         
         const deathEvent = {
-          id: Date.now().toString(),
+          id: storage.generateId('death', user?.id),
           type: 'Death',
           date: formData.date,
           memberId: member.id,
@@ -212,7 +212,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
         </TouchableOpacity>
         <View>
           <Text style={styles.headerTitle}>{t('vitalEvents')}</Text>
-          <Text style={styles.headerSubtitle}>Village Birth & Death Records</Text>
+          <Text style={styles.headerSubtitle}>{t('birthDeathRecords', 'Village Birth & Death Records')}</Text>
         </View>
       </View>
 
@@ -304,7 +304,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
                       <TouchableOpacity key={p}
                         style={[styles.chip, formData.place === p && styles.chipActive]}
                         onPress={() => setFormData({ ...formData, place: p })}>
-                        <Text style={[styles.chipText, formData.place === p && styles.chipTextActive]}>{p}</Text>
+                        <Text style={[styles.chipText, formData.place === p && styles.chipTextActive]}>{t(p.toLowerCase()) || p}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -318,7 +318,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
                     style={styles.input} 
                     value={formData.hospitalName}
                     onChangeText={(t) => setFormData({ ...formData, hospitalName: t })}
-                    placeholder="Enter Hospital Name" 
+                    placeholder={t('enterHospitalName', 'Enter Hospital Name')} 
                   />
                 </View>
               )}
@@ -330,20 +330,20 @@ const VitalEventsScreen = ({ user, onBack }) => {
                     <TouchableOpacity key={d}
                       style={[styles.chip, formData.deliveryType === d && styles.chipActive]}
                       onPress={() => setFormData({ ...formData, deliveryType: d })}>
-                      <Text style={[styles.chipText, formData.deliveryType === d && styles.chipTextActive]}>{d}</Text>
+                      <Text style={[styles.chipText, formData.deliveryType === d && styles.chipTextActive]}>{t(d.toLowerCase().replace('-', '')) || d}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               </View>
               {formData.place === 'Home' && (
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Attended by Skilled Birth Attendant (SBA)?</Text>
+                  <Text style={styles.label}>{t('attendedBySBA', 'Attended by Skilled Birth Attendant (SBA)?')}</Text>
                   <View style={styles.chipRow}>
                     <TouchableOpacity style={[styles.chip, formData.isSBA && styles.chipActive]} onPress={() => setFormData({ ...formData, isSBA: true })}>
-                      <Text style={[styles.chipText, formData.isSBA && styles.chipTextActive]}>Yes</Text>
+                      <Text style={[styles.chipText, formData.isSBA && styles.chipTextActive]}>{t('yes')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.chip, !formData.isSBA && styles.chipActive]} onPress={() => setFormData({ ...formData, isSBA: false })}>
-                      <Text style={[styles.chipText, !formData.isSBA && styles.chipTextActive]}>No</Text>
+                      <Text style={[styles.chipText, !formData.isSBA && styles.chipTextActive]}>{t('no')}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -376,16 +376,22 @@ const VitalEventsScreen = ({ user, onBack }) => {
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>{t('causeOfDeath')}</Text>
-                <TextInput style={styles.input} value={formData.causeOfDeath}
-                  onChangeText={(t) => setFormData({ ...formData, causeOfDeath: t })}
-                  placeholder="Cause" />
+                <View style={styles.chipRow}>
+                  {['oldAge', 'accident', 'disease', 'heartAttack', 'maternalDeath', 'infantDeath', 'other'].map(c => (
+                    <TouchableOpacity key={c}
+                      style={[styles.chip, formData.causeOfDeath === c && styles.chipActive]}
+                      onPress={() => setFormData({ ...formData, causeOfDeath: c })}>
+                      <Text style={[styles.chipText, formData.causeOfDeath === c && styles.chipTextActive]}>{t(c)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Age at Death</Text>
+                <Text style={styles.label}>{t('ageAtDeath', 'Age at Death')}</Text>
                 <TextInput style={styles.input} value={formData.ageAtDeath}
                   onChangeText={(t) => setFormData({ ...formData, ageAtDeath: t })}
-                  placeholder="Auto-filled from register"
+                  placeholder={t('autoFilled', 'Auto-filled from register')}
                   keyboardType="numeric" />
               </View>
             </>

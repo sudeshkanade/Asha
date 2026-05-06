@@ -85,23 +85,23 @@ const LoginScreen = ({ onLogin }) => {
       if (user.approvalStatus === 'approved') {
         onLogin(user);
       } else if (user.approvalStatus === 'rejected') {
-        Alert.alert('Access Denied', 'Your account registration was rejected by your supervisor.');
+        Alert.alert(t('accessDenied'), t('regRejected'));
       } else {
-        Alert.alert('Pending Approval', 'Your account is waiting for approval from your MO or ANM. Please contact them.');
+        Alert.alert(t('pendingApproval'), t('regPending'));
       }
     } else {
-      Alert.alert('Error', 'Invalid credentials. If you just registered, tap "Sync Accounts" below.');
+      Alert.alert(t('error'), t('invalidCredentials'));
     }
   };
 
   const handleRegister = async () => {
     if (!formData.username || !formData.password || !formData.name) {
-      Alert.alert('Error', 'All basic fields are required');
+      Alert.alert(t('error'), t('fieldsRequired'));
       return;
     }
 
     if (formData.role === 'ASHA' && (!formData.villageId || !formData.phcId)) {
-      Alert.alert('Error', 'ASHA must select a PHC and Village');
+      Alert.alert(t('error'), t('ashaRequired'));
       return;
     }
 
@@ -124,14 +124,14 @@ const LoginScreen = ({ onLogin }) => {
 
     const users = await storage.getAll(STORAGE_KEYS.USERS);
     if (users.find(u => u.username === newUser.username)) {
-      Alert.alert('Error', 'Username already exists');
+      Alert.alert(t('error'), t('usernameExists'));
       return;
     }
 
     await storage.save(STORAGE_KEYS.USERS, newUser);
     await cloudSyncManager.startBackgroundSync();
     
-    Alert.alert('Success', 'Registration submitted! Please wait for your MO/ANM to approve your account.');
+    Alert.alert(t('success'), t('regSubmitted'));
     setIsRegister(false);
   };
 
@@ -140,7 +140,7 @@ const LoginScreen = ({ onLogin }) => {
     setAdminTaps(newCount);
     if (newCount === 10) {
       setShowHiddenTools(true);
-      Alert.alert('Admin Mode', 'Hidden maintenance tools activated.');
+      Alert.alert(t('adminMode'), t('toolsActivated'));
     }
   };
 
@@ -170,28 +170,26 @@ const LoginScreen = ({ onLogin }) => {
           }
           if (count > 0) await batch.commit();
           totalDeleted += querySnapshot.size;
-          console.log(`Cloud Wipe: Cleared ${querySnapshot.size} docs from ${colName}`);
         }
 
         await storage.wipeAllData();
-        const successMsg = `Cloud Wipe Complete: Deleted ${totalDeleted} documents across all servers.`;
+        const successMsg = t('cloudWipeSuccess', { count: totalDeleted });
         if (Platform.OS === 'web') {
            window.alert(successMsg);
            window.location.reload();
         } else {
-           Alert.alert('Success', successMsg);
+           Alert.alert(t('success'), successMsg);
         }
       } catch (err) {
-        console.error("Cloud Wipe Error:", err);
-        if (Platform.OS === 'web') window.alert('Failed to clear cloud data. Permission denied?');
-        else Alert.alert('Error', 'Failed to clear cloud data.');
+        if (Platform.OS === 'web') window.alert(t('cloudWipeError'));
+        else Alert.alert(t('error'), t('cloudWipeError'));
       } finally {
         setLoading(false);
       }
     };
 
-    if (window.confirm("🚨 NUCLEAR OPTION: This will delete EVERYTHING from the GOVERNMENT CLOUD and ALL PHONES. This cannot be undone. Proceed?")) {
-      if (window.confirm("FINAL WARNING: All family records, health data, and worker accounts will be PERMANENTLY ERASED. Proceed?")) {
+    if (window.confirm(t('nuclearConfirm'))) {
+      if (window.confirm(t('nuclearFinalWarning'))) {
         performCloudReset();
       }
     }
@@ -202,17 +200,17 @@ const LoginScreen = ({ onLogin }) => {
       setLoading(true);
       await storage.wipeAllData();
       if (Platform.OS === 'web') window.location.reload();
-      else Alert.alert('Success', 'Data wiped. Please restart the app.');
+      else Alert.alert(t('success'), t('factoryResetSuccess'));
     };
 
     if (Platform.OS === 'web') {
-      if (window.confirm("CRITICAL: Wipe all local data? This cannot be undone.")) {
+      if (window.confirm(t('wipeLocalConfirm'))) {
         confirmReset();
       }
     } else {
-      Alert.alert('Dangerous Action', 'Wipe all local data?', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Reset Everything', style: 'destructive', onPress: confirmReset }
+      Alert.alert(t('dangerAction'), t('wipeLocalConfirm'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('reset'), style: 'destructive', onPress: confirmReset }
       ]);
     }
   };
@@ -274,9 +272,9 @@ const LoginScreen = ({ onLogin }) => {
               {loading ? <ActivityIndicator color={COLORS.primary} /> : (
                 <View style={styles.hierarchySection}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <Text style={styles.label}>Primary Health Center (PHC)</Text>
+                    <Text style={styles.label}>{t('phc')}</Text>
                     <TouchableOpacity onPress={loadHierarchy}>
-                      <Text style={{ fontSize: 12, color: COLORS.primary, fontWeight: '700' }}>↻ Refresh List</Text>
+                      <Text style={{ fontSize: 12, color: COLORS.primary, fontWeight: '700' }}>{t('refreshList')}</Text>
                     </TouchableOpacity>
                   </View>
                   <View style={styles.chipGrid}>
@@ -289,12 +287,12 @@ const LoginScreen = ({ onLogin }) => {
                         <Text style={[styles.chipText, formData.phcId === p.id && styles.activeChipText]}>{p.name}</Text>
                       </TouchableOpacity>
                     ))}
-                    {phcs.length === 0 && <Text style={styles.noData}>No PHCs found. Admin must set them up.</Text>}
+                    {phcs.length === 0 && <Text style={styles.noData}>{t('noPhcs')}</Text>}
                   </View>
 
                   {formData.phcId && (
                     <>
-                      <Text style={styles.label}>Sub-Center (SC)</Text>
+                      <Text style={styles.label}>{t('subCenter')}</Text>
                       <View style={styles.chipGrid}>
                         {subCenters.filter(sc => sc.phcId === formData.phcId).map(sc => (
                           <TouchableOpacity 
@@ -311,7 +309,7 @@ const LoginScreen = ({ onLogin }) => {
 
                   {formData.subCenterId && (
                     <>
-                      <Text style={styles.label}>Village / Area</Text>
+                      <Text style={styles.label}>{t('village')}</Text>
                       <View style={styles.chipGrid}>
                         {villages.filter(v => v.subCenterId === formData.subCenterId).map(v => (
                           <TouchableOpacity 
@@ -344,11 +342,11 @@ const LoginScreen = ({ onLogin }) => {
                 setLoading(true);
                 await cloudSyncManager.pullFromCloud();
                 setLoading(false);
-                Alert.alert('Success', 'Accounts refreshed from cloud.');
+                Alert.alert(t('success'), t('accountsSynced'));
               }}
             >
               <Text style={{ color: COLORS.secondary, fontSize: 12, fontWeight: '700' }}>
-                ↻ Sync Accounts
+                ↻ {t('syncAccounts')}
               </Text>
             </TouchableOpacity>
           )}
@@ -362,22 +360,22 @@ const LoginScreen = ({ onLogin }) => {
 
         {showHiddenTools && (
           <View style={styles.hiddenTools}>
-            <Text style={styles.hiddenToolsTitle}>Maintenance Mode</Text>
+            <Text style={styles.hiddenToolsTitle}>{t('maintenanceMode')}</Text>
             <TouchableOpacity style={styles.resetBtn} onPress={handleFactoryReset}>
-              <Text style={styles.resetBtnText}>Wipe Local Data (This Phone)</Text>
+              <Text style={styles.resetBtnText}>{t('wipeLocalData')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.resetBtn, { backgroundColor: '#7F1D1D', marginTop: 10 }]} onPress={handleCloudReset}>
-              <Text style={styles.resetBtnText}>Wipe ALL (Cloud + ALL Phones)</Text>
+              <Text style={styles.resetBtnText}>{t('wipeAllData')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.closeHiddenBtn} onPress={() => setShowHiddenTools(false)}>
-              <Text style={styles.closeHiddenBtnText}>Close Tools</Text>
+              <Text style={styles.closeHiddenBtnText}>{t('closeTools')}</Text>
             </TouchableOpacity>
           </View>
         )}
 
         <TouchableOpacity style={styles.footer} onPress={handleAdminTap} activeOpacity={1}>
-          <Text style={styles.footerText}>Official Health Management System</Text>
-          <Text style={styles.footerSubText}>Validated PHC-SC-ASHA Hierarchy • v1.1.3</Text>
+          <Text style={styles.footerText}>{t('systemName')}</Text>
+          <Text style={styles.footerSubText}>{t('systemVersion')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

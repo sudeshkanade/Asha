@@ -128,9 +128,22 @@ export const cloudSyncManager = {
           await Promise.race([
             syncPromise,
             new Promise((_, reject) =>
-              setTimeout(() => reject(new Error(`Timeout: ${collectionName}/${docId}`)), 10000)
+              setTimeout(() => reject(new Error(`Timeout: ${collectionName}/${docId}`)), 15000)
             ),
           ]);
+
+          // Update local record to 'synced'
+          try {
+            const localRecords = await storage.getAll(storageKey);
+            const idx = localRecords.findIndex(r => r.id === docId);
+            if (idx >= 0) {
+              localRecords[idx].syncStatus = 'synced';
+              localRecords[idx]._lastSyncedAt = new Date().toISOString();
+              await storage.saveAll(storageKey, localRecords);
+            }
+          } catch (updateErr) {
+            console.warn(`⚠️ CloudSync: Could not update local status for ${docId}`);
+          }
 
           syncedCount++;
         } catch (err) {
@@ -181,6 +194,9 @@ export const cloudSyncManager = {
         { key: STORAGE_KEYS.USERS, table: 'users' },
         { key: STORAGE_KEYS.VITAL_EVENTS, table: 'vital_events' },
         { key: STORAGE_KEYS.VHND_SESSIONS, table: 'vhnd_sessions' },
+        { key: STORAGE_KEYS.TASKS, table: 'tasks' },
+        { key: STORAGE_KEYS.CLAIMS, table: 'claims' },
+        { key: STORAGE_KEYS.TASK_COMPLETIONS, table: 'task_completions' },
         { key: STORAGE_KEYS.LOCKED_PERIODS, table: 'locked_periods' },
         { key: STORAGE_KEYS.APP_CONFIG, table: 'app_config' },
       ];

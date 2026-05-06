@@ -94,7 +94,7 @@ const MPRReportScreen = ({ user, onBack }) => {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Generating Monthly Report...</Text>
+        <Text style={styles.loadingText}>{t('generatingMpr')}</Text>
       </View>
     );
   }
@@ -106,8 +106,8 @@ const MPRReportScreen = ({ user, onBack }) => {
           <Text style={styles.backBtnText}>←</Text>
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Monthly Progress Report</Text>
-          <Text style={styles.headerSubtitle}>ASHA MPR • {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</Text>
+          <Text style={styles.headerTitle}>{t('mpr')}</Text>
+          <Text style={styles.headerSubtitle}>{t('ashaMpr')} • {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</Text>
         </View>
         <TouchableOpacity 
           style={styles.masterExportBtn} 
@@ -128,54 +128,54 @@ const MPRReportScreen = ({ user, onBack }) => {
           {exporting === 'MPR_SUMMARY' ? (
             <ActivityIndicator size="small" color="#FFF" />
           ) : (
-            <Text style={styles.summaryExportText}>📥 Download Full MPR Summary (Excel)</Text>
+            <Text style={styles.summaryExportText}>📥 {t('downloadFullMpr', 'Download Full MPR Summary (Excel)')}</Text>
           )}
         </TouchableOpacity>
 
-        <ReportSection title="1. Maternal Health">
-          <ReportRow label="Total ANC Registrations" value={report.maternal.newANC} onDownload={() => handleDownload('NEW_ANC')} loading={exporting === 'NEW_ANC'} />
-          <ReportRow label="High-Risk Pregnancies" value={report.maternal.highRiskTotal} isAlert={report.maternal.highRiskTotal > 0} onDownload={() => handleDownload('HIGH_RISK_ANC')} loading={exporting === 'HIGH_RISK_ANC'} />
-          <ReportRow label="Severe Anemia (Hb < 7)" value={report.maternal.severeAnemia} isAlert={report.maternal.severeAnemia > 0} onDownload={() => handleDownload('SEVERE_ANEMIA')} loading={exporting === 'SEVERE_ANEMIA'} />
-          <ReportRow label="Hospital Deliveries" value={report.maternal.hospitalDeliveries} />
-          <ReportRow label="Home Deliveries" value={report.maternal.homeDeliveries} />
-          <ReportRow label="Pending ANC Follow-up" value={report.maternal.pendingANC} isAlert={report.maternal.pendingANC > 0} />
+        <ReportSection title={t('maternalHealth')}>
+          <ReportRow label={t('totalAncReg')} value={report.maternal.newANC} onDownload={() => handleDownload('NEW_ANC')} loading={exporting === 'NEW_ANC'} />
+          <ReportRow label={t('highRiskPreg')} value={report.maternal.highRiskTotal} isAlert={report.maternal.highRiskTotal > 0} onDownload={() => handleDownload('HIGH_RISK_ANC')} loading={exporting === 'HIGH_RISK_ANC'} />
+          <ReportRow label={t('severeAnemiaHb')} value={report.maternal.severeAnemia} isAlert={report.maternal.severeAnemia > 0} onDownload={() => handleDownload('SEVERE_ANEMIA')} loading={exporting === 'SEVERE_ANEMIA'} />
+          <ReportRow label={t('hospDel')} value={report.maternal.hospitalDeliveries} />
+          <ReportRow label={t('homeDel')} value={report.maternal.homeDeliveries} />
+          <ReportRow label={t('pendingAncFollowup')} value={report.maternal.pendingANC} isAlert={report.maternal.pendingANC > 0} />
         </ReportSection>
 
-        <ReportSection title="2. Child Health & Nutrition">
-          <ReportRow label="Children (0-5 yrs)" value={report.child.samChildren + report.child.fullyImmunized} onDownload={() => handleDownload('CHILDREN_0_5')} loading={exporting === 'CHILDREN_0_5'} />
-          <ReportRow label="SAM Children" value={report.child.samChildren} isAlert={report.child.samChildren > 0} onDownload={() => handleDownload('SAM_CHILDREN')} loading={exporting === 'SAM_CHILDREN'} />
-          <ReportRow label="Fully Immunized" value={report.child.fullyImmunized} />
+        <ReportSection title={t('childHealthNutrition')}>
+          <ReportRow label={t('children05yrs')} value={report.child.samChildren + report.child.fullyImmunized} onDownload={() => handleDownload('CHILDREN_0_5')} loading={exporting === 'CHILDREN_0_5'} />
+          <ReportRow label={t('samChildren')} value={report.child.samChildren} isAlert={report.child.samChildren > 0} onDownload={() => handleDownload('SAM_CHILDREN')} loading={exporting === 'SAM_CHILDREN'} />
+          <ReportRow label={t('fullyImmunized')} value={report.child.fullyImmunized} />
         </ReportSection>
 
-        <ReportSection title="3. Vital Events">
-          <ReportRow label="Total Births" value={report.vital.births} onDownload={() => handleDownload('VITAL_BIRTHS')} loading={exporting === 'VITAL_BIRTHS'} />
-          <ReportRow label="Total Deaths" value={report.vital.deaths} onDownload={() => handleDownload('VITAL_DEATHS')} loading={exporting === 'VITAL_DEATHS'} />
-          <ReportRow label="Infant Deaths" value={report.vital.infantDeaths} isAlert={report.vital.infantDeaths > 0} />
+        <ReportSection title={t('vitalEvents')}>
+          <ReportRow label={t('totalBirths')} value={report.vital.births} onDownload={() => handleDownload('VITAL_BIRTHS')} loading={exporting === 'VITAL_BIRTHS'} />
+          <ReportRow label={t('totalDeaths')} value={report.vital.deaths} onDownload={() => handleDownload('VITAL_DEATHS')} loading={exporting === 'VITAL_DEATHS'} />
+          <ReportRow label={t('infantDeaths')} value={report.vital.infantDeaths} isAlert={report.vital.infantDeaths > 0} />
         </ReportSection>
 
-        <ReportSection title="4. Family Planning">
+        <ReportSection title={t('familyPlanning')}>
           <ReportRow label={t('eligibleCouples')} value={report.fp.totalEC} onDownload={() => handleDownload('ELIGIBLE_COUPLE')} loading={exporting === 'ELIGIBLE_COUPLE'} />
           <ReportRow label={t('permanent')} value={report.fp.sterilization} />
           <ReportRow label={t('temporary')} value={report.fp.spacing} />
-          <ReportRow label="No Method (Unmet Need)" value={report.fp.none} isAlert={report.fp.none > 0} />
-          <ReportRow label="FP Register Download" value="" onDownload={() => handleDownload('FP_REGISTER')} loading={exporting === 'FP_REGISTER'} />
+          <ReportRow label={t('noMethodUnmet')} value={report.fp.none} isAlert={report.fp.none > 0} />
+          <ReportRow label={t('fpRegisterDownload')} value="" onDownload={() => handleDownload('FP_REGISTER')} loading={exporting === 'FP_REGISTER'} />
         </ReportSection>
 
-        <ReportSection title="5. Stock Consumption">
-          <ReportRow label="Iron (IFA) Tablets" value={report.stock.ironDistributed} />
-          <ReportRow label="ORS Packets" value={report.stock.orsDistributed} />
-          <ReportRow label="Condoms" value={report.stock.condomsDistributed} />
-          <ReportRow label="VHND Session Log" value="" onDownload={() => handleDownload('VHND_SESSIONS')} loading={exporting === 'VHND_SESSIONS'} />
+        <ReportSection title={t('stockLedger')}>
+          <ReportRow label={t('ironTablets')} value={report.stock.ironDistributed} />
+          <ReportRow label={t('orsPackets')} value={report.stock.orsDistributed} />
+          <ReportRow label={t('condoms')} value={report.stock.condomsDistributed} />
+          <ReportRow label={t('vhndSessionLog')} value="" onDownload={() => handleDownload('VHND_SESSIONS')} loading={exporting === 'VHND_SESSIONS'} />
         </ReportSection>
 
-        <ReportSection title="6. NCD & Screening">
-          <ReportRow label="Total BP/Sugar Screenings" value={report.ncd.screened} onDownload={() => handleDownload('NCD_SCREENING')} loading={exporting === 'NCD_SCREENING'} />
+        <ReportSection title={t('ncdScreeningSection')}>
+          <ReportRow label={t('totalNcdScreenings')} value={report.ncd.screened} onDownload={() => handleDownload('NCD_SCREENING')} loading={exporting === 'NCD_SCREENING'} />
         </ReportSection>
 
-        <ReportSection title="7. Special Registers">
-          <ReportRow label="PwD Members" value="" onDownload={() => handleDownload('PWD')} loading={exporting === 'PWD'} />
-          <ReportRow label="BPL Families" value="" onDownload={() => handleDownload('BPL_FAMILIES')} loading={exporting === 'BPL_FAMILIES'} />
-          <ReportRow label="PNC Cases" value="" onDownload={() => handleDownload('PNC_CASES')} loading={exporting === 'PNC_CASES'} />
+        <ReportSection title={t('specialRegisters')}>
+          <ReportRow label={t('pwdMembers')} value="" onDownload={() => handleDownload('PWD')} loading={exporting === 'PWD'} />
+          <ReportRow label={t('bplFamilies')} value="" onDownload={() => handleDownload('BPL_FAMILIES')} loading={exporting === 'BPL_FAMILIES'} />
+          <ReportRow label={t('pncCases')} value="" onDownload={() => handleDownload('PNC_CASES')} loading={exporting === 'PNC_CASES'} />
         </ReportSection>
       </ScrollView>
     </SafeAreaView>
