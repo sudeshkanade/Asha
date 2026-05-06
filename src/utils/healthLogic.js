@@ -29,6 +29,25 @@ export const calculateMaternalSchedule = (lmpDate) => {
 };
 
 /**
+ * 1.5 Post Natal Care (PNC)
+ * @param {Date|string} deliveryDate - Date of Delivery
+ * @param {boolean} isHomeBirth - If delivery was at home
+ */
+export const calculatePncSchedule = (deliveryDate, isHomeBirth = false) => {
+  if (!deliveryDate) return [];
+  const del = new Date(deliveryDate);
+  if (isNaN(del.getTime())) return [];
+
+  const pncDays = isHomeBirth ? [1, 3, 7, 14, 21, 28, 42] : [3, 7, 14, 21, 28, 42];
+  
+  return pncDays.map(day => {
+    const d = new Date(del);
+    d.setDate(del.getDate() + day);
+    return { label: `PNC Day ${day}`, date: d, actions: 'Check bleeding, BP, breastfeeding' };
+  });
+};
+
+/**
  * 2. Newborn & Child Care (HBNC & HBYC)
  * @param {Date|string} dob 
  * @param {boolean} isHomeBirth 
@@ -137,11 +156,32 @@ export const generateAllTasks = (members) => {
       });
     }
 
+    // 1.5 Post-Natal Tasks (PNC)
+    if (health.pncStatus === 'Pending' && health.lastDeliveryDate) {
+      const pncSchedule = calculatePncSchedule(health.lastDeliveryDate, health.placeOfDelivery === 'Home');
+      pncSchedule.forEach((visit, idx) => {
+        const dueDate = new Date(visit.date);
+        if (dueDate <= new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)) {
+          generatedTasks.push({
+            id: `pnc-${member.id}-${idx}`,
+            memberId: member.id,
+            memberName: `${member.firstName} ${member.lastName}`,
+            serviceType: visit.label,
+            houseNo: member.houseNo || 'N/A',
+            status: (health.completedTasks || []).includes(`pnc-${member.id}-${idx}`) ? 'completed' : 'pending',
+            details: `Post-natal checkup due. ${visit.actions}`,
+            priority: 'High',
+            dueDate: visit.date
+          });
+        }
+      });
+    }
+
     // 2. Child Health & Vaccination Tasks (Only for age < 17)
     if (member.dob && age < 17) {
       // HBNC/HBYC only for children < 2 years
       if (age < 2) {
-        const childSchedule = calculateChildSchedule(new Date(member.dob));
+        const childSchedule = calculateChildSchedule(new Date(member.dob), health.placeOfDelivery === 'Home');
         const hbncVisits = childSchedule.hbnc || [];
         hbncVisits.forEach((visit, idx) => {
           const dueDate = new Date(visit.date);
@@ -154,6 +194,25 @@ export const generateAllTasks = (members) => {
               houseNo: member.houseNo || 'N/A',
               status: (health.completedTasks || []).includes(`hbnc-${member.id}-${idx}`) ? 'completed' : 'pending',
               details: `Post-natal visit for newborn.`,
+              priority: 'Normal',
+              dueDate: visit.date
+            });
+          }
+        });
+
+        const hbycVisits = childSchedule.hbyc || [];
+        hbycVisits.forEach((visit, idx) => {
+          const dueDate = new Date(visit.date);
+          // HBYC tasks window (show 15 days in advance)
+          if (dueDate <= new Date(today.getTime() + 15 * 24 * 60 * 60 * 1000)) {
+            generatedTasks.push({
+              id: `hbyc-${member.id}-${idx}`,
+              memberId: member.id,
+              memberName: `${member.firstName} ${member.lastName}`,
+              serviceType: visit.label,
+              houseNo: member.houseNo || 'N/A',
+              status: (health.completedTasks || []).includes(`hbyc-${member.id}-${idx}`) ? 'completed' : 'pending',
+              details: `HBYC visit for child development & nutrition.`,
               priority: 'Normal',
               dueDate: visit.date
             });
@@ -205,6 +264,27 @@ export const generateAllTasks = (members) => {
           details: 'Routine NCD Screening (BP/Sugar) due.',
           priority: 'Normal',
           dueDate: lastNcdDate ? new Date(lastNcdDate.getTime() + 180 * 24 * 60 * 60 * 1000) : today
+        });
+      }
+    }
+    
+    // 4. Family Planning Refills
+    if (health.fpMethod === 'ocp' || health.fpMethod === 'condoms') {
+      const lastFpDate = health.lastFpGivenDate ? new Date(health.lastFpGivenDate) : null;
+      const oneMonthAgo = new Date(today);
+      oneMonthAgo.setMonth(today.getMonth() - 1);
+      
+      if (!lastFpDate || lastFpDate <= oneMonthAgo) {
+        generatedTasks.push({
+          id: `fp-${member.id}`,
+          memberId: member.id,
+          memberName: `${member.firstName} ${member.lastName}`,
+          serviceType: 'FP Supply Refill',
+          houseNo: member.houseNo || 'N/A',
+          status: 'pending', // Refills are recurring, so if it's due, it's pending
+          details: `Monthly ${health.fpMethod.toUpperCase()} supply refill due.`,
+          priority: 'Normal',
+          dueDate: lastFpDate ? new Date(lastFpDate.getTime() + 30 * 24 * 60 * 60 * 1000) : today
         });
       }
     }

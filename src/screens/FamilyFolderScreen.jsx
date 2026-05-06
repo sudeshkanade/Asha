@@ -21,10 +21,11 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
   const [families, setFamilies] = useState([]);
   const [allMembers, setAllMembers] = useState([]);
   const [filteredFamilies, setFilteredFamilies] = useState([]);
+  const [eligibleCouples, setEligibleCouples] = useState([]);
+  const [filteredECs, setFilteredECs] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Families'); // Families or EC
-  const [eligibleCouples, setEligibleCouples] = useState([]);
 
   const [villages, setVillages] = useState([]);
 
@@ -60,16 +61,22 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
     }
 
     // 3. Identify Eligible Couples (Married Females 15-49) within scope
-    const ecList = scopedMembers.filter(mem => 
-      mem.gender === 'Female' && 
-      parseInt(mem.age) >= 15 && 
-      parseInt(mem.age) <= 49 &&
-      (mem.maritalStatus === 'Married' || mem.relationToHead === 'Wife' || mem.relation === 'Wife' || mem.relationToHead === 'Daughter-in-law' || mem.relation === 'Daughter-in-law')
-    );
+    const ecList = scopedMembers.filter(mem => {
+      const age = parseInt(mem.age, 10);
+      const gender = mem.gender?.toLowerCase();
+      const status = mem.maritalStatus?.toLowerCase();
+      const relHead = mem.relationToHead?.toLowerCase();
+      const rel = mem.relation?.toLowerCase();
+      
+      return gender === 'female' && 
+        !isNaN(age) && age >= 15 && age <= 49 &&
+        (status === 'married' || relHead === 'wife' || rel === 'wife' || relHead === 'daughter-in-law' || rel === 'daughter-in-law');
+    });
 
     setFamilies(scopedFamilies);
     setFilteredFamilies(scopedFamilies);
     setEligibleCouples(ecList);
+    setFilteredECs(ecList);
     setAllMembers(m); // Keep all members for counting in family cards (the families themselves are already filtered)
     setLoading(false);
   };
@@ -77,12 +84,22 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
   const handleSearch = (query) => {
     setSearchQuery(query);
     const q = query.toLowerCase();
-    const filtered = families.filter(fam => 
+    
+    // Filter Families
+    const filteredFam = families.filter(fam => 
       fam.houseNo?.toLowerCase().includes(q) || 
       fam.headName?.toLowerCase().includes(q) ||
       villages.find(v => v.id === fam.villageId)?.name.toLowerCase().includes(q)
     );
-    setFilteredFamilies(filtered);
+    setFilteredFamilies(filteredFam);
+
+    // Filter ECs
+    const filteredEC = eligibleCouples.filter(ec => 
+      ec.firstName?.toLowerCase().includes(q) ||
+      ec.lastName?.toLowerCase().includes(q) ||
+      ec.houseNo?.toLowerCase().includes(q)
+    );
+    setFilteredECs(filteredEC);
   };
 
   const handleDeleteFamily = (familyId) => {
@@ -267,11 +284,11 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
         />
       ) : (
         <FlatList
-          data={eligibleCouples}
+          data={filteredECs}
           renderItem={renderEC}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
-          ListEmptyComponent={<Text style={styles.emptyText}>{t('registeredEC')}</Text>}
+          ListEmptyComponent={<Text style={styles.emptyText}>{t('noEligibleCouples', 'No Eligible Couples found.')}</Text>}
         />
       )}
 

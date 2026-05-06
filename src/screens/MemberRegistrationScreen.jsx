@@ -35,7 +35,6 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
     isPregnant: existingMember?.healthData?.isPregnant || false,
     hasNcd: existingMember?.healthData?.hasNcd || false,
     internalDob: existingMember?.dob || '',
-    internalDob: existingMember?.dob || '',
     lmp: existingMember?.healthData?.lmp || '',
   });
 
