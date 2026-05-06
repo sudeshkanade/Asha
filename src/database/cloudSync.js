@@ -17,6 +17,10 @@ const COLLECTION_MAP = {
   [STORAGE_KEYS.VHND_SESSIONS]: 'vhnd_sessions',
   [STORAGE_KEYS.LOCKED_PERIODS]: 'locked_periods',
   [STORAGE_KEYS.APP_CONFIG]: 'app_config',
+  [STORAGE_KEYS.TASKS]: 'tasks',
+  [STORAGE_KEYS.CLAIMS]: 'claims',
+  [STORAGE_KEYS.TASK_COMPLETIONS]: 'task_completions',
+  // Fallbacks for direct string usage
   'tasks': 'tasks',
   'claims': 'claims',
   'task_completions': 'task_completions',

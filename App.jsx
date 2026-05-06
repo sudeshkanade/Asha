@@ -125,8 +125,9 @@ export default function App() {
       const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
       const famIndex = allFamilies.findIndex(f => f.id === finalMember.familyId);
       if (famIndex >= 0) {
-        allFamilies[famIndex].headName = `${finalMember.firstName} ${finalMember.lastName}`;
-        await storage.saveAll(STORAGE_KEYS.FAMILIES, allFamilies);
+        const family = allFamilies[famIndex];
+        family.headName = `${finalMember.firstName} ${finalMember.lastName}`;
+        await storage.save(STORAGE_KEYS.FAMILIES, family);
       }
     }
 
