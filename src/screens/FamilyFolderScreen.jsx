@@ -89,7 +89,7 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
     const filteredFam = families.filter(fam => 
       fam.houseNo?.toLowerCase().includes(q) || 
       fam.headName?.toLowerCase().includes(q) ||
-      villages.find(v => v.id === fam.villageId)?.name.toLowerCase().includes(q)
+      villages.find(v => v.id === fam.villageId)?.name?.toLowerCase().includes(q)
     );
     setFilteredFamilies(filteredFam);
 

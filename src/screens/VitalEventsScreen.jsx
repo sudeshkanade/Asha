@@ -80,7 +80,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
   };
 
   const filteredMembers = members.filter(m =>
-    (m.firstName + ' ' + m.lastName).toLowerCase().includes(searchQuery.toLowerCase())
+    ((m.firstName || '') + ' ' + (m.lastName || '')).toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleSave = async () => {

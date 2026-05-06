@@ -173,7 +173,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
 
   const handleWhatsApp = (task) => {
     let message = '';
-    const taskType = task.serviceType.toLowerCase();
+    const taskType = task.serviceType?.toLowerCase() || '';
     
     if (taskType.includes('vaccination') || taskType.includes('vax')) {
       message = `नमस्कार ${task.memberName}, उद्या तुमच्या बाळाच्या लसीकरणाची तारीख आहे. कृपया लसीकरण केंद्रावर वेळेवर उपस्थित राहा.`;

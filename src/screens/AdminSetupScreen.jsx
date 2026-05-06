@@ -453,7 +453,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
             </View>
 
             {phcs
-              .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+              .filter(p => p.name?.toLowerCase().includes(searchQuery.toLowerCase()))
               .filter((p, index, self) => index === self.findIndex((t) => t.id === p.id))
               .map(p => (
               <View key={p.id} style={styles.listItem}>
@@ -532,7 +532,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
 
             {subCenters
               .filter(sc => isAdmin || sc.phcId === user?.phcId)
-              .filter(sc => sc.name.toLowerCase().includes(searchQuery.toLowerCase()))
+              .filter(sc => sc.name?.toLowerCase().includes(searchQuery.toLowerCase()))
               .filter((s, index, self) => index === self.findIndex((t) => t.id === s.id))
               .map(sc => (
               <View key={sc.id} style={styles.listItem}>
@@ -616,7 +616,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
                 const matchesScFilter = scFilter === 'all' || v.subCenterId === scFilter;
                 return belongsToPhc && matchesScFilter;
               })
-              .filter(v => v.name.toLowerCase().includes(searchQuery.toLowerCase()))
+              .filter(v => v.name?.toLowerCase().includes(searchQuery.toLowerCase()))
               .filter((v, index, self) => index === self.findIndex((t) => t.id === v.id))
               .map(v => (
               <View key={v.id} style={styles.listItem}>

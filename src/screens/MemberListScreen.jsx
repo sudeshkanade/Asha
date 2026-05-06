@@ -71,8 +71,8 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
     }
     const q = query.toLowerCase();
     const results = members.filter(m => 
-      m.firstName.toLowerCase().includes(q) || 
-      m.lastName.toLowerCase().includes(q) ||
+      m.firstName?.toLowerCase().includes(q) || 
+      m.lastName?.toLowerCase().includes(q) ||
       m.houseNo?.toLowerCase().includes(q)
     );
     setFilteredMembers(results);
