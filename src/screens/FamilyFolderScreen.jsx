@@ -223,7 +223,6 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
           <Text style={styles.headerTitle}>{t('familyRegister')}</Text>
           <Text style={styles.headerSubtitle}>{families.length} {t('registeredFolders')}</Text>
         </View>
-        </View>
       </View>
 
       <View style={styles.tabBar}>
