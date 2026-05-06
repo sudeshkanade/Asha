@@ -267,13 +267,14 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
             }, {});
             return Object.keys(grouped).sort().map(vName => ({
               title: vName,
+              count: grouped[vName].length,
               data: grouped[vName]
             }));
           })()}
           renderItem={renderFamily}
-          renderSectionHeader={({ section: { title } }) => (
+          renderSectionHeader={({ section: { title, count } }) => (
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionHeaderText}>{title}</Text>
+              <Text style={styles.sectionHeaderText}>{title} ({count})</Text>
             </View>
           )}
           keyExtractor={item => item.id}
