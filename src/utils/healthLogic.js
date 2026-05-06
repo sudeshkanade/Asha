@@ -92,8 +92,6 @@ export const calculateVaccinationSchedule = (dob) => {
     { label: '9 Months', vaccines: 'MR-1, JE-1, Vit A-1, PCV-Booster', offsetMonths: 9 },
     { label: '16-24 Months', vaccines: 'MR-2, JE-2, DPT-B1, OPV-B, Vit A-2', offsetMonths: 16 },
     { label: '5-6 Years', vaccines: 'DPT Booster-2', offsetMonths: 60 },
-    { label: '10 Years', vaccines: 'Td (Tetanus & adult Diphtheria)', offsetMonths: 120 },
-    { label: '16 Years', vaccines: 'Td Booster', offsetMonths: 192 },
   ];
 
   return schedule.map(s => {
