@@ -206,37 +206,6 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
           <Text style={styles.headerTitle}>{t('familyRegister')}</Text>
           <Text style={styles.headerSubtitle}>{families.length} {t('registeredFolders')}</Text>
         </View>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TouchableOpacity 
-            style={[styles.headerActionBtn, { backgroundColor: COLORS.accent }]} 
-            onPress={() => {
-              const houseNo = window.prompt(t('enterHouseNo'));
-              if (houseNo) {
-                storage.save(STORAGE_KEYS.FAMILIES, {
-                  id: storage.generateId('closed', user?.id),
-                  houseNo: houseNo,
-                  headName: 'Closed / Locked Building',
-                  isClosed: true,
-                  ashaId: user.id,
-                  villageId: user.villageId,
-                  subCenterId: user.subCenterId,
-                  phcId: user.phcId,
-                  lastUpdatedAt: Date.now()
-                }).then(() => {
-                  Alert.alert(t('success'), t('closedBuildingAdded'));
-                  loadData();
-                });
-              }
-            }}
-          >
-            <Text style={styles.headerActionText}>🏠 {t('closed')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.headerActionBtn} 
-            onPress={() => onNavigate('FamilyRegistration')}
-          >
-            <Text style={styles.headerActionText}>➕ {t('add')}</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -273,10 +242,7 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
       ) : activeTab === 'Families' ? (
         <SectionList
           sections={(() => {
-            if (user?.role === 'ASHA') {
-              return [{ title: user.village || t('village'), data: filteredFamilies }];
-            }
-            // Group by village
+            // Group by village for all roles
             const grouped = filteredFamilies.reduce((acc, fam) => {
               const vName = villages.find(v => v.id === fam.villageId)?.name || t('unknownVillage');
               if (!acc[vName]) acc[vName] = [];
@@ -308,6 +274,46 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
           ListEmptyComponent={<Text style={styles.emptyText}>{t('registeredEC')}</Text>}
         />
       )}
+
+      {/* Floating Action Buttons */}
+      <View style={styles.fabContainer}>
+        <TouchableOpacity 
+          style={[styles.fab, { backgroundColor: COLORS.accent }]} 
+          onPress={() => {
+            const houseNo = window.prompt(t('enterHouseNo'));
+            if (houseNo) {
+              storage.save(STORAGE_KEYS.FAMILIES, {
+                id: storage.generateId('closed', user?.id),
+                houseNo: houseNo,
+                headName: 'Closed / Locked Building',
+                isClosed: true,
+                ashaId: user.id,
+                villageId: user.villageId,
+                subCenterId: user.subCenterId,
+                phcId: user.phcId,
+                lastUpdatedAt: Date.now()
+              }).then(() => {
+                Alert.alert(t('success'), t('closedBuildingAdded'));
+                loadData();
+              });
+            }
+          }}
+        >
+          <Text style={styles.fabText}>🏠 {t('closed')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.fab} 
+          onPress={() => onNavigate('FamilyRegistration')}
+        >
+          <Text style={styles.fabText}>➕ {t('add')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.fab, { backgroundColor: COLORS.secondary }]} 
+          onPress={() => onNavigate('MemberRegistration')}
+        >
+          <Text style={styles.fabText}>👤 {t('add')}</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 };
@@ -379,6 +385,35 @@ const styles = StyleSheet.create({
   sectionHeaderText: { fontSize: 13, fontWeight: '800', color: COLORS.primary, letterSpacing: 1, textTransform: 'uppercase' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { textAlign: 'center', marginTop: 40, color: COLORS.textSecondary },
+  fabContainer: {
+    position: 'absolute',
+    bottom: 24,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+  },
+  fab: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  fabText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '700',
+    marginLeft: 4,
+  },
 });
 
 export default FamilyFolderScreen;
