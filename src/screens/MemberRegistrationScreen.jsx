@@ -35,8 +35,12 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
     isPregnant: existingMember?.healthData?.isPregnant || false,
     hasNcd: existingMember?.healthData?.hasNcd || false,
     internalDob: existingMember?.dob || '',
+    internalDob: existingMember?.dob || '',
     lmp: existingMember?.healthData?.lmp || '',
   });
+
+  const isEdit = !!existingMember;
+  const familyId = existingMember?.familyId || familyHead?.id || 'N/A';
 
   // Relationships logic...
   useEffect(() => {
@@ -417,14 +421,14 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
           </View>
         </View>
 
-        <TouchableOpacity style={styles.saveButton} onPress={() => handleSave(false)}>
+        <TouchableOpacity style={styles.saveButton} onPress={() => validateAndSave(false)}>
           <Text style={styles.saveButtonText}>{isEdit ? t('updateProfile') : t('saveMember')}</Text>
         </TouchableOpacity>
 
         {!isEdit && (
           <TouchableOpacity 
             style={[styles.saveButton, { backgroundColor: COLORS.secondary, marginTop: 12 }]} 
-            onPress={() => handleSave(true)}
+            onPress={() => validateAndSave(true)}
           >
             <Text style={styles.saveButtonText}>{t('saveAddAnother')}</Text>
           </TouchableOpacity>

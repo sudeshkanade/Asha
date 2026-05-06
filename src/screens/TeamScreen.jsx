@@ -6,10 +6,14 @@ import {
   ScrollView,
   SafeAreaView,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { COLORS } from '../constants/colors';
+import { storage, STORAGE_KEYS } from '../database/storage';
+import { useTranslation } from 'react-i18next';
 
 const TeamScreen = ({ user, onBack }) => {
+  const { t } = useTranslation();
   const [team, setTeam] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
 

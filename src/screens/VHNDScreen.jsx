@@ -13,8 +13,10 @@ import {
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
+import { useTranslation } from 'react-i18next';
 
 const VHNDScreen = ({ user, onBack }) => {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     sessionDate: new Date().toISOString().split('T')[0],
     venue: '',

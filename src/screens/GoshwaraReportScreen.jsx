@@ -14,8 +14,10 @@ import { storage, STORAGE_KEYS } from '../database/storage';
 import { generateGoshwaraReport } from '../utils/goshwaraLogic';
 import { exportMasterPopulation, exportVitalEvents, exportFPRegister, exportVHNDSessions } from '../utils/exportLogic';
 import * as XLSX from 'xlsx';
+import { useTranslation } from 'react-i18next';
 
 const GoshwaraReportScreen = ({ user, onBack }) => {
+  const { t } = useTranslation();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(null);

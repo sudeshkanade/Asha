@@ -11,8 +11,10 @@ import {
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { calculateClaims, getActiveRates } from '../utils/claimsLogic';
+import { useTranslation } from 'react-i18next';
 
 const ClaimsScreen = ({ user, onBack }) => {
+  const { t } = useTranslation();
   const [claims, setClaims] = useState(null);
   const [loading, setLoading] = useState(true);
 
