@@ -32,9 +32,10 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
     selectedRiskFactors: member?.healthData?.selectedRiskFactors || [],
     bpSystolic: member?.healthData?.bpSystolic || '',
     bpDiastolic: member?.healthData?.bpDiastolic || '',
-    hbLevel: member?.healthData?.hbLevel || '',
     sugarLevel: member?.healthData?.sugarLevel || '',
     weight: member?.healthData?.weight || '',
+    height: member?.healthData?.height || '',
+    muac: member?.healthData?.muac || '',
     vaccinationStatus: member?.healthData?.vaccinationStatus || 'Incomplete',
     fpMethod: member?.healthData?.fpMethod || 'none',
     usesTobacco: member?.healthData?.usesTobacco || false,
@@ -43,9 +44,12 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
     tbScreening: {
       hasCoughTwoWeeks: member?.healthData?.tbScreening?.hasCoughTwoWeeks || false,
       hasFever: member?.healthData?.tbScreening?.hasFever || false,
-      hasWeightLoss: member?.healthData?.tbScreening?.hasWeightLoss || false,
       hasNightSweats: member?.healthData?.tbScreening?.hasNightSweats || false,
-    }
+    },
+    hasFeverWithChills: member?.healthData?.hasFeverWithChills || false,
+    hasSkinPatches: member?.healthData?.hasSkinPatches || false,
+    hasDiarrhea: member?.healthData?.hasDiarrhea || false,
+    onTbTreatment: member?.healthData?.onTbTreatment || false,
   });
 
   const hbncSchedule = member?.dob ? calculateChildSchedule(member.dob).hbnc : [];
@@ -83,13 +87,23 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
     if (tracker.tbScreening.hasCoughTwoWeeks || (tracker.tbScreening.hasFever && tracker.tbScreening.hasWeightLoss)) {
       alerts.push('🧪 ' + t('tbSuspectAlert', 'TB Suspect Detected! Sputum collection task has been generated.'));
     }
+    if (tracker.hasFeverWithChills) {
+      alerts.push('🦟 ' + t('malariaSuspectAlert', 'Malaria Suspect Detected! Blood slide collection task generated.'));
+    }
+    if (tracker.hasSkinPatches) {
+      alerts.push('⚪ ' + t('leprosySuspectAlert', 'Leprosy Suspect (Skin Patches)! Please refer for specialist examination.'));
+    }
+    if (tracker.hasDiarrhea && memberAge < 5) {
+      alerts.push('💧 ' + t('diarrheaAlert', 'Child has Diarrhea. Provide ORS/Zinc and demonstrate preparation.'));
+    }
     return alerts;
   };
 
   const persistData = async () => {
     const isRedFlag = (parseInt(tracker.bpSystolic) > 140 || parseInt(tracker.bpDiastolic) > 90) || 
                       (parseFloat(tracker.hbLevel) > 0 && parseFloat(tracker.hbLevel) < 7) || 
-                      (memberAge <= 5 && parseFloat(tracker.weight) > 0 && parseFloat(tracker.weight) < 10);
+                      (memberAge <= 5 && parseFloat(tracker.weight) > 0 && parseFloat(tracker.weight) < 10) ||
+                      (memberAge <= 5 && parseFloat(tracker.muac) > 0 && parseFloat(tracker.muac) < 11.5);
     const finalIsHighRisk = tracker.selectedRiskFactors.length > 0 || isRedFlag;
 
     const updatedMember = {
@@ -261,9 +275,14 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
 
         {activeTab === 'CHILD' && (
           <>
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>{t('growthMonitoring')}</Text>
-              <RenderInput label={t('weight')} value={tracker.weight} onChange={(t) => setTracker({...tracker, weight: t})} placeholder="e.g. 10.5" keyboardType="numeric" />
+              <RenderInput label={t('weight') + ' (kg)'} value={tracker.weight} onChange={(t) => setTracker({...tracker, weight: t})} placeholder="e.g. 10.5" keyboardType="numeric" />
+              <RenderInput label={t('height') + ' (cm)'} value={tracker.height} onChange={(t) => setTracker({...tracker, height: t})} placeholder="e.g. 85" keyboardType="numeric" />
+              <RenderInput label={t('muac') + ' (cm)'} value={tracker.muac} onChange={(t) => setTracker({...tracker, muac: t})} placeholder="e.g. 12.5" keyboardType="numeric" />
+              
+              <View style={styles.switchRow}>
+                <Text style={styles.switchLabel}>{t('hasDiarrhea', 'Has Diarrhea?')}</Text>
+                <Switch value={tracker.hasDiarrhea} onValueChange={(v) => setTracker({...tracker, hasDiarrhea: v})} trackColor={{ true: COLORS.primary, false: '#D1DBCE' }} />
+              </View>
             </View>
 
             <View style={styles.card}>
@@ -348,6 +367,24 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
             <View style={styles.switchRow}>
               <Text style={styles.switchLabel}>{t('weightLoss', 'Weight Loss')}</Text>
               <Switch value={tracker.tbScreening.hasWeightLoss} onValueChange={(v) => setTracker({...tracker, tbScreening: {...tracker.tbScreening, hasWeightLoss: v}})} trackColor={{ true: COLORS.primary, false: '#D1DBCE' }} />
+            </View>
+
+            <View style={styles.divider} />
+            <Text style={styles.sectionTitle}>{t('malariaScreening', 'Malaria Screening')}</Text>
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>{t('feverWithChills', 'Fever with Chills')}</Text>
+              <Switch value={tracker.hasFeverWithChills} onValueChange={(v) => setTracker({...tracker, hasFeverWithChills: v})} trackColor={{ true: COLORS.primary, false: '#D1DBCE' }} />
+            </View>
+
+            <View style={styles.divider} />
+            <Text style={styles.sectionTitle}>{t('leprosyTbDots', 'Leprosy & TB DOTS')}</Text>
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>{t('hasSkinPatches', 'Skin Patches (Loss of Sensation)')}</Text>
+              <Switch value={tracker.hasSkinPatches} onValueChange={(v) => setTracker({...tracker, hasSkinPatches: v})} trackColor={{ true: COLORS.primary, false: '#D1DBCE' }} />
+            </View>
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>{t('onTbTreatment', 'On TB Treatment (DOTS)')}</Text>
+              <Switch value={tracker.onTbTreatment} onValueChange={(v) => setTracker({...tracker, onTbTreatment: v})} trackColor={{ true: COLORS.primary, false: '#D1DBCE' }} />
             </View>
           </View>
         )}

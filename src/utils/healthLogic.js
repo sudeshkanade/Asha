@@ -175,6 +175,19 @@ export const generateAllTasks = (members) => {
           });
         }
       });
+      
+      // JSY Paperwork Task
+      generatedTasks.push({
+        id: `jsy-${member.id}`,
+        memberId: member.id,
+        memberName: `${member.firstName} ${member.lastName}`,
+        serviceType: 'JSY Paperwork',
+        houseNo: member.houseNo || 'N/A',
+        status: (health.completedTasks || []).includes(`jsy-${member.id}`) ? 'completed' : 'pending',
+        details: 'Assist mother in filling JSY forms for incentive payment.',
+        priority: 'Normal',
+        dueDate: today
+      });
     }
 
     // 2. Child Health & Vaccination Tasks (Only for age < 17)
@@ -217,6 +230,21 @@ export const generateAllTasks = (members) => {
               dueDate: visit.date
             });
           }
+        });
+      }
+
+      // Diarrhea Task
+      if (health.hasDiarrhea) {
+        generatedTasks.push({
+          id: `ors-${member.id}`,
+          memberId: member.id,
+          memberName: `${member.firstName} ${member.lastName}`,
+          serviceType: 'Diarrhea Care',
+          houseNo: member.houseNo || 'N/A',
+          status: (health.completedTasks || []).includes(`ors-${member.id}`) ? 'completed' : 'pending',
+          details: 'Provide ORS & Zinc. Demonstrate preparation and counsel on feeding.',
+          priority: 'High',
+          dueDate: today
         });
       }
 
@@ -299,6 +327,69 @@ export const generateAllTasks = (members) => {
         houseNo: member.houseNo || 'N/A',
         status: (health.completedTasks || []).includes(`tb-${member.id}`) ? 'completed' : 'pending',
         details: 'Positive TB screening. Collect sputum sample and refer to PHC.',
+        priority: 'High',
+        dueDate: today
+      });
+    }
+
+    // 6. Malaria Follow-up
+    if (health.hasFeverWithChills) {
+      generatedTasks.push({
+        id: `mal-${member.id}`,
+        memberId: member.id,
+        memberName: `${member.firstName} ${member.lastName}`,
+        serviceType: 'Malaria Slide Collection',
+        houseNo: member.houseNo || 'N/A',
+        status: (health.completedTasks || []).includes(`mal-${member.id}`) ? 'completed' : 'pending',
+        details: 'Suspected Malaria (Fever with Chills). Collect blood slide and perform RDT.',
+        priority: 'High',
+        dueDate: today
+      });
+    }
+
+    // 7. Malnutrition Follow-up (SAM/MAM)
+    const muac = parseFloat(health.muac);
+    if (age <= 5 && muac > 0 && muac < 12.5) {
+      generatedTasks.push({
+        id: `sam-${member.id}`,
+        memberId: member.id,
+        memberName: `${member.firstName} ${member.lastName}`,
+        serviceType: muac < 11.5 ? 'SAM Care' : 'MAM Care',
+        houseNo: member.houseNo || 'N/A',
+        status: (health.completedTasks || []).includes(`sam-${member.id}`) ? 'completed' : 'pending',
+        details: muac < 11.5 
+          ? 'SAM Detected (MUAC < 11.5cm). Refer to Nutrition Rehabilitation Center (NRC).' 
+          : 'MAM Detected (MUAC < 12.5cm). Provide extra nutrition and weekly monitoring.',
+        priority: 'High',
+        dueDate: today
+      });
+    }
+
+    // 8. Leprosy Follow-up
+    if (health.hasSkinPatches) {
+      generatedTasks.push({
+        id: `lep-${member.id}`,
+        memberId: member.id,
+        memberName: `${member.firstName} ${member.lastName}`,
+        serviceType: 'Leprosy Referral',
+        houseNo: member.houseNo || 'N/A',
+        status: (health.completedTasks || []).includes(`lep-${member.id}`) ? 'completed' : 'pending',
+        details: 'Suspected Leprosy (Skin Patches). Refer to PHC for sensation testing.',
+        priority: 'Normal',
+        dueDate: today
+      });
+    }
+
+    // 9. TB DOTS Treatment (Weekly)
+    if (health.onTbTreatment) {
+      generatedTasks.push({
+        id: `dots-${member.id}`,
+        memberId: member.id,
+        memberName: `${member.firstName} ${member.lastName}`,
+        serviceType: 'TB DOTS Visit',
+        houseNo: member.houseNo || 'N/A',
+        status: 'pending', // DOTS is recurring
+        details: 'Weekly DOTS follow-up. Ensure patient is taking medication regularly.',
         priority: 'High',
         dueDate: today
       });

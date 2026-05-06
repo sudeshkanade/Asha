@@ -426,8 +426,26 @@ export const resources = {
       "fever": "Fever",
       "weightLoss": "Weight Loss",
       "tbSuspectAlert": "TB Suspect Detected! Sputum collection task generated.",
-      "tbSampleCollection": "TB Sample Collection"
-    }
+      "tbSampleCollection": "TB Sample Collection",
+      "malariaScreening": "Malaria Screening",
+      "feverWithChills": "Fever with Chills",
+      "malariaSuspectAlert": "Malaria Suspect Detected! Blood slide collection task generated.",
+      "malariaSampleCollection": "Malaria Sample Collection",
+      "height": "Height",
+      "muac": "MUAC (Mid-Upper Arm)",
+      "samCare": "SAM Care",
+      "mamCare": "MAM Care",
+      "leprosySuspectAlert": "Leprosy Suspect (Skin Patches)! Please refer for specialist examination.",
+      "diarrheaAlert": "Child has Diarrhea. Provide ORS/Zinc and demonstrate preparation.",
+      "hasDiarrhea": "Has Diarrhea?",
+      "hasSkinPatches": "Skin Patches (Loss of Sensation)",
+      "onTbTreatment": "On TB Treatment (DOTS)",
+      "leprosyTbDots": "Leprosy & TB DOTS",
+      "jsyPaperwork": "JSY Paperwork",
+      "diarrheaCare": "Diarrhea Care",
+      "lepReferral": "Leprosy Referral",
+      "tbDotsVisit": "TB DOTS Visit"
+    },
   },
   mr: {
     translation: {
@@ -829,7 +847,25 @@ export const resources = {
       "fever": "ताप",
       "weightLoss": "वजन कमी होणे",
       "tbSuspectAlert": "क्षयरोग संशयित आढळला! बेडका तपासणीचे काम तयार झाले आहे.",
-      "tbSampleCollection": "बेडका (Sputum) नमुना संकलन"
+      "tbSampleCollection": "बेडका (Sputum) नमुना संकलन",
+      "malariaScreening": "हिवताप (Malaria) तपासणी",
+      "feverWithChills": "थंडी वाजून ताप येणे",
+      "malariaSuspectAlert": "हिवताप संशयित आढळला! रक्त नमुना संकलनाचे काम तयार झाले आहे.",
+      "malariaSampleCollection": "रक्त नमुना (Slide) संकलन",
+      "height": "उंची",
+      "muac": "दंड परीघ (MUAC)",
+      "samCare": "SAM बालकाची काळजी",
+      "mamCare": "MAM बालकाची काळजी",
+      "leprosySuspectAlert": "कुष्ठरोग (Leprosy) संशयित आढळला! तज्ञांकडे संदर्भासाठी पाठवा.",
+      "diarrheaAlert": "बालकास अतिसार (Diarrhea) आहे. ओआरएस/झिंक द्या आणि तयार करण्याची कृती दाखवा.",
+      "hasDiarrhea": "अतिसार (Diarrhea) आहे का?",
+      "hasSkinPatches": "त्वचेवर चट्टे (संवेदना नसलेले)",
+      "onTbTreatment": "क्षयरोग उपचार सुरू आहेत (DOTS)",
+      "leprosyTbDots": "कुष्ठरोग आणि क्षयरोग (DOTS)",
+      "jsyPaperwork": "JSY कागदपत्रे",
+      "diarrheaCare": "अतिसार काळजी (Diarrhea Care)",
+      "lepReferral": "कुष्ठरोग संदर्भ",
+      "tbDotsVisit": "TB DOTS भेट"
     }
   }
 };
