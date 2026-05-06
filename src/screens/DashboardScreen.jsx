@@ -49,7 +49,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
     if (!houseNo) return;
 
     const closedFamily = {
-      id: 'closed-' + Date.now(),
+      id: storage.generateId('closed', user?.id),
       houseNo: houseNo,
       headName: 'Closed / Locked Building',
       isClosed: true,

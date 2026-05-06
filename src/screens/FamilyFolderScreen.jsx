@@ -213,7 +213,7 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
               const houseNo = window.prompt(t('enterHouseNo'));
               if (houseNo) {
                 storage.save(STORAGE_KEYS.FAMILIES, {
-                  id: 'closed-' + Date.now(),
+                  id: storage.generateId('closed', user?.id),
                   houseNo: houseNo,
                   headName: 'Closed / Locked Building',
                   isClosed: true,

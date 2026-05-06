@@ -79,7 +79,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
       }
       setEditingItem(null);
     } else {
-      const phc = { ...newPhc, id: 'phc_' + Date.now() };
+      const phc = { ...newPhc, id: storage.generateId('phc', user?.id) };
       await storage.save(STORAGE_KEYS.PHCS, phc);
     }
     setNewPhc({ name: '', block: '' });
@@ -118,7 +118,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
       }
       setEditingItem(null);
     } else {
-      const sc = { ...newSubCenter, id: 'sc_' + Date.now() };
+      const sc = { ...newSubCenter, id: storage.generateId('sc', user?.id) };
       await storage.save(STORAGE_KEYS.SUB_CENTERS, sc);
     }
     setNewSubCenter({ name: '', phcId: isAdmin ? '' : user?.phcId });
@@ -156,7 +156,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
       }
       setEditingItem(null);
     } else {
-      const village = { ...newVillage, id: 'v_' + Date.now() };
+      const village = { ...newVillage, id: storage.generateId('v', user?.id) };
       await storage.save(STORAGE_KEYS.VILLAGES, village);
     }
     setNewVillage({ name: '', subCenterId: '', ward: '' });

@@ -111,7 +111,7 @@ const LoginScreen = ({ onLogin }) => {
     
     const newUser = {
       ...formData,
-      id: 'u_' + Date.now(),
+      id: storage.generateId('user', 'new'),
       approvalStatus: 'pending', // Default status
       village: selectedVillage?.name,
       villageName: selectedVillage?.name,
