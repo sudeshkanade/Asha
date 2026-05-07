@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   TextInput,
   ActivityIndicator,
+  ScrollView,
   Alert,
   Platform
 } from 'react-native';
