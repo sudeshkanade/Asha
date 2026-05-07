@@ -11,11 +11,13 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { cloudSyncManager } from '../database/cloudSync';
 
 const AdminSetupScreen = ({ user, initialTab, onBack }) => {
+  const { t } = useTranslation();
   const isAdmin = user?.role === 'Admin';
   const [activeTab, setActiveTab] = useState(initialTab || (isAdmin ? 'phcs' : 'sc')); // phcs, sc, villages, approvals
   const [phcs, setPhcs] = useState([]);
