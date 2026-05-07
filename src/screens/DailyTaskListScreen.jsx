@@ -227,8 +227,6 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
     </TouchableOpacity>
   );
 
-  const [expandedCategory, setExpandedCategory] = useState(null);
-
   const taskGroups = (() => {
     const groups = {
       'Vaccination': { icon: '💉', color: '#4F46E5', tasks: [] },
