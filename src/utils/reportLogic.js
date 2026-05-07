@@ -111,7 +111,16 @@ export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], p
   // 3. Child Health
   const mandatoryVaccines = ['BCG', 'Pentavalent 3', 'MR 1', 'OPV 3'];
   const childStats = {
-    samChildren: members.filter(m => m.healthData?.malnutritionStatus === 'high_risk').length,
+    samChildren: members.filter(m => {
+      const age = parseInt(m.age);
+      const muac = parseFloat(m.healthData?.muac || 0);
+      return age <= 5 && muac > 0 && muac < 11.5;
+    }).length,
+    mamChildren: members.filter(m => {
+      const age = parseInt(m.age);
+      const muac = parseFloat(m.healthData?.muac || 0);
+      return age <= 5 && muac >= 11.5 && muac < 12.5;
+    }).length,
     fullyImmunized: members.filter(m => {
       const dobStr = m.dob;
       if (!dobStr) return false;
@@ -132,6 +141,16 @@ export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], p
       const health = m.healthData || {};
       return age >= 30 && (health.bpSystolic || health.sugarLevel);
     }).length,
+  };
+
+  // 4.5 Disease Surveillance
+  const diseaseStats = {
+    tbSuspects: members.filter(m => {
+      const tb = m.healthData?.tbScreening;
+      return tb?.hasCoughTwoWeeks || (tb?.hasFever && tb?.hasWeightLoss);
+    }).length,
+    malariaSuspects: members.filter(m => m.healthData?.hasFeverWithChills).length,
+    leprosySuspects: members.filter(m => m.healthData?.hasSkinPatches).length,
   };
 
   // 5. Family Planning & EC
@@ -166,6 +185,7 @@ export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], p
     stock: stockStats,
     child: childStats,
     ncd: ncdStats,
+    disease: diseaseStats,
     fp: fpStats,
     monthName: now.toLocaleString('default', { month: 'long' }),
     year: currentYear

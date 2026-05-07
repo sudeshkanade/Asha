@@ -865,7 +865,12 @@ export const resources = {
       "jsyPaperwork": "JSY कागदपत्रे",
       "diarrheaCare": "अतिसार काळजी (Diarrhea Care)",
       "lepReferral": "कुष्ठरोग संदर्भ",
-      "tbDotsVisit": "TB DOTS भेट"
+      "tbDotsVisit": "TB DOTS भेट",
+      "diseaseSurveillance": "रोग सर्वेक्षण (TB, हिवताप, कुष्ठरोग)",
+      "tbSuspects": "क्षयरोग (TB) संशयित",
+      "malariaSuspects": "हिवताप (Malaria) संशयित",
+      "leprosySuspects": "कुष्ठरोग (Leprosy) संशयित",
+      "mamChildren": "MAM कुपोषित बालके"
     }
   }
 };

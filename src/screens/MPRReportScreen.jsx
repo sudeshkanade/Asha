@@ -142,8 +142,9 @@ const MPRReportScreen = ({ user, onBack }) => {
         </ReportSection>
 
         <ReportSection title={t('childHealthNutrition')}>
-          <ReportRow label={t('children05yrs')} value={report.child.samChildren + report.child.fullyImmunized} onDownload={() => handleDownload('CHILDREN_0_5')} loading={exporting === 'CHILDREN_0_5'} />
+          <ReportRow label={t('children05yrs')} value={report.child.samChildren + report.child.mamChildren + report.child.fullyImmunized} onDownload={() => handleDownload('CHILDREN_0_5')} loading={exporting === 'CHILDREN_0_5'} />
           <ReportRow label={t('samChildren')} value={report.child.samChildren} isAlert={report.child.samChildren > 0} onDownload={() => handleDownload('SAM_CHILDREN')} loading={exporting === 'SAM_CHILDREN'} />
+          <ReportRow label={t('mamChildren', 'MAM Children')} value={report.child.mamChildren} isAlert={report.child.mamChildren > 0} onDownload={() => handleDownload('MAM_CHILDREN')} loading={exporting === 'MAM_CHILDREN'} />
           <ReportRow label={t('fullyImmunized')} value={report.child.fullyImmunized} />
         </ReportSection>
 
@@ -170,6 +171,12 @@ const MPRReportScreen = ({ user, onBack }) => {
 
         <ReportSection title={t('ncdScreeningSection')}>
           <ReportRow label={t('totalNcdScreenings')} value={report.ncd.screened} onDownload={() => handleDownload('NCD_SCREENING')} loading={exporting === 'NCD_SCREENING'} />
+        </ReportSection>
+
+        <ReportSection title={t('diseaseSurveillance', 'Disease Surveillance')}>
+          <ReportRow label={t('tbSuspects', 'TB Suspects Identified')} value={report.disease.tbSuspects} isAlert={report.disease.tbSuspects > 0} />
+          <ReportRow label={t('malariaSuspects', 'Malaria Suspects (Fever)')} value={report.disease.malariaSuspects} isAlert={report.disease.malariaSuspects > 0} />
+          <ReportRow label={t('leprosySuspects', 'Leprosy Suspects (Skin Patches)')} value={report.disease.leprosySuspects} isAlert={report.disease.leprosySuspects > 0} />
         </ReportSection>
 
         <ReportSection title={t('specialRegisters')}>
