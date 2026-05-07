@@ -275,6 +275,8 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
 
         {activeTab === 'CHILD' && (
           <>
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>{t('growthMonitoring', 'Growth Monitoring')}</Text>
               <RenderInput label={t('weight') + ' (kg)'} value={tracker.weight} onChange={(t) => setTracker({...tracker, weight: t})} placeholder="e.g. 10.5" keyboardType="numeric" />
               <RenderInput label={t('height') + ' (cm)'} value={tracker.height} onChange={(t) => setTracker({...tracker, height: t})} placeholder="e.g. 85" keyboardType="numeric" />
               <RenderInput label={t('muac') + ' (cm)'} value={tracker.muac} onChange={(t) => setTracker({...tracker, muac: t})} placeholder="e.g. 12.5" keyboardType="numeric" />

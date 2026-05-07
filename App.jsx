@@ -33,7 +33,7 @@ export default function App() {
 
 
   useEffect(() => {
-    const APP_VERSION = '1.1.5';
+    const APP_VERSION = '1.1.7';
     
     const initApp = async () => {
       // 1. Version Check (Cache Buster)
