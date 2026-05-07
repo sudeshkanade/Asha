@@ -1,4 +1,5 @@
-import { storage, STORAGE_KEYS } from './storage';
+import { storage } from './storage';
+import { STORAGE_KEYS } from './constants';
 import { db } from './firebaseConfig';
 import { collection, doc, setDoc, getDocs } from 'firebase/firestore';
 

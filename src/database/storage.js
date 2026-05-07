@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { cloudSyncManager } from './cloudSync';
 import { Platform } from 'react-native';
+import { STORAGE_KEYS } from './constants';
 
 /**
  * Universal Storage Engine for Rural Health Tracker
@@ -8,23 +9,9 @@ import { Platform } from 'react-native';
  * with conflict resolution and background sync queuing.
  */
 
-export const STORAGE_KEYS = {
-  MEMBERS: '@rural_health_members',
-  FAMILIES: '@rural_health_families',
-  SYNC_QUEUE: 'asha_sync_queue',
-  TASKS: 'asha_tasks',
-  CLAIMS: 'asha_claims',
-  TASK_COMPLETIONS: 'asha_task_completions',
-  APP_CONFIG: 'asha_app_config',
-  LOCKED_PERIODS: 'asha_locked_periods',
-  VILLAGES: '@rural_health_villages',
-  USERS: '@rural_health_users',
-  PHCS: '@rural_health_phcs',
-  SUB_CENTERS: '@rural_health_subcenters',
-  DELETED_IDS: 'asha_deleted_ids',
-  VHND_SESSIONS: '@rural_health_vhnd',
-  VITAL_EVENTS: '@rural_health_vital_events',
-};
+
+
+export { STORAGE_KEYS };
 
 export const storage = {
   /**
