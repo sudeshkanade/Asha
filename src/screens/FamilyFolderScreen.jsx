@@ -26,6 +26,7 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Families'); // Families or EC
+  const [selectedVillageId, setSelectedVillageId] = useState(null);
 
   const [villages, setVillages] = useState([]);
 
@@ -241,13 +242,40 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
       </View>
 
       {activeTab === 'Families' && (
-        <View style={styles.searchContainer}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder={t('searchHouseName')}
-            value={searchQuery}
-            onChangeText={handleSearch}
-          />
+        <View>
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder={t('searchHouseName')}
+              value={searchQuery}
+              onChangeText={handleSearch}
+            />
+          </View>
+          
+          <View style={styles.villageSelector}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.villageScroll}>
+              <TouchableOpacity 
+                style={[styles.villageChip, !selectedVillageId && styles.activeVillageChip]}
+                onPress={() => setSelectedVillageId(null)}
+              >
+                <Text style={[styles.villageChipText, !selectedVillageId && styles.activeVillageChipText]}>{t('allVillages', 'All Villages')}</Text>
+              </TouchableOpacity>
+              {villages.filter(v => {
+                if (user?.role === 'ASHA') return v.id === user.villageId;
+                if (user?.role === 'ANM') return v.subCenterId === user.subCenterId;
+                if (user?.role === 'MO') return v.phcId === user.phcId;
+                return true;
+              }).map(v => (
+                <TouchableOpacity 
+                  key={v.id}
+                  style={[styles.villageChip, selectedVillageId === v.id && styles.activeVillageChip]}
+                  onPress={() => setSelectedVillageId(v.id)}
+                >
+                  <Text style={[styles.villageChipText, selectedVillageId === v.id && styles.activeVillageChipText]}>{v.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
         </View>
       )}
 
@@ -256,31 +284,12 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
           <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
       ) : activeTab === 'Families' ? (
-        <SectionList
-          sections={(() => {
-            // Group by village for all roles
-            const grouped = filteredFamilies.reduce((acc, fam) => {
-              const vName = villages.find(v => v.id === fam.villageId)?.name || t('unknownVillage');
-              if (!acc[vName]) acc[vName] = [];
-              acc[vName].push(fam);
-              return acc;
-            }, {});
-            return Object.keys(grouped).sort().map(vName => ({
-              title: vName,
-              count: grouped[vName].length,
-              data: grouped[vName]
-            }));
-          })()}
+        <FlatList
+          data={filteredFamilies.filter(f => !selectedVillageId || f.villageId === selectedVillageId)}
           renderItem={renderFamily}
-          renderSectionHeader={({ section: { title, count } }) => (
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionHeaderText}>{title} ({count})</Text>
-            </View>
-          )}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
-          stickySectionHeadersEnabled={false}
-          ListEmptyComponent={<Text style={styles.emptyText}>{t('viewList')}</Text>}
+          ListEmptyComponent={<Text style={styles.emptyText}>{t('noFamilies', 'No families found for this village.')}</Text>}
         />
       ) : (
         <FlatList
@@ -430,6 +439,36 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     marginLeft: 4,
+  },
+  villageSelector: {
+    backgroundColor: COLORS.surface,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  villageScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  villageChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  activeVillageChip: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  villageChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+  },
+  activeVillageChipText: {
+    color: '#FFF',
   },
 });
 

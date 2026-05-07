@@ -37,32 +37,42 @@ const applyHierarchyFilter = (members, user) => {
 
 // ===================== COLUMN DEFINITIONS =====================
 
-const baseColumns = (m, family, user) => ({
-  'Sr.No.': '', // filled later
-  'ASHA Name': user?.name || 'N/A',
-  'PHC': user?.phcName || m.phcId || 'N/A',
-  'Sub-Center': user?.subCenterName || m.subCenterId || 'N/A',
-  'Village': m.villageName || family.villageName || 'N/A',
-  'House No.': m.houseNo || family.houseNo || 'N/A',
-  'Family ID': m.familyId || 'N/A',
-  'First Name': m.firstName || '',
-  'Middle Name': m.middleName || '',
-  'Last Name': m.lastName || '',
-  'Relation to Head': m.relation || m.relationToHead || 'N/A',
-  'Gender': m.gender || 'N/A',
-  'Age': m.age || 'N/A',
-  'DOB': m.dob || 'N/A',
-  'Marital Status': m.maritalStatus || 'N/A',
-  'Education': m.education || 'N/A',
-  'Aadhaar': m.aadhaar || 'N/A',
-  'ABHA ID': m.abhaId || 'N/A',
-  'Mobile': m.mobile || 'N/A',
-  'Caste/Category': family.religionCaste || m.caste || 'N/A',
-  'BPL': family.isBPL ? 'Yes' : 'No',
-  'PwD': m.isPwd ? 'Yes' : 'No',
-  'Migrant': m.isMigrant ? 'Yes' : 'No',
-  'Status': m.status || 'Active',
-});
+const baseColumns = (m, family, user, allUsers = []) => {
+  let ashaName = user?.name || 'N/A';
+  
+  // If current user is Admin/ANM/MO, look up the ASHA name for this specific member
+  if (user?.role !== 'ASHA' && m.ashaId) {
+    const asha = allUsers.find(u => u.id === m.ashaId);
+    if (asha) ashaName = asha.name;
+  }
+
+  return {
+    'Sr.No.': '', // filled later
+    'ASHA Name': ashaName,
+    'PHC': user?.phcName || m.phcName || m.phcId || 'N/A',
+    'Sub-Center': user?.subCenterName || m.subCenterName || m.subCenterId || 'N/A',
+    'Village': m.villageName || family.villageName || 'N/A',
+    'House No.': m.houseNo || family.houseNo || 'N/A',
+    'Family ID': m.familyId || 'N/A',
+    'First Name': m.firstName || '',
+    'Middle Name': m.middleName || '',
+    'Last Name': m.lastName || '',
+    'Relation to Head': m.relation || m.relationToHead || 'N/A',
+    'Gender': m.gender || 'N/A',
+    'Age': m.age || 'N/A',
+    'DOB': m.dob || 'N/A',
+    'Marital Status': m.maritalStatus || 'N/A',
+    'Education': m.education || 'N/A',
+    'Aadhaar': m.aadhaar || 'N/A',
+    'ABHA ID': m.abhaId || 'N/A',
+    'Mobile': m.mobile || 'N/A',
+    'Caste/Category': family.religionCaste || m.caste || 'N/A',
+    'BPL': family.isBPL ? 'Yes' : 'No',
+    'PwD': m.isPwd ? 'Yes' : 'No',
+    'Migrant': m.isMigrant ? 'Yes' : 'No',
+    'Status': m.status || 'Active',
+  };
+};
 
 const ancColumns = (health) => ({
   'ANC Status': health.ancStatus || 'N/A',
@@ -117,6 +127,7 @@ export const exportMasterPopulation = async (user, filterType = null) => {
   try {
     const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
     const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
+    const allUsers = await storage.getAll(STORAGE_KEYS.USERS);
 
     // 1. Hierarchy filter
     let members = applyHierarchyFilter(allMembers, user);
@@ -159,7 +170,7 @@ export const exportMasterPopulation = async (user, filterType = null) => {
     const flatData = members.map((m, index) => {
       const family = allFamilies.find(f => f.id === m.familyId) || {};
       const health = m.healthData || {};
-      const base = baseColumns(m, family, user);
+      const base = baseColumns(m, family, user, allUsers);
       base['Sr.No.'] = index + 1;
 
       switch (filterType) {

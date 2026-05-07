@@ -24,6 +24,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
   const { t } = useTranslation();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [expandedCategory, setExpandedCategory] = useState(null);
 
   React.useEffect(() => {
     loadTasksFromStorage();
@@ -226,6 +227,64 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
     </TouchableOpacity>
   );
 
+  const [expandedCategory, setExpandedCategory] = useState(null);
+
+  const taskGroups = (() => {
+    const groups = {
+      'Vaccination': { icon: '💉', color: '#4F46E5', tasks: [] },
+      'Maternal Care': { icon: '🤱', color: '#EC4899', tasks: [] },
+      'Child Health': { icon: '👶', color: '#10B981', tasks: [] },
+      'Disease Control': { icon: '🦠', color: '#F59E0B', tasks: [] },
+      'Family Planning': { icon: '👨‍👩‍👧‍👦', color: '#8B5CF6', tasks: [] },
+      'General / Other': { icon: '📝', color: '#64748B', tasks: [] },
+    };
+
+    tasks.forEach(t => {
+      const type = t.serviceType?.toLowerCase() || '';
+      if (type.includes('vaccination') || type.includes('immun')) groups['Vaccination'].tasks.push(t);
+      else if (type.includes('anc') || type.includes('maternal') || type.includes('pnc')) groups['Maternal Care'].tasks.push(t);
+      else if (type.includes('sam') || type.includes('mam') || type.includes('child') || type.includes('diarrhea')) groups['Child Health'].tasks.push(t);
+      else if (type.includes('tb') || type.includes('malaria') || type.includes('leprosy') || type.includes('ncd')) groups['Disease Control'].tasks.push(t);
+      else if (type.includes('fp') || type.includes('eligible') || type.includes('vital')) groups['Family Planning'].tasks.push(t);
+      else groups['General / Other'].tasks.push(t);
+    });
+
+    return Object.entries(groups).filter(([_, g]) => g.tasks.length > 0);
+  })();
+
+  const renderGroupTile = ([name, group]) => {
+    const pendingCount = group.tasks.filter(t => t.status !== 'completed').length;
+    if (pendingCount === 0 && expandedCategory !== name) return null;
+
+    return (
+      <View key={name} style={styles.groupContainer}>
+        <TouchableOpacity 
+          style={[styles.groupTile, { borderLeftColor: group.color }]}
+          onPress={() => setExpandedCategory(expandedCategory === name ? null : name)}
+        >
+          <View style={[styles.groupIconBox, { backgroundColor: group.color + '20' }]}>
+            <Text style={styles.groupIconText}>{group.icon}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.groupName}>{t(name)}</Text>
+            <Text style={styles.groupSubText}>{pendingCount} {t('pending')}</Text>
+          </View>
+          <Text style={styles.expandIcon}>{expandedCategory === name ? '▼' : '▶'}</Text>
+        </TouchableOpacity>
+
+        {expandedCategory === name && (
+          <View style={styles.expandedTasks}>
+            {group.tasks.map(t => (
+              <View key={t.id}>
+                {renderTask({ item: t })}
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -257,13 +316,13 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
         </View>
       </View>
 
-      <FlatList
-        data={tasks}
-        renderItem={renderTask}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={<Text style={styles.emptyText}>{t('noTasksToday')}</Text>}
-      />
+      <ScrollView contentContainerStyle={styles.listContent}>
+        {taskGroups.length > 0 ? (
+          taskGroups.map(renderGroupTile)
+        ) : (
+          <Text style={styles.emptyText}>{t('noTasksToday')}</Text>
+        )}
+      </ScrollView>
 
       {/* Task Details Modal */}
       <Modal
@@ -705,6 +764,53 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 18,
     fontWeight: '700',
+  },
+  groupContainer: {
+    marginBottom: 16,
+  },
+  groupTile: {
+    backgroundColor: COLORS.surface,
+    padding: 16,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderLeftWidth: 6,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  groupIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  groupIconText: {
+    fontSize: 24,
+  },
+  groupName: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  groupSubText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  expandIcon: {
+    fontSize: 18,
+    color: COLORS.textSecondary,
+    marginLeft: 10,
+  },
+  expandedTasks: {
+    marginTop: 10,
+    paddingLeft: 10,
   },
 });
 

@@ -241,66 +241,64 @@ const DashboardScreen = ({ user, onNavigate }) => {
           </View>
         </View>
 
-        {/* Core Actions */}
+        {/* Registration & Population */}
         <View style={styles.section}>
-          <Text style={styles.sectionHeader}>{t('operationalTools')}</Text>
+          <Text style={styles.sectionHeader}>{t('registrationAndListing', 'Registration & Listing')}</Text>
           <View style={styles.shortcutGrid}>
-            {user?.role === 'ASHA' && (
-              <TouchableOpacity style={styles.shortcutCard} onPress={() => onNavigate('Tasks')}>
-                <Text style={styles.shortcutIcon}>📋</Text>
-                <Text style={styles.shortcutLabel}>{t('dueList')}</Text>
-              </TouchableOpacity>
-            )}
-
             <TouchableOpacity style={styles.shortcutCard} onPress={() => onNavigate('FamilyFolder')}>
               <Text style={styles.shortcutIcon}>📁</Text>
               <Text style={styles.shortcutLabel}>{t('familyRegister')}</Text>
             </TouchableOpacity>
-
             <TouchableOpacity style={styles.shortcutCard} onPress={() => onNavigate('MemberList')}>
               <Text style={styles.shortcutIcon}>👥</Text>
               <Text style={styles.shortcutLabel}>{user?.role === 'ASHA' ? t('myMembers') : t('lineListing')}</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={[styles.shortcutCard, { backgroundColor: '#F0FDF4' }]} onPress={() => onNavigate('FamilyRegistration')}>
+              <Text style={styles.shortcutIcon}>➕</Text>
+              <Text style={styles.shortcutLabel}>{t('newFamily')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
+        {/* Clinical & Outreach */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>{t('outreachClinical', 'Outreach & Clinical Services')}</Text>
+          <View style={styles.shortcutGrid}>
             <TouchableOpacity style={styles.shortcutCard} onPress={() => onNavigate('VitalEvents')}>
               <Text style={styles.shortcutIcon}>📝</Text>
               <Text style={styles.shortcutLabel}>{t('vitalEvents')}</Text>
             </TouchableOpacity>
-
             <TouchableOpacity style={styles.shortcutCard} onPress={() => onNavigate('VHND')}>
               <Text style={styles.shortcutIcon}>🏕️</Text>
               <Text style={styles.shortcutLabel}>{t('vhndSession')}</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity style={styles.shortcutCard} onPress={() => onNavigate(user?.role === 'ANM' ? 'GoshwaraReport' : 'MPRReport')}>
-              <Text style={styles.shortcutIcon}>📊</Text>
-              <Text style={styles.shortcutLabel}>{t('reports')}</Text>
-            </TouchableOpacity>
-
             <TouchableOpacity style={styles.shortcutCard} onPress={() => onNavigate('Claims')}>
               <Text style={styles.shortcutIcon}>💰</Text>
               <Text style={styles.shortcutLabel}>{t('claims')}</Text>
             </TouchableOpacity>
+          </View>
+        </View>
 
+        {/* Reports & Administration */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>{t('reportsAndAdmin', 'Reports & Administration')}</Text>
+          <View style={styles.shortcutGrid}>
+            <TouchableOpacity style={styles.shortcutCard} onPress={() => onNavigate(user?.role === 'ANM' ? 'GoshwaraReport' : 'MPRReport')}>
+              <Text style={styles.shortcutIcon}>📊</Text>
+              <Text style={styles.shortcutLabel}>{t('reports')}</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.shortcutCard} onPress={() => onNavigate('Team')}>
               <Text style={styles.shortcutIcon}>🤝</Text>
               <Text style={styles.shortcutLabel}>{t('myTeam')}</Text>
             </TouchableOpacity>
-
             {(user?.role === 'Admin' || user?.role === 'ANM' || user?.role === 'MO') && (
-              <>
-                <TouchableOpacity style={[styles.shortcutCard, {backgroundColor: '#F1F5F9'}]} onPress={() => onNavigate('AdminSetup')}>
-                  <Text style={styles.shortcutIcon}>⚙️</Text>
-                  <Text style={styles.shortcutLabel}>{user?.role === 'Admin' ? t('setupHierarchy') : t('manageArea', 'Manage Area')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.shortcutCard, {backgroundColor: '#FEF2F2'}]} onPress={() => onNavigate('AdminSetup', { initialTab: 'approvals' })}>
-                  <Text style={styles.shortcutIcon}>🛡️</Text>
-                  <Text style={styles.shortcutLabel}>{t('approvals')}</Text>
-                </TouchableOpacity>
-              </>
+              <TouchableOpacity style={[styles.shortcutCard, { backgroundColor: '#F1F5F9' }]} onPress={() => onNavigate('AdminSetup')}>
+                <Text style={styles.shortcutIcon}>⚙️</Text>
+                <Text style={styles.shortcutLabel}>{t('setupArea', 'Setup & Approvals')}</Text>
+              </TouchableOpacity>
             )}
-            {(user?.role === 'Admin' || user?.role === 'ANM') && (
-              <TouchableOpacity style={[styles.shortcutCard, {backgroundColor: '#FFF7ED'}]} onPress={() => onNavigate('RateSettings')}>
+            {user?.role === 'Admin' && (
+              <TouchableOpacity style={[styles.shortcutCard, { backgroundColor: '#FFF7ED' }]} onPress={() => onNavigate('RateSettings')}>
                 <Text style={styles.shortcutIcon}>💲</Text>
                 <Text style={styles.shortcutLabel}>{t('rateSettings')}</Text>
               </TouchableOpacity>

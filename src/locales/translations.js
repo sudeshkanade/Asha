@@ -444,7 +444,9 @@ export const resources = {
       "jsyPaperwork": "JSY Paperwork",
       "diarrheaCare": "Diarrhea Care",
       "lepReferral": "Leprosy Referral",
-      "tbDotsVisit": "TB DOTS Visit"
+      "tbDotsVisit": "TB DOTS Visit",
+      "systemName": "Rural Health Tracker",
+      "systemVersion": "v1.2.1"
     },
   },
   mr: {
@@ -870,7 +872,9 @@ export const resources = {
       "tbSuspects": "क्षयरोग (TB) संशयित",
       "malariaSuspects": "हिवताप (Malaria) संशयित",
       "leprosySuspects": "कुष्ठरोग (Leprosy) संशयित",
-      "mamChildren": "MAM कुपोषित बालके"
+      "mamChildren": "MAM कुपोषित बालके",
+      "systemName": "ग्रामीण आरोग्य ट्रॅकर",
+      "systemVersion": "v1.2.1"
     }
   }
 };

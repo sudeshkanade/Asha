@@ -27,6 +27,8 @@ const MPRReportScreen = ({ user, onBack }) => {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(null);
 
+  const [ashaName, setAshaName] = useState(user?.name);
+
   useEffect(() => {
     generateReport();
   }, []);
@@ -35,10 +37,12 @@ const MPRReportScreen = ({ user, onBack }) => {
     setLoading(true);
     const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
     const allEvents = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
+    const allUsers = await storage.getAll(STORAGE_KEYS.USERS);
     
     // Hierarchy filtering
     let members = allMembers;
     let events = allEvents;
+    let currentAshaName = user?.name;
     
     if (user?.role === 'ASHA') {
       members = allMembers.filter(m => m.ashaId === user.id || m.villageId === user.villageId);
@@ -46,13 +50,23 @@ const MPRReportScreen = ({ user, onBack }) => {
     } else if (user?.role === 'ANM') {
       members = allMembers.filter(m => m.subCenterId === user.subCenterId);
       events = allEvents.filter(e => e.payload?.subCenterId === user.subCenterId);
+      // For ANM, we might be looking at multiple ASHAs, but if we filter by village later, we'd need that.
+      // For now, if ANM is looking, use "Sub-Center Report" or similar.
     } else if (user?.role === 'MO') {
       members = allMembers.filter(m => m.phcId === user.phcId);
       events = allEvents.filter(e => e.payload?.phcId === user.phcId);
     }
 
+    // Try to find the ASHA for the primary village in this scope if current user is not ASHA
+    if (user?.role !== 'ASHA' && members.length > 0) {
+      const firstMember = members[0];
+      const asha = allUsers.find(u => u.id === firstMember.ashaId);
+      if (asha) currentAshaName = asha.name;
+    }
+
     const stats = generateMPRStats(members, events);
     setReport(stats);
+    setAshaName(currentAshaName);
     setLoading(false);
   };
 
@@ -107,7 +121,7 @@ const MPRReportScreen = ({ user, onBack }) => {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>{t('mpr')}</Text>
-          <Text style={styles.headerSubtitle}>{t('ashaMpr')} • {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</Text>
+          <Text style={styles.headerSubtitle}>{ashaName || t('ashaMpr')} • {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</Text>
         </View>
         <TouchableOpacity 
           style={styles.masterExportBtn} 
