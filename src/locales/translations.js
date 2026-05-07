@@ -662,7 +662,7 @@ export const resources = {
       "age": "वय",
       "mobilePlaceholder": "१०-अंकी मोबाईल नंबर",
       "aadhaarPlaceholder": "०००० ०००० ००००",
-      "healthId: 'आरोग्य आयडी",
+      "healthId": "आरोग्य आयडी",
       "saveMember": "सदस्य जतन करा",
       "saveAddAnother": "जतन करा आणि दुसरे जोडा",
       "lmp": "अंतिम मासिक पाळीची तारीख (LMP)",
