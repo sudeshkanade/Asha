@@ -28,6 +28,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [scFilter, setScFilter] = useState('all');
+  const [processingApprovals, setProcessingApprovals] = useState(new Set());
 
   const [newPhc, setNewPhc] = useState({ name: '', block: '' });
   const [newSubCenter, setNewSubCenter] = useState({ name: '', phcId: isAdmin ? '' : user?.phcId });
@@ -334,22 +335,38 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
     }
   };
   const handleUpdateUserStatus = async (userId, newStatus) => {
+    // RUTHLESS FIX: UI-Level Lock (Prevent double-clicks on slow tablets)
+    if (processingApprovals.has(userId)) return;
+    setProcessingApprovals(prev => new Set(prev).add(userId));
+
     try {
-      const all = await storage.getAll(STORAGE_KEYS.USERS);
-      const idx = all.findIndex(u => u.id === userId);
-      if (idx >= 0) {
-        const updatedUser = { ...all[idx], approvalStatus: newStatus };
-        all[idx] = updatedUser;
-        await storage.saveAll(STORAGE_KEYS.USERS, all);
-        await storage.addToSyncQueue(STORAGE_KEYS.USERS, updatedUser);
-        
-        await cloudSyncManager.startBackgroundSync();
-        
-        Alert.alert(t('userUpdated'), `${t('userAccount')} ${t(newStatus)}.`);
-        await loadData();
-      }
+      await storage.update(STORAGE_KEYS.USERS, (users) => {
+        const idx = users.findIndex(u => u.id === userId);
+        if (idx >= 0) {
+          // RUTHLESS FIX: Idempotency Check (Prevent duplicate sync events)
+          if (users[idx].approvalStatus === newStatus) return null;
+          
+          users[idx].approvalStatus = newStatus;
+          users[idx].lastUpdatedAt = Date.now();
+          users[idx].approvalTimestamp = new Date().toISOString();
+        }
+        return users;
+      });
+      
+      const updatedUser = (await storage.getAll(STORAGE_KEYS.USERS)).find(u => u.id === userId);
+      if (updatedUser) await storage.addToSyncQueue(STORAGE_KEYS.USERS, updatedUser);
+      
+      await cloudSyncManager.startBackgroundSync();
+      Alert.alert(t('userUpdated'), `${t('userAccount')} ${t(newStatus)}.`);
+      await loadData();
     } catch (e) {
       Alert.alert(t('error'), t('updateUserStatusFailed'));
+    } finally {
+      setProcessingApprovals(prev => {
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+      });
     }
   };
 

@@ -23,7 +23,7 @@ const RenderInput = ({ label, value, onChange, placeholder, keyboardType = 'defa
   </View>
 );
 
-const HealthTrackerScreen = ({ member, taskId, onSave, onBack }) => {
+const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
   const { t } = useTranslation();
   const [tracker, setTracker] = useState({
     ancStatus: member?.healthData?.ancStatus || 'none',
@@ -99,12 +99,15 @@ const HealthTrackerScreen = ({ member, taskId, onSave, onBack }) => {
     return alerts;
   };
 
-  const persistData = async () => {
+  const persistData = async (justification = '') => {
     const isRedFlag = (parseInt(tracker.bpSystolic) > 140 || parseInt(tracker.bpDiastolic) > 90) || 
                       (parseFloat(tracker.hbLevel) > 0 && parseFloat(tracker.hbLevel) < 7) || 
                       (memberAge <= 5 && parseFloat(tracker.weight) > 0 && parseFloat(tracker.weight) < 10) ||
                       (memberAge <= 5 && parseFloat(tracker.muac) > 0 && parseFloat(tracker.muac) < 11.5);
     const finalIsHighRisk = tracker.selectedRiskFactors.length > 0 || isRedFlag;
+    
+    // RUTHLESS FIX: Detect Downgrade for Audit
+    const isDowngrade = member?.healthData?.isHighRisk === true && finalIsHighRisk === false;
 
     const completedTasks = [...(member?.healthData?.completedTasks || [])];
     if (taskId && !completedTasks.includes(taskId)) {
@@ -120,34 +123,28 @@ const HealthTrackerScreen = ({ member, taskId, onSave, onBack }) => {
         completedTasks: completedTasks,
         lastUpdatedAt: Date.now(),
         // RUTHLESS FIX: Audit Trail for Overrides
-        _governance: isOverride ? {
-           type: 'CLINICAL_OVERRIDE',
-           authorizedBy: user?.name,
+        _governance: isDowngrade ? {
+           type: 'RISK_DOWNGRADE',
+           authorizedBy: user?.name || user?.id,
            timestamp: new Date().toISOString(),
-           reason: 'Retrospective Clinical Correction'
+           reason: justification || 'Emergency clinical correction'
         } : member?.healthData?._governance
       },
     };
 
-    // RUTHLESS FIX: Separate Governance Log for MO Audit
-    if (isOverride) {
-      const govEvent = {
+    // Separate Governance Log for PHC Audit
+    if (isDowngrade) {
+      await storage.save('governance_logs', {
         id: storage.generateId('gov', user?.id),
-        type: 'CLINICAL_OVERRIDE',
+        type: 'RISK_DOWNGRADE',
         targetMember: member.id,
-        user: user?.name,
+        user: user?.name || user?.id,
+        reason: justification,
         timestamp: new Date().toISOString()
-      };
-      await storage.save(STORAGE_KEYS.GOVERNANCE_LOGS || 'governance_logs', govEvent);
+      });
     }
 
     await storage.save(STORAGE_KEYS.MEMBERS, updatedMember);
-    if (Platform.OS === 'web') {
-      window.alert(t('success'));
-    } else {
-      Alert.alert(t('success'), t('healthTracker') + ' ' + t('success'));
-    }
-    // Only call onSave (which handles navigation back). Don't call onBack too.
     if (onSave) onSave(updatedMember);
     else if (onBack) onBack();
   };
@@ -163,18 +160,23 @@ const HealthTrackerScreen = ({ member, taskId, onSave, onBack }) => {
   };
 
   const handleSave = async () => {
-    const locked = await isPeriodLocked();
-    if (locked && user?.role !== 'Admin') {
-      // RED TEAM FIX: Allow override for clinical corrections
+    const isRedFlag = (parseInt(tracker.bpSystolic) > 140 || parseInt(tracker.bpDiastolic) > 90) || 
+                      (parseFloat(tracker.hbLevel) > 0 && parseFloat(tracker.hbLevel) < 7);
+    const finalIsHighRisk = tracker.selectedRiskFactors.length > 0 || isRedFlag;
+    const isDowngrade = member?.healthData?.isHighRisk === true && finalIsHighRisk === false;
+
+    if (isDowngrade) {
       if (Platform.OS === 'web') {
-        if (!window.confirm(t('reportingLockedOverride', 'This month is locked for reports. Do you need to make an EMERGENCY clinical correction?'))) {
+        const reason = window.prompt("⚠️ Governance Alert: You are marking a High-Risk case as NORMAL. Please enter clinical justification:");
+        if (!reason) {
+          Alert.alert("Required", "Justification is mandatory for risk downgrades.");
           return;
         }
+        persistData(reason);
       } else {
-         // In native, we'd show a more detailed dialog. For now, matching web logic.
-         Alert.alert(t('reportingLocked'), t('reportingLockedDesc'));
-         return;
+        Alert.alert("Governance Required", "Please justify the risk downgrade in the clinical notes before saving.");
       }
+      return;
     }
 
     const redFlags = checkRedFlags();

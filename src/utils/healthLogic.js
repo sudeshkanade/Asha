@@ -129,18 +129,59 @@ export const generateAllTasks = (members) => {
     const health = member.healthData || {};
     const age = calculateAge(member.dob);
 
+    // RUTHLESS FIX: Reactive Clinical Trigger Injections
+    // If severe vitals are detected, inject an IMMEDIATE Emergency Task
+    if (health.hbLevel > 0 && health.hbLevel < 7) {
+      generatedTasks.push({
+        id: `emergency-hb-${member.id}`,
+        member: member,
+        memberId: member.id,
+        memberName: `${member.firstName} ${member.lastName}`,
+        serviceType: 'EMERGENCY REFERRAL',
+        status: 'pending',
+        details: `CRITICAL: Severe Anemia (Hb: ${health.hbLevel}). Transfer to PHC immediately for iron infusion/blood transfusion.`,
+        priority: 'High',
+        dueDate: today,
+        isEmergency: true
+      });
+    }
+
+    if (health.bpSystolic >= 160 || health.bpDiastolic >= 100) {
+      generatedTasks.push({
+        id: `emergency-bp-${member.id}`,
+        member: member,
+        memberId: member.id,
+        memberName: `${member.firstName} ${member.lastName}`,
+        serviceType: 'EMERGENCY REFERRAL',
+        status: 'pending',
+        details: `CRITICAL: Severe Hypertension (BP: ${health.bpSystolic}/${health.bpDiastolic}). Risk of Eclampsia. Transfer immediately.`,
+        priority: 'High',
+        dueDate: today,
+        isEmergency: true
+      });
+    }
+
     // 1. Maternal Tasks (Only for eligible females)
     if (health.edd && shouldShowMaternalFields(member.gender, age)) {
       const lmp = new Date(health.edd);
       lmp.setDate(lmp.getDate() - 280);
       const ancSchedule = calculateMaternalSchedule(lmp);
       
-      ancSchedule.forEach((visit, idx) => {
+      const completedTaskIds = health.completedTasks || [];
+      const maxCompletedAncWeek = Math.max(
+        0,
+        ...completedTaskIds
+          .filter(id => id.startsWith('anc-visit-'))
+          .map(id => parseInt(id.split('-')[2]) || 0)
+      );
+
+      ancSchedule.forEach((visit) => {
         const dueDate = new Date(visit.date);
-          const taskId = `anc-${health.ancStatus === 'active' ? 'reg' : 'v'}-${idx}`; // Still using idx but safer prefixes
-          // RUTHLESS FIX: Better to use semantic keys
-          const semanticId = `anc-visit-${visit.week}-${member.id}`;
-          
+        const semanticId = `anc-visit-${visit.week}-${member.id}`;
+        const isActuallyDone = completedTaskIds.includes(semanticId);
+        const isSequenceSuperceded = visit.week < maxCompletedAncWeek;
+
+        if (!isActuallyDone && !isSequenceSuperceded) {
           generatedTasks.push({
             id: semanticId,
             member: member,
@@ -149,11 +190,12 @@ export const generateAllTasks = (members) => {
             serviceType: visit.label,
             houseNo: member.houseNo || 'N/A',
             isHighRisk: health.isHighRisk,
-            status: (health.completedTasks || []).includes(semanticId) ? 'completed' : 'pending',
+            status: 'pending',
             details: `${visit.label} is due. ${visit.actions}`,
             priority: (health.isHighRisk || dueDate <= today) ? 'High' : 'Normal',
             dueDate: visit.date
           });
+        }
       });
     }
 
@@ -256,20 +298,21 @@ export const generateAllTasks = (members) => {
 
       // Vaccination schedule for all under 17
       const vaxSchedule = calculateVaccinationSchedule(new Date(member.dob));
+      // RUTHLESS FIX: Essential Vaccine Persistence (Prevent Dropout Oversight)
+      const ESSENTIAL_VACCINES = ['Measles 1', 'MR 1', 'Measles 2', 'MR 2', 'DPT Booster'];
+      
       vaxSchedule.forEach((vax) => {
         const dueDate = new Date(vax.date);
-        
-        // Window: Overdue (last 2 years) OR Upcoming (next 15 days)
-        const twoYearsAgo = new Date(today);
-        twoYearsAgo.setFullYear(today.getFullYear() - 2);
-        
-        const fifteenDaysAhead = new Date(today);
-        fifteenDaysAhead.setDate(today.getDate() + 15);
+        const isEssential = ESSENTIAL_VACCINES.some(ev => vax.label.includes(ev));
+        const semanticId = `vax-${vax.label.toLowerCase().replace(/[^a-z0-9]/g, '')}-${member.id}`;
+        const isDone = (health.completedTasks || []).includes(semanticId);
 
-        if (dueDate <= fifteenDaysAhead && dueDate > twoYearsAgo) {
-           // RUTHLESS FIX: Semantic ID prevents 'ID Drift' during clinical schedule updates
-           const semanticId = `vax-${vax.label.toLowerCase().replace(/[^a-z0-9]/g, '')}-${member.id}`;
-           
+        // Standard vaccines drop off after 2 years; Essentials persist until age 10
+        const ageLimit = isEssential ? 10 : 2;
+        const cutoffDate = new Date(today);
+        cutoffDate.setFullYear(today.getFullYear() - ageLimit);
+
+        if (!isDone && dueDate > cutoffDate && dueDate <= new Date(today.getTime() + 15 * 24 * 60 * 60 * 1000)) {
            generatedTasks.push({
             id: semanticId,
             member: member,
@@ -277,9 +320,9 @@ export const generateAllTasks = (members) => {
             memberName: `${member.firstName} ${member.lastName}`,
             serviceType: `Vaccination: ${vax.label}`,
             houseNo: member.houseNo || 'N/A',
-            status: (health.completedTasks || []).includes(semanticId) ? 'completed' : 'pending',
+            status: 'pending',
             details: `Due for ${vax.label}. Vaccines: ${vax.vaccines}`,
-            priority: dueDate <= today ? 'High' : 'Normal', // Overdue is High, Upcoming is Normal
+            priority: dueDate <= today ? 'High' : 'Normal',
             dueDate: vax.date
           });
         }

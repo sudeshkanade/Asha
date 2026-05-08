@@ -122,26 +122,34 @@ export const cloudSyncManager = {
 
           console.log(`📤 CloudSync [${i}]: ${type || 'save'} → ${collectionName}/${docId}`);
 
+          // RUTHLESS FIX: Atomic Sync Item Processing with Server-Side Clock Truth
+          const { serverTimestamp } = require('firebase/firestore'); 
+          
           const syncPromise = (async () => {
             if (type === 'delete') {
               await setDoc(doc(db, collectionName, docId), {
                 deleted: true,
-                _deletedAt: new Date().toISOString(),
-                _lastSyncedAt: new Date().toISOString(),
+                _deletedAt: serverTimestamp(), // Use Server Time
+                _lastSyncedAt: serverTimestamp(),
               }, { merge: true });
             } else {
+              // RUTHLESS FIX: PII Log Redaction
+              // DO NOT log 'payload' as it contains sensitive medical PII
+              console.log(`📤 CloudSync [${i}]: Saving ${collectionName}/${docId} [REDACTED]`);
+              
               await setDoc(doc(db, collectionName, docId), {
                 ...payload,
-                _lastSyncedAt: new Date().toISOString(),
-                _originalTimestamp: timestamp,
+                _lastSyncedAt: serverTimestamp(),
+                _originalTimestamp: timestamp, // Keep client-time for local sorting
               }, { merge: true });
             }
           })();
 
+          // Individual item timeout (10s) ensures the queue keeps moving
           await Promise.race([
             syncPromise,
             new Promise((_, reject) =>
-              setTimeout(() => reject(new Error(`Timeout: ${collectionName}/${docId}`)), 15000)
+              setTimeout(() => reject(new Error(`Item Timeout: ${collectionName}/${docId}`)), 10000)
             ),
           ]);
 
@@ -251,11 +259,26 @@ export const cloudSyncManager = {
 
       for (const col of collectionsToPull) {
         try {
+          // RUTHLESS REFACTOR: Fail-Closed Jurisdictional Security
           let q = collection(db, col.table);
           if (['members', 'families', 'vital_events', 'claims'].includes(col.table)) {
-             if (user.role === 'ASHA') q = query(q, where("villageId", "==", user.villageId));
-             else if (['ANM', 'MPW', 'CHO'].includes(user.role)) q = query(q, where("subCenterId", "==", user.subCenterId));
-             else if (user.role === 'MO') q = query(q, where("phcId", "==", user.phcId));
+            switch (user.role) {
+              case 'ASHA':
+                q = query(q, where("villageId", "==", user.villageId || 'FORCE_BLOCK'));
+                break;
+              case 'ANM':
+              case 'MPW':
+              case 'CHO':
+                q = query(q, where("subCenterId", "==", user.subCenterId || 'FORCE_BLOCK'));
+                break;
+              case 'MO':
+                q = query(q, where("phcId", "==", user.phcId || 'FORCE_BLOCK'));
+                break;
+              default:
+                // FORCE BLOCK: Unauthorized role access
+                q = query(q, where("villageId", "==", "UNAUTHORIZED_ROLE_BLOCK"));
+                console.error(`🛡️ Security: Blocked unauthorized data pull for role: ${user.role}`);
+            }
           }
 
           const querySnapshot = await getDocs(q);
@@ -290,7 +313,13 @@ export const cloudSyncManager = {
             const idx = merged.findIndex((ld) => ld.id === cd.id);
             if (idx >= 0) {
               const localItem = merged[idx];
-              const cloudTime = cd.lastUpdatedAt || cd._lastSyncedAt || 0;
+              
+              // Normalize cloud time (Handle Firestore Timestamp objects)
+              const rawCloudTime = cd.lastUpdatedAt || cd._lastSyncedAt || 0;
+              const cloudTime = (rawCloudTime && typeof rawCloudTime.toMillis === 'function') 
+                ? rawCloudTime.toMillis() 
+                : new Date(rawCloudTime || 0).getTime();
+              
               const localTime = localItem.lastUpdatedAt || 0;
               const isFutureLocked = localTime > (Date.now() + 86400000);
 

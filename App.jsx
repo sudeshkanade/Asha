@@ -37,6 +37,8 @@ export default function App() {
   const [familyIdFilter, setFamilyIdFilter] = useState(null);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [registrationKey, setRegistrationKey] = useState(1);
+  const [initError, setInitError] = useState(false);
+  const [loading, setLoading] = useState(true);
 
 
   useEffect(() => {
@@ -65,6 +67,17 @@ export default function App() {
         }
       } catch (e) {
         console.warn('⚠️ Version check skipped (Offline/Throttle)');
+      }
+
+      try {
+        await storage.init();
+        // RUTHLESS FIX: Forensic Purge on Launch
+        await storage.cleanupTombstones();
+      } catch (e) {
+        console.error('FATAL: Storage init failed', e);
+        setInitError(true);
+        setLoading(false);
+        return;
       }
 
       await storage.autoPrune();
@@ -111,10 +124,66 @@ export default function App() {
     // Run heartbeat every 30 seconds
     const heartbeatId = setInterval(securityCheck, 30 * 1000);
 
+    // 4. RUTHLESS FIX: 30-Minute Inactivity Lock (Prevent PII Exposure on Stolen Devices)
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        const lastActive = storage.getRaw('LAST_ACTIVE_TIME');
+        const now = Date.now();
+        
+        if (lastActive && (now - parseInt(lastActive)) > 30 * 60 * 1000) { // 30 Minutes
+           console.warn("Security: Session expired due to inactivity. Forcing re-authentication.");
+           setUser(null);
+           setCurrentScreen('Login');
+           Alert.alert("Session Expired", "For your security, you have been logged out due to inactivity.");
+        }
+        storage.saveRaw('LAST_ACTIVE_TIME', now.toString());
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
     return () => {
       clearInterval(heartbeatId);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
     };
   }, [user]);
+
+  if (initError) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center', padding: 30 }}>
+        <Text style={{ fontSize: 40, marginBottom: 20 }}>🏥</Text>
+        <Text style={{ fontSize: 20, fontWeight: '800', color: '#1E293B', textAlign: 'center' }}>System Recovery Mode</Text>
+        <Text style={{ fontSize: 14, color: '#64748B', textAlign: 'center', marginVertical: 15 }}>
+          The local database could not be loaded. This usually happens if device storage is full.
+        </Text>
+        <TouchableOpacity 
+          style={{ backgroundColor: '#EF4444', padding: 16, borderRadius: 12, width: '100%' }}
+          onPress={async () => {
+             await storage.clearAll();
+             if (typeof window !== 'undefined') window.location.reload();
+          }}
+        >
+          <Text style={{ color: '#FFF', fontWeight: '700', textAlign: 'center' }}>FORCE RESET APP (Wipes Local Data)</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={{ marginTop: 20 }} onPress={() => { if (typeof window !== 'undefined') window.location.reload(); }}>
+          <Text style={{ color: '#0F172A', fontWeight: '600' }}>Retry Initialization</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (loading && !user) {
+    return (
+       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
+         <Text style={{fontSize: 24, fontWeight: '800', color: '#0F172A'}}>RHT Operating System</Text>
+         <Text style={{fontSize: 12, color: '#64748B', marginTop: 8}}>Booting Clinical Engine...</Text>
+       </View>
+    );
+  }
 
   const handleLogin = (userData) => {
     setUser(userData);
