@@ -230,6 +230,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
   const taskGroups = (() => {
     const groups = {
       'Vaccination': { icon: '💉', color: '#4F46E5', tasks: [] },
+      'Emergency Referrals': { icon: '🚨', color: COLORS.error, tasks: [] },
       'Maternal Care': { icon: '🤱', color: '#EC4899', tasks: [] },
       'Child Health': { icon: '👶', color: '#10B981', tasks: [] },
       'Disease Control': { icon: '🦠', color: '#F59E0B', tasks: [] },
@@ -239,7 +240,8 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
 
     tasks.forEach(t => {
       const type = t.serviceType?.toLowerCase() || '';
-      if (type.includes('vaccination') || type.includes('immun')) groups['Vaccination'].tasks.push(t);
+      if (type.includes('emergency') || type.includes('referral')) groups['Emergency Referrals'].tasks.push(t);
+      else if (type.includes('vaccination') || type.includes('immun')) groups['Vaccination'].tasks.push(t);
       else if (type.includes('anc') || type.includes('maternal') || type.includes('pnc')) groups['Maternal Care'].tasks.push(t);
       else if (type.includes('sam') || type.includes('mam') || type.includes('child') || type.includes('diarrhea')) groups['Child Health'].tasks.push(t);
       else if (type.includes('tb') || type.includes('malaria') || type.includes('leprosy') || type.includes('ncd')) groups['Disease Control'].tasks.push(t);

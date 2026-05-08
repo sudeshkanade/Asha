@@ -57,23 +57,34 @@ const SurveillanceScreen = ({ user, onBack }) => {
   };
 
   const handleAddVector = async () => {
-    const houses = window.prompt("Houses checked:");
-    const positive = window.prompt("Positive breeding sites found:");
+    // RUTHLESS FIX: Linking Surveys to Families (Prevent Orphaned Data)
+    const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
+    const villageFamilies = allFamilies.filter(f => f.villageId === user.villageId);
     
-    if (!houses || !positive) return;
+    if (villageFamilies.length === 0) {
+      Alert.alert("Data Missing", "No families registered in this village. Please ensure ASHA has completed registration.");
+      return;
+    }
+
+    const houseNo = window.prompt(`Enter House Number (Suggested: ${villageFamilies[0]?.houseNo}...):`);
+    if (!houseNo) return;
+
+    const positive = window.prompt("Positive breeding sites found (Larvae detected):");
+    if (positive === null) return;
 
     const newSurvey = {
       id: storage.generateId('vector', user.id),
-      housesChecked: parseInt(houses),
+      houseNo,
       positiveHouses: parseInt(positive),
       timestamp: new Date().toISOString(),
-      villageId: user.villageId
+      villageId: user.villageId,
+      ashaId: user.id
     };
 
     const updatedSurveys = [newSurvey, ...vectorSurveys];
     setVectorSurveys(updatedSurveys);
     await storage.save(STORAGE_KEYS.VECTOR_SURVEYS, newSurvey);
-    Alert.alert(t('success'), "Vector survey recorded.");
+    Alert.alert(t('success'), `Vector survey for House ${houseNo} recorded.`);
   };
 
   const indices = calculateVectorIndices(vectorSurveys.map(s => ({

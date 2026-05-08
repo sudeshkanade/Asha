@@ -251,6 +251,21 @@ const DashboardScreen = ({ user, onNavigate }) => {
         </View>
       )}
 
+      {/* RUTHLESS FIX: High-Visibility Sync Heartbeat Bar */}
+      <View style={[
+        styles.syncBar, 
+        { backgroundColor: isSyncing ? '#FBBF24' : (syncCount > 0 ? COLORS.error : '#10B981') }
+      ]}>
+        <Text style={styles.syncBarText}>
+          {isSyncing ? '⏳ Syncing Data...' : (syncCount > 0 ? `⚠️ ${syncCount} Records Pending Sync` : '✅ All Data Synced')}
+        </Text>
+        {syncCount > 0 && !isSyncing && (
+          <TouchableOpacity onPress={() => cloudSyncManager.startBackgroundSync()}>
+            <Text style={styles.syncNowText}>SYNC NOW</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Welcome Card */}
         <View style={styles.welcomeCard}>
@@ -510,8 +525,28 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 20,
   },
+  syncBar: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  syncBarText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  syncNowText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '900',
+    textDecorationLine: 'underline',
+  },
   scrollContent: {
     padding: 16,
+    paddingBottom: 100,
   },
   section: {
     marginBottom: 24,
