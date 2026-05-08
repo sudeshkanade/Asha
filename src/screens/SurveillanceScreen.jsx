@@ -168,7 +168,7 @@ const SurveillanceScreen = ({ user, onBack }) => {
             <View style={styles.featureCard}>
               <Text style={styles.featureTitle}>Sputum Collection & Transport</Text>
               <Text style={styles.featureDesc}>Log and track TB samples from field to lab.</Text>
-            </TouchableOpacity>
+            </View>
             <View style={styles.featureCard}>
               <Text style={styles.featureTitle}>Contact Tracing</Text>
               <Text style={styles.featureDesc}>Manage screening for family members of positive cases.</Text>
