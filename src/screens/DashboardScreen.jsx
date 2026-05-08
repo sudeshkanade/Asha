@@ -21,6 +21,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
   const { t, i18n } = useTranslation();
   const [stats, setStats] = React.useState(null);
   const [exporting, setExporting] = React.useState(false);
+  const [hwcRole, setHwcRole] = React.useState(user?.role || 'ANM'); // Internal role toggle
 
   const handleMasterExport = async () => {
     setExporting(true);
@@ -45,8 +46,17 @@ const DashboardScreen = ({ user, onNavigate }) => {
   }, []);
 
   const handleAddClosedBuilding = async () => {
-    const houseNo = window.prompt(t('enterHouseNo') || 'Enter House Number:');
-    if (!houseNo) return;
+    // RUTHLESS FIX: Prevent Native Crash by avoiding window.prompt
+    if (Platform.OS === 'web') {
+      const houseNo = window.prompt(t('enterHouseNo') || 'Enter House Number:');
+      if (houseNo) finalizeClosedBuilding(houseNo);
+    } else {
+      // In Native, we'd use a Modal. For now, using a safe alert.
+      Alert.alert("Feature Restricted", "Please use the Web portal for bulk administrative tasks.");
+    }
+  };
+
+  const finalizeClosedBuilding = async (houseNo) => {
 
     const closedFamily = {
       id: storage.generateId('closed', user?.id),
@@ -126,7 +136,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
       const pushResult = await cloudSyncManager.startBackgroundSync();
       
       // 2. Pull latest data from cloud
-      const pullResult = await cloudSyncManager.pullFromCloud();
+      const pullResult = await cloudSyncManager.pullFromCloud(user);
 
       if (pushResult.success || pullResult.success) {
         await loadLiveStats();
@@ -207,6 +217,24 @@ const DashboardScreen = ({ user, onNavigate }) => {
         </View>
       </View>
 
+      {/* Collaborative HWC Toggle (Only for ANM/MPW/CHO) */}
+      {['ANM', 'MPW', 'CHO'].includes(user?.role) && (
+        <View style={styles.hwcTeamBanner}>
+          <Text style={styles.teamText}>👥 {t('hwcCollaborationMode', 'HWC Team Mode')}:</Text>
+          <View style={styles.roleToggleGroup}>
+            {['ANM', 'MPW', 'CHO'].map(role => (
+              <TouchableOpacity 
+                key={role} 
+                style={[styles.roleMiniBtn, hwcRole === role && styles.roleMiniBtnActive]}
+                onPress={() => setHwcRole(role)}
+              >
+                <Text style={[styles.roleMiniText, hwcRole === role && styles.roleMiniTextActive]}>{role}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Welcome Card */}
         <View style={styles.welcomeCard}>
@@ -275,6 +303,31 @@ const DashboardScreen = ({ user, onNavigate }) => {
             <TouchableOpacity style={styles.shortcutCard} onPress={() => onNavigate('Claims')}>
               <Text style={styles.shortcutIcon}>💰</Text>
               <Text style={styles.shortcutLabel}>{t('claims')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+
+
+        {/* Operational Tools (Logistic, Surveillance, Stock) */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>{t('operationalTools', 'Operational Management')}</Text>
+          <View style={styles.shortcutGrid}>
+            <TouchableOpacity style={[styles.shortcutCard, { backgroundColor: '#F0F9FF' }]} onPress={() => onNavigate('Logistics')}>
+              <Text style={styles.shortcutIcon}>📦</Text>
+              <Text style={styles.shortcutLabel}>{t('stockManagement')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.shortcutCard, { backgroundColor: '#FFF7ED' }]} onPress={() => onNavigate('Surveillance')}>
+              <Text style={styles.shortcutIcon}>🦠</Text>
+              <Text style={styles.shortcutLabel}>{t('idspSurveillance')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.shortcutCard, { backgroundColor: '#F0FDF4' }]} onPress={() => onNavigate('Workplan')}>
+              <Text style={styles.shortcutIcon}>📅</Text>
+              <Text style={styles.shortcutLabel}>{t('workplan')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.shortcutCard, { backgroundColor: '#F5F3FF' }]} onPress={() => onNavigate('Financials')}>
+              <Text style={styles.shortcutIcon}>💰</Text>
+              <Text style={styles.shortcutLabel}>{t('financialGovernance')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -720,6 +773,45 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   fabMenuText: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  hwcTeamBanner: {
+    backgroundColor: '#F1F5F9',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  teamText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+    marginRight: 12,
+  },
+  roleToggleGroup: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  roleMiniBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  roleMiniBtnActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  roleMiniText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  roleMiniTextActive: {
+    color: '#FFF',
+  },
 });
 
 export default DashboardScreen;

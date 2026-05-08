@@ -16,6 +16,12 @@ import ClaimsScreen from './src/screens/ClaimsScreen';
 import TeamScreen from './src/screens/TeamScreen';
 import AdminSettingsScreen from './src/screens/AdminSettingsScreen2';
 import FamilyFolderScreen from './src/screens/FamilyFolderScreen';
+import LogisticsScreen from './src/screens/LogisticsScreen';
+import SurveillanceScreen from './src/screens/SurveillanceScreen';
+import WorkplanScreen from './src/screens/WorkplanScreen';
+import MODashboard from './src/screens/MODashboard';
+import AdminDashboard from './src/screens/AdminDashboard';
+import FinancialsScreen from './src/screens/FinancialsScreen';
 import { storage, STORAGE_KEYS } from './src/database/storage';
 import { cloudSyncManager } from './src/database/cloudSync';
 import './src/locales/i18n';
@@ -29,6 +35,7 @@ export default function App() {
   const [selectedMember, setSelectedMember] = useState(null);
   const [currentFilter, setCurrentFilter] = useState(null);
   const [familyIdFilter, setFamilyIdFilter] = useState(null);
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [registrationKey, setRegistrationKey] = useState(1);
 
 
@@ -36,6 +43,32 @@ export default function App() {
     const APP_VERSION = '1.2.0';
     
     const initApp = async () => {
+      // RUTHLESS FIX: Throttled Version Heartbeat (Protect Battery Life)
+      try {
+        const lastCheck = await AsyncStorage.getItem('LAST_VERSION_CHECK') || 0;
+        const now = Date.now();
+        
+        // Only check once every 4 hours (14,400,000 ms)
+        if (now - parseInt(lastCheck) > 14400000) {
+          const response = await fetch('/version.json?t=' + now);
+          const serverVersion = await response.json();
+          const localVersion = await AsyncStorage.getItem('APP_VERSION');
+          
+          await AsyncStorage.setItem('LAST_VERSION_CHECK', now.toString());
+
+          if (localVersion && serverVersion.version !== localVersion) {
+            console.log('🔄 New version detected. Purging cache and reloading...');
+            await AsyncStorage.setItem('APP_VERSION', serverVersion.version);
+            if (Platform.OS === 'web') window.location.reload(true);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Version check skipped (Offline/Throttle)');
+      }
+
+      await storage.autoPrune();
+      
       // 1. Version Check (Cache Buster)
       const storedVersion = await storage.getRaw('app_version');
       if (storedVersion && storedVersion !== APP_VERSION) {
@@ -48,8 +81,12 @@ export default function App() {
       // 2. Initial Sync (Pull hierarchy and updates)
       console.log("App: Performing initial cloud pull...");
       try {
-        await cloudSyncManager.pullFromCloud();
+        await cloudSyncManager.pullFromCloud(user);
         await cloudSyncManager.startBackgroundSync();
+        // RED TEAM FIX: Prune old logs to prevent storage crashes
+        await storage.autoPrune();
+        // RED TEAM FIX: Purge data from old jurisdictions
+        await storage.purgeOrphanedData(user);
       } catch (syncError) {
         console.error("Initial sync failed, proceeding offline:", syncError);
       }
@@ -81,7 +118,14 @@ export default function App() {
 
   const handleLogin = (userData) => {
     setUser(userData);
-    setCurrentScreen('Dashboard');
+    if (userData.role === 'Admin') {
+      setCurrentScreen('AdminDashboard');
+    } else if (userData.role === 'MO') {
+      setCurrentScreen('MODashboard');
+    } else {
+      // ASHA, ANM, MPW, CHO all use the collaborative Dashboard
+      setCurrentScreen('Dashboard');
+    }
   };
 
   const handleFamilySave = async (familyData) => {
@@ -164,6 +208,8 @@ export default function App() {
                      return;
                    }
                    if (data?.member) setSelectedMember(data.member);
+                   if (data?.taskId) setSelectedTaskId(data.taskId);
+                   else setSelectedTaskId(null);
                    if (data?.filter) setCurrentFilter(data.filter);
                    if (data?.familyId) setFamilyIdFilter(data.familyId);
                    if (data?.initialTab) setAdminSetupData(data.initialTab);
@@ -179,6 +225,7 @@ export default function App() {
           if (data?.member) setSelectedMember(data.member);
           if (data?.familyId) setFamilyIdFilter(data.familyId);
           if (data?.family) setSelectedFamily(data.family);
+          if (data?.taskId) setSelectedTaskId(data.taskId);
           setCurrentScreen(screen);
         }} onBack={() => setCurrentScreen('Dashboard')} />;
       case 'FamilyRegistration':
@@ -202,6 +249,8 @@ export default function App() {
                     if (data?.familyId) setFamilyIdFilter(data.familyId);
                     if (data?.family) setSelectedFamily(data.family);
                     if (data?.member) setSelectedMember(data.member);
+                    if (data?.taskId) setSelectedTaskId(data.taskId);
+                    else setSelectedTaskId(null);
                     setCurrentScreen(screen);
                   }}
                   onBack={() => setCurrentScreen('Dashboard')} 
@@ -214,11 +263,16 @@ export default function App() {
         return <HealthTrackerScreen 
                   user={user}
                   member={selectedMember} 
+                  taskId={selectedTaskId}
                   onSave={(updatedMember) => {
                     setSelectedMember(null);
+                    setSelectedTaskId(null);
                     setCurrentScreen('Dashboard');
                   }}
-                  onBack={() => setCurrentScreen('Dashboard')} 
+                  onBack={() => {
+                    setSelectedTaskId(null);
+                    setCurrentScreen('Dashboard');
+                  }} 
                 />;
       case 'VitalEvents':
         return <VitalEventsScreen user={user} onBack={() => setCurrentScreen('Dashboard')} />;
@@ -230,6 +284,31 @@ export default function App() {
         return <TeamScreen user={user} onBack={() => setCurrentScreen('Dashboard')} />;
       case 'RateSettings':
         return <AdminSettingsScreen user={user} onBack={() => setCurrentScreen('Dashboard')} />;
+      case 'Logistics':
+        return <LogisticsScreen user={user} onBack={() => setCurrentScreen('Dashboard')} />;
+      case 'Surveillance':
+        return <SurveillanceScreen user={user} onBack={() => setCurrentScreen('Dashboard')} />;
+      case 'Workplan':
+        return <WorkplanScreen user={user} onBack={() => setCurrentScreen('Dashboard')} onNavigate={(screen, data) => {
+          if (data?.member) setSelectedMember(data.member);
+          setCurrentScreen(screen);
+        }} />;
+      case 'MODashboard':
+        return <MODashboard user={user} onBack={() => setCurrentScreen('Dashboard')} onNavigate={(screen, data) => {
+          if (data?.member) setSelectedMember(data.member);
+          if (data?.filter) setCurrentFilter(data.filter);
+          if (data?.initialTab) setAdminSetupData(data.initialTab);
+          setCurrentScreen(screen);
+        }} />;
+      case 'AdminDashboard':
+        return <AdminDashboard user={user} onBack={() => setCurrentScreen('Dashboard')} onNavigate={(screen, data) => {
+          if (data?.initialTab) setAdminSetupData(data.initialTab);
+          setCurrentScreen(screen);
+        }} />;
+      case 'Financials':
+        return <FinancialsScreen user={user} onBack={() => setCurrentScreen('Dashboard')} onNavigate={(screen, data) => {
+          setCurrentScreen(screen);
+        }} />;
       default:
         return <DashboardScreen user={user} onNavigate={(screen) => setCurrentScreen(screen)} />;
     }

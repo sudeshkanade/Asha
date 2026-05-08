@@ -1,4 +1,4 @@
-const CACHE_NAME = 'health-tracker-v4';
+const CACHE_NAME = 'health-tracker-v5';
 const ASSETS_TO_CACHE = [
   './index.html',
   './manifest.json',
@@ -31,10 +31,14 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch: Network-first falling back to cache (Ensures fresh data when online)
+// Fetch: Network-first with timeout falling back to cache
 self.addEventListener('fetch', event => {
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Network timeout')), 5000)
+  );
+
   event.respondWith(
-    fetch(event.request)
+    Promise.race([fetch(event.request), timeoutPromise])
       .catch(() => caches.match(event.request))
   );
 });

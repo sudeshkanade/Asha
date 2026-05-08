@@ -18,4 +18,10 @@ export const STORAGE_KEYS = {
   DELETED_IDS: 'asha_deleted_ids',
   VHND_SESSIONS: '@rural_health_vhnd',
   VITAL_EVENTS: '@rural_health_vital_events',
+  STOCK: '@rural_health_stock',
+  IDSP_SURVEILLANCE: '@rural_health_idsp',
+  VECTOR_SURVEYS: '@rural_health_vector',
+  HWC_ACTIVITY: '@rural_health_hwc',
+  WATER_QUALITY: '@rural_health_water',
+  COLD_CHAIN: '@rural_health_cold_chain',
 };

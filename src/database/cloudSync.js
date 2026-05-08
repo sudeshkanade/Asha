@@ -1,7 +1,7 @@
 import { storage } from './storage';
 import { STORAGE_KEYS } from './constants';
 import { db } from './firebaseConfig';
-import { collection, doc, setDoc, getDocs } from 'firebase/firestore';
+import { collection, doc, setDoc, getDocs, query, where } from 'firebase/firestore';
 
 /**
  * Collection name mapping: localStorage key → Firestore collection
@@ -89,6 +89,14 @@ export const cloudSyncManager = {
       for (let i = 0; i < queue.length; i++) {
         const item = queue[i];
         try {
+          // RUTHLESS FIX: Prevent Sync Starvation & Battery Drain
+          // Check if item has a backoff timer (don't retry more than once every 5 mins)
+          const now = Date.now();
+          const lastAttempt = item.lastAttemptAt || 0;
+          if (now - lastAttempt < 300000) { // 5 minute backoff
+            remainingQueue.push(item);
+            continue;
+          }
           const storageKey = item.tableName;
           const { payload, timestamp, type } = item;
 
@@ -154,11 +162,41 @@ export const cloudSyncManager = {
         } catch (err) {
           console.error(`❌ CloudSync [${i}]: FAILED —`, err.message);
           if (!firstError) firstError = err.message;
-          remainingQueue.push(item);
+          
+          // RUTHLESS FIX: Auth-Aware Sync Error Handling
+          if (err.message?.includes('permission-denied') || err.message?.includes('unauthenticated')) {
+             console.error('🛑 CRITICAL: Session expired. Background sync halted.');
+             return { success: false, message: 'AUTH_EXPIRED', error: err.message };
+          }
+          
+          // RUTHLESS FIX: Dead Letter Queue (Max 5 Retries)
+          const retryCount = (item.retryCount || 0) + 1;
+          const updatedItem = { ...item, retryCount, lastAttemptAt: Date.now() };
+          
+          if (retryCount < 5) {
+            // Move failed items to the END of the queue to prevent blocking
+            remainingQueue.push(updatedItem);
+          } else {
+            // RUTHLESS FIX: Persistent DLQ (Never discard clinical data)
+            console.error(`💀 CloudSync: Moving ${docId} to Persistent DLQ after 5 failures.`);
+            try {
+              const dlq = await storage.getAll('dlq_forensics') || [];
+              await storage.saveAll('dlq_forensics', [...dlq, { ...item, failedAt: new Date().toISOString(), error: err.message }]);
+            } catch (dlqErr) {
+              console.error('🚫 Critical: Could not save to DLQ table.');
+            }
+          }
         }
       }
 
-      await storage.saveAll(STORAGE_KEYS.SYNC_QUEUE, remainingQueue);
+      // RUTHLESS FIX: Atomic Queue Cleanup
+      // Do NOT overwrite the whole queue with remainingQueue.
+      // Another save might have happened while we were syncing!
+      const latestQueue = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
+      const processedIds = queue.filter(item => !remainingQueue.includes(item)).map(item => item.timestamp);
+      
+      const finalQueue = latestQueue.filter(item => !processedIds.includes(item.timestamp));
+      await storage.saveAll(STORAGE_KEYS.SYNC_QUEUE, finalQueue);
 
       const elapsed = Date.now() - startTime;
       console.log(`✅ CloudSync: Push done in ${elapsed}ms — synced:${syncedCount} failed:${remainingQueue.length} skipped:${skippedCount}`);
@@ -179,15 +217,16 @@ export const cloudSyncManager = {
 
   /**
    * Pull data from Firestore and merge into local storage
+   * SECURITY: Enforces jurisdictional isolation via Firestore queries
    */
-  pullFromCloud: async () => {
-    if (!db) {
-      console.warn('❌ CloudSync: Firebase DB not initialized (pull).');
-      return { success: false, message: 'Firebase not initialized' };
+  pullFromCloud: async (user) => {
+    if (!db || !user) {
+      console.warn('❌ CloudSync: Missing DB or User for pull.');
+      return { success: false, message: 'Auth required' };
     }
 
     const startTime = Date.now();
-    console.log('⬇️ CloudSync: Starting pull from cloud...');
+    console.log('⬇️ CloudSync: Starting Shadow Pull...');
 
     try {
       const collectionsToPull = [
@@ -206,71 +245,79 @@ export const cloudSyncManager = {
         { key: STORAGE_KEYS.APP_CONFIG, table: 'app_config' },
       ];
 
-      let totalPulled = 0;
-      let totalDeleted = 0;
-      const tombstones = await storage.getAll(STORAGE_KEYS.DELETED_IDS) || [];
+      // RUTHLESS FIX: Shadow Sync (Fetch WITHOUT locking UI)
+      const shadowBuffer = {};
+      const deletedBuffer = {};
 
       for (const col of collectionsToPull) {
         try {
-          const querySnapshot = await getDocs(collection(db, col.table));
+          let q = collection(db, col.table);
+          if (['members', 'families', 'vital_events', 'claims'].includes(col.table)) {
+             if (user.role === 'ASHA') q = query(q, where("villageId", "==", user.villageId));
+             else if (['ANM', 'MPW', 'CHO'].includes(user.role)) q = query(q, where("subCenterId", "==", user.subCenterId));
+             else if (user.role === 'MO') q = query(q, where("phcId", "==", user.phcId));
+          }
+
+          const querySnapshot = await getDocs(q);
           const cloudData = [];
           const deletedInCloud = [];
 
           querySnapshot.forEach((docSnap) => {
             const data = docSnap.data();
-            if (data.deleted === true || tombstones.includes(docSnap.id)) {
-              deletedInCloud.push(docSnap.id);
-            } else {
-              cloudData.push({ id: docSnap.id, ...data });
-            }
+            if (data.deleted === true) deletedInCloud.push(docSnap.id);
+            else cloudData.push({ id: docSnap.id, ...data });
           });
 
-          if (cloudData.length > 0 || deletedInCloud.length > 0) {
-            const localData = await storage.getAll(col.key);
-
-            // Advanced Merge: Protect local pending changes
-            let merged = [...localData];
-
-            cloudData.forEach((cd) => {
-              const idx = merged.findIndex((ld) => ld.id === cd.id);
-              if (idx >= 0) {
-                const localItem = merged[idx];
-                const cloudTime = cd.lastUpdatedAt || cd._lastSyncedAt || 0;
-                const localTime = localItem.lastUpdatedAt || 0;
-
-                if (localItem.syncStatus !== 'pending' || cloudTime > localTime) {
-                  merged[idx] = { ...localItem, ...cd, syncStatus: 'synced' };
-                }
-              } else {
-                merged.push({ ...cd, syncStatus: 'synced' });
-              }
-            });
-
-            // Remove items deleted in cloud
-            if (deletedInCloud.length > 0) {
-              const beforeCount = merged.length;
-              merged = merged.filter((m) => !deletedInCloud.includes(m.id));
-              const removedCount = beforeCount - merged.length;
-              if (removedCount > 0) {
-                console.log(`🗑️ CloudSync: Removed ${removedCount} deleted items from ${col.table}`);
-                totalDeleted += removedCount;
-              }
-            }
-
-            await storage.saveAll(col.key, merged);
-            totalPulled += cloudData.length;
-          }
-
-          console.log(`📥 ${col.table}: ${cloudData.length} live, ${deletedInCloud.length} deleted`);
+          shadowBuffer[col.key] = cloudData;
+          deletedBuffer[col.key] = deletedInCloud;
         } catch (colErr) {
-          console.error(`❌ CloudSync: Failed to pull ${col.table}:`, colErr.message);
+          console.error(`⚠️ ShadowPull [${col.table}] failed:`, colErr.message);
         }
       }
 
-      const elapsed = Date.now() - startTime;
-      console.log(`✅ CloudSync: Pull done in ${elapsed}ms — pulled:${totalPulled} removed:${totalDeleted}`);
+      // NOW acquire the lock and merge lightning fast
+      return await storage.withLock(async () => {
+        let totalPulled = 0;
+        let totalDeleted = 0;
+        const tombstones = (await storage.getAll(STORAGE_KEYS.DELETED_IDS)) || [];
 
-      return { success: true, pulledCount: totalPulled, deletedCount: totalDeleted };
+        for (const [storageKey, cloudData] of Object.entries(shadowBuffer)) {
+          const deletedInCloud = deletedBuffer[storageKey] || [];
+          const localData = await storage.getAll(storageKey);
+          let merged = [...localData];
+
+          cloudData.forEach((cd) => {
+            const idx = merged.findIndex((ld) => ld.id === cd.id);
+            if (idx >= 0) {
+              const localItem = merged[idx];
+              const cloudTime = cd.lastUpdatedAt || cd._lastSyncedAt || 0;
+              const localTime = localItem.lastUpdatedAt || 0;
+              const isFutureLocked = localTime > (Date.now() + 86400000);
+
+              if (isFutureLocked) {
+                merged[idx] = { ...cd, syncStatus: 'synced' };
+              } else if (localItem.syncStatus !== 'pending' || cloudTime > localTime) {
+                merged[idx] = { ...localItem, ...cd, syncStatus: 'synced' };
+              }
+            } else if (!tombstones.includes(cd.id)) {
+              merged.push({ ...cd, syncStatus: 'synced' });
+            }
+          });
+
+          if (deletedInCloud.length > 0) {
+            merged = merged.filter((m) => !deletedInCloud.includes(m.id));
+            totalDeleted += deletedInCloud.length;
+          }
+
+          await storage.saveAll(storageKey, merged);
+          totalPulled += cloudData.length;
+        }
+
+        const elapsed = Date.now() - startTime;
+        console.log(`✅ CloudSync: Shadow Pull merged in ${elapsed}ms — pulled:${totalPulled} removed:${totalDeleted}`);
+        return { success: true, pulledCount: totalPulled, deletedCount: totalDeleted };
+      });
+
     } catch (e) {
       console.error('💥 CloudSync: Critical pull error:', e);
       return { success: false, message: e.message };

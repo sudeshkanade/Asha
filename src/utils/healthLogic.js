@@ -125,7 +125,7 @@ export const generateAllTasks = (members) => {
   const generatedTasks = [];
   const today = new Date();
 
-  members.filter(m => m.status !== 'Deceased' && !m.isMigrant).forEach(member => {
+  members.filter(m => !m.isDeleted && m.status !== 'Deceased' && !m.isMigrant).forEach(member => {
     const health = member.healthData || {};
     const age = calculateAge(member.dob);
 
@@ -137,20 +137,23 @@ export const generateAllTasks = (members) => {
       
       ancSchedule.forEach((visit, idx) => {
         const dueDate = new Date(visit.date);
-        if (dueDate <= new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)) {
+          const taskId = `anc-${health.ancStatus === 'active' ? 'reg' : 'v'}-${idx}`; // Still using idx but safer prefixes
+          // RUTHLESS FIX: Better to use semantic keys
+          const semanticId = `anc-visit-${visit.week}-${member.id}`;
+          
           generatedTasks.push({
-            id: `anc-${member.id}-${idx}`,
+            id: semanticId,
+            member: member,
             memberId: member.id,
             memberName: `${member.firstName} ${member.lastName}`,
             serviceType: visit.label,
             houseNo: member.houseNo || 'N/A',
             isHighRisk: health.isHighRisk,
-            status: (health.completedTasks || []).includes(`anc-${member.id}-${idx}`) ? 'completed' : 'pending',
+            status: (health.completedTasks || []).includes(semanticId) ? 'completed' : 'pending',
             details: `${visit.label} is due. ${visit.actions}`,
             priority: (health.isHighRisk || dueDate <= today) ? 'High' : 'Normal',
             dueDate: visit.date
           });
-        }
       });
     }
 
@@ -162,6 +165,7 @@ export const generateAllTasks = (members) => {
         if (dueDate <= new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)) {
           generatedTasks.push({
             id: `pnc-${member.id}-${idx}`,
+            member: member,
             memberId: member.id,
             memberName: `${member.firstName} ${member.lastName}`,
             serviceType: visit.label,
@@ -177,6 +181,7 @@ export const generateAllTasks = (members) => {
       // JSY Paperwork Task
       generatedTasks.push({
         id: `jsy-${member.id}`,
+        member: member,
         memberId: member.id,
         memberName: `${member.firstName} ${member.lastName}`,
         serviceType: 'JSY Paperwork',
@@ -199,6 +204,7 @@ export const generateAllTasks = (members) => {
           if (dueDate <= new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)) {
             generatedTasks.push({
               id: `hbnc-${member.id}-${idx}`,
+              member: member,
               memberId: member.id,
               memberName: `${member.firstName} ${member.lastName}`,
               serviceType: visit.label,
@@ -218,6 +224,7 @@ export const generateAllTasks = (members) => {
           if (dueDate <= new Date(today.getTime() + 15 * 24 * 60 * 60 * 1000)) {
             generatedTasks.push({
               id: `hbyc-${member.id}-${idx}`,
+              member: member,
               memberId: member.id,
               memberName: `${member.firstName} ${member.lastName}`,
               serviceType: visit.label,
@@ -235,6 +242,7 @@ export const generateAllTasks = (members) => {
       if (health.hasDiarrhea) {
         generatedTasks.push({
           id: `ors-${member.id}`,
+          member: member,
           memberId: member.id,
           memberName: `${member.firstName} ${member.lastName}`,
           serviceType: 'Diarrhea Care',
@@ -248,7 +256,7 @@ export const generateAllTasks = (members) => {
 
       // Vaccination schedule for all under 17
       const vaxSchedule = calculateVaccinationSchedule(new Date(member.dob));
-      vaxSchedule.forEach((vax, idx) => {
+      vaxSchedule.forEach((vax) => {
         const dueDate = new Date(vax.date);
         
         // Window: Overdue (last 2 years) OR Upcoming (next 15 days)
@@ -259,13 +267,17 @@ export const generateAllTasks = (members) => {
         fifteenDaysAhead.setDate(today.getDate() + 15);
 
         if (dueDate <= fifteenDaysAhead && dueDate > twoYearsAgo) {
+           // RUTHLESS FIX: Semantic ID prevents 'ID Drift' during clinical schedule updates
+           const semanticId = `vax-${vax.label.toLowerCase().replace(/[^a-z0-9]/g, '')}-${member.id}`;
+           
            generatedTasks.push({
-            id: `vax-${member.id}-${idx}`,
+            id: semanticId,
+            member: member,
             memberId: member.id,
             memberName: `${member.firstName} ${member.lastName}`,
             serviceType: `Vaccination: ${vax.label}`,
             houseNo: member.houseNo || 'N/A',
-            status: (health.completedTasks || []).includes(`vax-${member.id}-${idx}`) ? 'completed' : 'pending',
+            status: (health.completedTasks || []).includes(semanticId) ? 'completed' : 'pending',
             details: `Due for ${vax.label}. Vaccines: ${vax.vaccines}`,
             priority: dueDate <= today ? 'High' : 'Normal', // Overdue is High, Upcoming is Normal
             dueDate: vax.date
@@ -282,6 +294,7 @@ export const generateAllTasks = (members) => {
       if (!lastNcdDate || lastNcdDate <= sixMonthsAgo) {
         generatedTasks.push({
           id: `ncd-${member.id}`,
+          member: member,
           memberId: member.id,
           memberName: `${member.firstName} ${member.lastName}`,
           serviceType: 'NCD Screening',
@@ -303,6 +316,7 @@ export const generateAllTasks = (members) => {
       if (!lastFpDate || lastFpDate <= oneMonthAgo) {
         generatedTasks.push({
           id: `fp-${member.id}`,
+          member: member,
           memberId: member.id,
           memberName: `${member.firstName} ${member.lastName}`,
           serviceType: 'FP Supply Refill',
@@ -319,6 +333,7 @@ export const generateAllTasks = (members) => {
     if (health.tbScreening?.hasCoughTwoWeeks || (health.tbScreening?.hasFever && health.tbScreening?.hasWeightLoss)) {
       generatedTasks.push({
         id: `tb-${member.id}`,
+        member: member,
         memberId: member.id,
         memberName: `${member.firstName} ${member.lastName}`,
         serviceType: 'TB Sample Collection',
@@ -334,6 +349,7 @@ export const generateAllTasks = (members) => {
     if (health.hasFeverWithChills) {
       generatedTasks.push({
         id: `mal-${member.id}`,
+        member: member,
         memberId: member.id,
         memberName: `${member.firstName} ${member.lastName}`,
         serviceType: 'Malaria Slide Collection',
@@ -350,6 +366,7 @@ export const generateAllTasks = (members) => {
     if (age <= 5 && muac > 0 && muac < 12.5) {
       generatedTasks.push({
         id: `sam-${member.id}`,
+        member: member,
         memberId: member.id,
         memberName: `${member.firstName} ${member.lastName}`,
         serviceType: muac < 11.5 ? 'SAM Care' : 'MAM Care',
@@ -367,6 +384,7 @@ export const generateAllTasks = (members) => {
     if (health.hasSkinPatches) {
       generatedTasks.push({
         id: `lep-${member.id}`,
+        member: member,
         memberId: member.id,
         memberName: `${member.firstName} ${member.lastName}`,
         serviceType: 'Leprosy Referral',
@@ -382,6 +400,7 @@ export const generateAllTasks = (members) => {
     if (health.onTbTreatment) {
       generatedTasks.push({
         id: `dots-${member.id}`,
+        member: member,
         memberId: member.id,
         memberName: `${member.firstName} ${member.lastName}`,
         serviceType: 'TB DOTS Visit',

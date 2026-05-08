@@ -26,6 +26,19 @@ import { storage, STORAGE_KEYS } from '../database/storage';
  *   'FP_REGISTER'      — Family Planning Register
  */
 
+// ===================== HELPER: Security Sanitizer =====================
+/**
+ * RUTHLESS FIX: Prevent Excel Formula Injection (CSV Injection)
+ * Escapes characters that can be used to execute commands in Excel/XLSX
+ */
+const sanitizeValue = (val) => {
+  if (typeof val !== 'string') return val;
+  if (val.startsWith('=') || val.startsWith('+') || val.startsWith('-') || val.startsWith('@')) {
+    return `'${val}`; // Prefix with single quote to force text interpretation
+  }
+  return val;
+};
+
 // ===================== HELPER: Hierarchy filter =====================
 const applyHierarchyFilter = (members, user) => {
   if (!user) return members;
@@ -48,15 +61,15 @@ const baseColumns = (m, family, user, allUsers = []) => {
 
   return {
     'Sr.No.': '', // filled later
-    'ASHA Name': ashaName,
-    'PHC': user?.phcName || m.phcName || m.phcId || 'N/A',
-    'Sub-Center': user?.subCenterName || m.subCenterName || m.subCenterId || 'N/A',
-    'Village': m.villageName || family.villageName || 'N/A',
-    'House No.': m.houseNo || family.houseNo || 'N/A',
-    'Family ID': m.familyId || 'N/A',
-    'First Name': m.firstName || '',
-    'Middle Name': m.middleName || '',
-    'Last Name': m.lastName || '',
+    'ASHA Name': sanitizeValue(ashaName),
+    'PHC': sanitizeValue(user?.phcName || m.phcName || m.phcId || 'N/A'),
+    'Sub-Center': sanitizeValue(user?.subCenterName || m.subCenterName || m.subCenterId || 'N/A'),
+    'Village': sanitizeValue(m.villageName || family?.villageName || 'N/A'),
+    'House No.': sanitizeValue(m.houseNo || family?.houseNo || 'N/A'),
+    'Family ID': sanitizeValue(m.familyId || 'N/A'),
+    'First Name': sanitizeValue(m.firstName || ''),
+    'Middle Name': sanitizeValue(m.middleName || ''),
+    'Last Name': sanitizeValue(m.lastName || ''),
     'Relation to Head': m.relation || m.relationToHead || 'N/A',
     'Gender': m.gender || 'N/A',
     'Age': m.age || 'N/A',
@@ -429,6 +442,60 @@ export const exportMPRSummary = async (user, reportData) => {
     return true;
   } catch (error) {
     console.error('MPR Summary Export Error:', error);
+    return false;
+  }
+};
+
+// ===================== IDSP FORM S EXPORT =====================
+
+export const exportFormS = async (user) => {
+  try {
+    const logs = await storage.getAll(STORAGE_KEYS.IDSP_SURVEILLANCE);
+    const rows = logs.map((l, i) => ({
+      'Sr.No.': i + 1,
+      'Week Ending': new Date(l.timestamp).toLocaleDateString(),
+      'Village': sanitizeValue(l.villageId),
+      'Fever Cases': l.feverCount,
+      'Diarrhea Cases': l.diarrheaCount,
+      'Pneumonia': 0,
+      'Jaundice': 0,
+      'Dog Bites': 0,
+      'Total Cases': l.feverCount + l.diarrheaCount
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'FormS_IDSP');
+    XLSX.writeFile(wb, `FormS_IDSP_${user?.name}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
+// ===================== INDENT FORM EXPORT =====================
+
+export const exportIndent = async (user) => {
+  try {
+    const stock = await storage.getAll(STORAGE_KEYS.STOCK);
+    const rows = stock
+      .filter(i => i.currentQuantity <= i.minThreshold)
+      .map((i, idx) => ({
+        'Sr.No.': idx + 1,
+        'Item Name': sanitizeValue(i.name),
+        'Batch No': sanitizeValue(i.batchNo || 'N/A'),
+        'Unit': sanitizeValue(i.unit),
+        'Closing Stock': i.currentQuantity,
+        'Required Qty': i.maxCapacity - i.currentQuantity,
+        'Justification': 'Refill buffer stock'
+      }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'SC_Indent');
+    XLSX.writeFile(wb, `Indent_${sanitizeValue(user?.name)}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    return true;
+  } catch (e) {
     return false;
   }
 };

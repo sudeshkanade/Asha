@@ -23,7 +23,7 @@ const RenderInput = ({ label, value, onChange, placeholder, keyboardType = 'defa
   </View>
 );
 
-const HealthTrackerScreen = ({ member, onSave, onBack }) => {
+const HealthTrackerScreen = ({ member, taskId, onSave, onBack }) => {
   const { t } = useTranslation();
   const [tracker, setTracker] = useState({
     ancStatus: member?.healthData?.ancStatus || 'none',
@@ -106,10 +106,41 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
                       (memberAge <= 5 && parseFloat(tracker.muac) > 0 && parseFloat(tracker.muac) < 11.5);
     const finalIsHighRisk = tracker.selectedRiskFactors.length > 0 || isRedFlag;
 
+    const completedTasks = [...(member?.healthData?.completedTasks || [])];
+    if (taskId && !completedTasks.includes(taskId)) {
+      completedTasks.push(taskId);
+    }
+
     const updatedMember = {
       ...member,
-      healthData: { ...member?.healthData, ...tracker, isHighRisk: finalIsHighRisk },
+      healthData: { 
+        ...member?.healthData, 
+        ...tracker, 
+        isHighRisk: finalIsHighRisk,
+        completedTasks: completedTasks,
+        lastUpdatedAt: Date.now(),
+        // RUTHLESS FIX: Audit Trail for Overrides
+        _governance: isOverride ? {
+           type: 'CLINICAL_OVERRIDE',
+           authorizedBy: user?.name,
+           timestamp: new Date().toISOString(),
+           reason: 'Retrospective Clinical Correction'
+        } : member?.healthData?._governance
+      },
     };
+
+    // RUTHLESS FIX: Separate Governance Log for MO Audit
+    if (isOverride) {
+      const govEvent = {
+        id: storage.generateId('gov', user?.id),
+        type: 'CLINICAL_OVERRIDE',
+        targetMember: member.id,
+        user: user?.name,
+        timestamp: new Date().toISOString()
+      };
+      await storage.save(STORAGE_KEYS.GOVERNANCE_LOGS || 'governance_logs', govEvent);
+    }
+
     await storage.save(STORAGE_KEYS.MEMBERS, updatedMember);
     if (Platform.OS === 'web') {
       window.alert(t('success'));
@@ -134,8 +165,16 @@ const HealthTrackerScreen = ({ member, onSave, onBack }) => {
   const handleSave = async () => {
     const locked = await isPeriodLocked();
     if (locked && user?.role !== 'Admin') {
-      Alert.alert(t('reportingLocked'), t('reportingLockedDesc'));
-      return;
+      // RED TEAM FIX: Allow override for clinical corrections
+      if (Platform.OS === 'web') {
+        if (!window.confirm(t('reportingLockedOverride', 'This month is locked for reports. Do you need to make an EMERGENCY clinical correction?'))) {
+          return;
+        }
+      } else {
+         // In native, we'd show a more detailed dialog. For now, matching web logic.
+         Alert.alert(t('reportingLocked'), t('reportingLockedDesc'));
+         return;
+      }
     }
 
     const redFlags = checkRedFlags();
