@@ -207,6 +207,19 @@ const DashboardScreen = ({ user, onNavigate }) => {
             )}
           </TouchableOpacity>
 
+          <TouchableOpacity 
+            style={[styles.syncContainer, { backgroundColor: COLORS.primary, borderColor: 'rgba(255,255,255,0.3)', borderWidth: 1 }]} 
+            onPress={async () => {
+              setIsSyncing(true);
+              await loadLiveStats();
+              await cloudSyncManager.pullFromCloud(user);
+              setIsSyncing(false);
+              if (Platform.OS === 'web') window.alert("Page data refreshed!");
+            }}
+          >
+            <Text style={styles.syncText}>↻ {t('refresh', 'Refresh')}</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.langBtn} onPress={() => i18n.changeLanguage(i18n.language === 'en' ? 'mr' : 'en')}>
             <Text style={styles.langBtnText}>{i18n.language === 'en' ? 'मराठी' : 'EN'}</Text>
           </TouchableOpacity>

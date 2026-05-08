@@ -473,7 +473,8 @@ export const resources = {
       "workplan": "Workplan",
       "todayVHND": "Today's VHND Due List",
       "pendingReferrals": "Pending Referrals",
-      "dailyDiary": "Daily Field Diary"
+      "dailyDiary": "Daily Field Diary",
+      "refresh": "Refresh"
     },
   },
   mr: {
@@ -928,7 +929,8 @@ export const resources = {
       "workplan": "कार्ययोजना",
       "todayVHND": "आजची VHND देय यादी",
       "pendingReferrals": "प्रलंबित संदर्भ (Referrals)",
-      "dailyDiary": "दैनंदिन दैनंदिनी"
+      "dailyDiary": "दैनंदिन दैनंदिनी",
+      "refresh": "रिफ्रेश"
     }
   }
 };
