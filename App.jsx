@@ -1,5 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { 
+  View, 
+  StyleSheet, 
+  Text, 
+  TouchableOpacity, 
+  Platform, 
+  Alert, 
+  ActivityIndicator, 
+  SafeAreaView, 
+  ScrollView, 
+  Modal 
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import DailyTaskListScreen from './src/screens/DailyTaskListScreen';
