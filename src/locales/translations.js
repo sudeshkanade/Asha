@@ -930,3 +930,5 @@ export const resources = {
       "pendingReferrals": "प्रलंबित संदर्भ (Referrals)",
       "dailyDiary": "दैनंदिन दैनंदिनी"
     }
+  }
+};
