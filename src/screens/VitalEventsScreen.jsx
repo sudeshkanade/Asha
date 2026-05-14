@@ -59,25 +59,27 @@ const VitalEventsScreen = ({ user, onBack }) => {
   };
 
   const loadExistingEvents = async () => {
-    const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+    // FIX: Load from the dedicated VITAL_EVENTS table (not from embedded member.vitalEvents).
+    // handleSave stores events in STORAGE_KEYS.VITAL_EVENTS, so this is the correct source.
+    const allVitalEvents = await storage.getAll(STORAGE_KEYS.VITAL_EVENTS);
     
-    // Hierarchy filtering for members whose events we will show
-    let scopedMembers = allMembers;
+    // Hierarchy filtering
+    let scopedEvents = allVitalEvents;
     if (user?.role === 'ASHA') {
-      scopedMembers = allMembers.filter(m => m.ashaId === user.id || m.villageId === user.villageId);
+      const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+      const myMemberIds = new Set(
+        allMembers.filter(m => m.ashaId === user.id || m.villageId === user.villageId).map(m => m.id)
+      );
+      scopedEvents = allVitalEvents.filter(e =>
+        e.villageId === user.villageId || myMemberIds.has(e.memberId) || myMemberIds.has(e.motherId)
+      );
     } else if (user?.role === 'ANM') {
-      scopedMembers = allMembers.filter(m => m.subCenterId === user.subCenterId);
+      scopedEvents = allVitalEvents.filter(e => e.subCenterId === user.subCenterId);
     } else if (user?.role === 'MO') {
-      scopedMembers = allMembers.filter(m => m.phcId === user.phcId);
+      scopedEvents = allVitalEvents.filter(e => e.phcId === user.phcId);
     }
 
-    const vitalEvents = [];
-    scopedMembers.forEach(m => {
-      if (m.vitalEvents) {
-        m.vitalEvents.forEach(e => vitalEvents.push({ ...e, memberName: m.firstName + ' ' + m.lastName }));
-      }
-    });
-    setEvents(vitalEvents);
+    setEvents(scopedEvents.sort((a, b) => new Date(b.date) - new Date(a.date)));
   };
 
   const filteredMembers = members.filter(m =>
@@ -111,6 +113,11 @@ const VitalEventsScreen = ({ user, onBack }) => {
         birthWeight: formData.birthWeight,
         deliveryType: formData.deliveryType,
         isSBA: formData.place === 'Home' ? formData.isSBA : undefined,
+        // FIX: Add hierarchy fields so ANM/MO can filter events by their jurisdiction
+        villageId: mother.villageId,
+        subCenterId: mother.subCenterId,
+        phcId: mother.phcId,
+        ashaId: mother.ashaId,
       };
 
       // Create Newborn Member automatically
@@ -175,13 +182,13 @@ const VitalEventsScreen = ({ user, onBack }) => {
       const memberIndex = allMembers.findIndex(m => m.id === selectedMemberId);
       if (memberIndex >= 0) {
         const member = allMembers[memberIndex];
-        member.status = 'Deceased';
-        member.deathDate = formData.date;
-        member.causeOfDeath = formData.causeOfDeath;
-        member.vitalEvents = [
-          ...(member.vitalEvents || []),
-          { type: 'Death', date: formData.date, cause: formData.causeOfDeath }
-        ];
+        // FIX: Use spread to avoid direct mutation of the member object before save
+        const updatedMember = {
+          ...member,
+          status: 'Deceased',
+          deathDate: formData.date,
+          causeOfDeath: formData.causeOfDeath,
+        };
         
         const deathEvent = {
           id: storage.generateId('death', user?.id),
@@ -191,9 +198,13 @@ const VitalEventsScreen = ({ user, onBack }) => {
           name: member.firstName + ' ' + member.lastName,
           ageAtDeath: member.age || formData.ageAtDeath || 'N/A',
           causeOfDeath: formData.causeOfDeath,
+          // Carry hierarchy fields so the events are filterable by role
+          villageId: member.villageId,
+          subCenterId: member.subCenterId,
+          phcId: member.phcId,
         };
 
-        await storage.save(STORAGE_KEYS.MEMBERS, member);
+        await storage.save(STORAGE_KEYS.MEMBERS, updatedMember);
         await storage.save(STORAGE_KEYS.VITAL_EVENTS, deathEvent);
         
         Alert.alert(t('success'), `${t('death')} ${t('success')}`);
@@ -297,13 +308,13 @@ const VitalEventsScreen = ({ user, onBack }) => {
               </View>
 
               <View style={styles.row}>
-                <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+                <View style={[styles.inputGroup, { flex: 1, minWidth: 150 }]}>
                   <Text style={styles.label}>{t('birthWeight')}</Text>
                   <TextInput style={styles.input} value={formData.birthWeight}
                     onChangeText={(t) => setFormData({ ...formData, birthWeight: t })}
                     placeholder="2.5" keyboardType="numeric" />
                 </View>
-                <View style={[styles.inputGroup, { flex: 1 }]}>
+                <View style={[styles.inputGroup, { flex: 1, minWidth: 150 }]}>
                   <Text style={styles.label}>{t('placeOfDelivery')}</Text>
                   <View style={styles.chipRow}>
                     {['Hospital', 'Private', 'Home'].map(p => (
@@ -458,8 +469,8 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 6 },
   required: { color: COLORS.error },
   input: { height: 48, backgroundColor: '#FAFAFA', borderRadius: 8, paddingHorizontal: 12, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, color: COLORS.text },
-  row: { flexDirection: 'row' },
-  chipRow: { flexDirection: 'row', gap: 8 },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#FFF' },
   chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   chipText: { fontSize: 12, color: COLORS.textSecondary },

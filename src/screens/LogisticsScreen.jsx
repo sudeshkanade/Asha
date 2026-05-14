@@ -9,7 +9,8 @@ import {
   FlatList,
   Alert,
   TextInput,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';

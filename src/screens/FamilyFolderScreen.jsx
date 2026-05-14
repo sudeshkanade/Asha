@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -286,7 +286,7 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
         </View>
       ) : activeTab === 'Families' ? (
         <FlatList
-          data={filteredFamilies.filter(f => !selectedVillageId || f.villageId === selectedVillageId)}
+          data={useMemo(() => filteredFamilies.filter(f => !selectedVillageId || f.villageId === selectedVillageId), [filteredFamilies, selectedVillageId])}
           renderItem={renderFamily}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
@@ -306,23 +306,28 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
       <View style={styles.fabContainer}>
         <TouchableOpacity 
           style={[styles.fab, { backgroundColor: COLORS.accent }]} 
-          onPress={() => {
-            const houseNo = window.prompt(t('enterHouseNo'));
-            if (houseNo) {
-              storage.save(STORAGE_KEYS.FAMILIES, {
-                id: storage.generateId('closed', user?.id),
-                houseNo: houseNo,
-                headName: 'Closed / Locked Building',
-                isClosed: true,
-                ashaId: user.id,
-                villageId: user.villageId,
-                subCenterId: user.subCenterId,
-                phcId: user.phcId,
-                lastUpdatedAt: Date.now()
-              }).then(() => {
-                Alert.alert(t('success'), t('closedBuildingAdded'));
-                loadData();
-              });
+          onPress={async () => {
+            // FIX: window.prompt crashes on native — guard by platform
+            if (typeof window !== 'undefined' && window.prompt) {
+              const houseNo = window.prompt(t('enterHouseNo'));
+              if (houseNo) {
+                storage.save(STORAGE_KEYS.FAMILIES, {
+                  id: storage.generateId('closed', user?.id),
+                  houseNo: houseNo,
+                  headName: 'Closed / Locked Building',
+                  isClosed: true,
+                  ashaId: user.id,
+                  villageId: user.villageId,
+                  subCenterId: user.subCenterId,
+                  phcId: user.phcId,
+                  lastUpdatedAt: Date.now()
+                }).then(() => {
+                  Alert.alert(t('success'), t('closedBuildingAdded'));
+                  loadData();
+                });
+              }
+            } else {
+              Alert.alert('Feature', 'Use the web portal to mark closed buildings.');
             }
           }}
         >

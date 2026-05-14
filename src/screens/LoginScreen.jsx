@@ -83,6 +83,15 @@ const LoginScreen = ({ onLogin }) => {
     setLoading(false);
     if (user) {
       if (user.approvalStatus === 'approved') {
+        setLoading(true);
+        try {
+          await storage.purgeOrphanedData(user);
+          await cloudSyncManager.pullFromCloud(user);
+          await cloudSyncManager.startBackgroundSync();
+        } catch (e) {
+          console.error("Login Sync Error:", e);
+        }
+        setLoading(false);
         onLogin(user);
       } else if (user.approvalStatus === 'rejected') {
         Alert.alert(t('accessDenied'), t('regRejected'));
@@ -209,10 +218,34 @@ const LoginScreen = ({ onLogin }) => {
       }
     };
 
-    if (window.confirm(t('nuclearConfirm'))) {
-      if (window.confirm(t('nuclearFinalWarning'))) {
-        performCloudReset();
+    if (Platform.OS === 'web') {
+      if (window.confirm(t('nuclearConfirm'))) {
+        if (window.confirm(t('nuclearFinalWarning'))) {
+          performCloudReset();
+        }
       }
+    } else {
+      Alert.alert(
+        t('dangerAction'),
+        t('nuclearConfirm'),
+        [
+          { text: t('cancel'), style: 'cancel' },
+          { 
+            text: t('proceed'), 
+            style: 'destructive',
+            onPress: () => {
+              Alert.alert(
+                t('finalWarning', 'FINAL WARNING'),
+                t('nuclearFinalWarning'),
+                [
+                  { text: t('cancel'), style: 'cancel' },
+                  { text: t('deleteEverything', 'DELETE EVERYTHING'), style: 'destructive', onPress: performCloudReset }
+                ]
+              );
+            }
+          }
+        ]
+      );
     }
   };
 

@@ -261,7 +261,7 @@ export const cloudSyncManager = {
         try {
           // JURISDICTIONAL SECURITY
           let q = collection(db, col.table);
-          if (['members', 'families', 'vital_events', 'claims'].includes(col.table)) {
+          if (['members', 'families', 'vital_events', 'claims', 'vhnd_sessions'].includes(col.table)) {
             if (!user) {
               console.log(`🛡️ Security: Skipping clinical table ${col.table} for unauthenticated pull.`);
               continue; // Skip clinical data if no user is logged in

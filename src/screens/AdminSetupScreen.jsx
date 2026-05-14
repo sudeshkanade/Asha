@@ -41,6 +41,12 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
 
   const loadData = async () => {
     setLoading(true);
+    // Pull fresh data from cloud before loading locally (ensures approvals tab is up to date)
+    try {
+      await cloudSyncManager.pullFromCloud(user);
+    } catch (e) {
+      console.warn('AdminSetup: Cloud pull on load failed (offline?)');
+    }
     const p = await storage.getAll(STORAGE_KEYS.PHCS);
     const s = await storage.getAll(STORAGE_KEYS.SUB_CENTERS);
     const v = await storage.getAll(STORAGE_KEYS.VILLAGES);
@@ -214,7 +220,6 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
         await storage.addToDeleteQueue(STORAGE_KEYS.PHCS, id);
         await loadData();
       } catch (e) {
-        Alert.alert('Error', 'Failed to delete PHC');
         Alert.alert(t('error'), t('deletePhcFailed'));
       }
     };

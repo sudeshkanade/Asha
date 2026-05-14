@@ -158,15 +158,24 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
 
   const isPeriodLocked = async () => {
     try {
-      const locked = await storage.getRaw(STORAGE_KEYS.LOCKED_PERIODS) || [];
+      // FIX: LOCKED_PERIODS is a JSON array managed by storage.getAll (not a raw string).
+      // Using getRaw + .includes() did unreliable substring matching on the JSON string.
+      const lockedPeriods = await storage.getAll(STORAGE_KEYS.LOCKED_PERIODS);
       const currentMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
-      return locked.includes(currentMonth);
+      return lockedPeriods.some(p => p.id === currentMonth);
     } catch (e) {
       return false;
     }
   };
 
   const handleSave = async () => {
+    const locked = await isPeriodLocked();
+    if (locked) {
+      if (Platform.OS === 'web') window.alert(t('periodLockedError', 'This reporting period is locked. Clinical data cannot be modified.'));
+      else Alert.alert(t('error', 'Error'), t('periodLockedError', 'This reporting period is locked. Clinical data cannot be modified.'));
+      return;
+    }
+
     const isRedFlag = (parseInt(tracker.bpSystolic) > 140 || parseInt(tracker.bpDiastolic) > 90) || 
                       (parseFloat(tracker.hbLevel) > 0 && parseFloat(tracker.hbLevel) < 7);
     const finalIsHighRisk = tracker.selectedRiskFactors.length > 0 || isRedFlag;
@@ -174,14 +183,14 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
 
     if (isDowngrade) {
       if (Platform.OS === 'web') {
-        const reason = window.prompt("⚠️ Governance Alert: You are marking a High-Risk case as NORMAL. Please enter clinical justification:");
+        const reason = window.prompt(t('governanceAlertPrompt', "⚠️ Governance Alert: You are marking a High-Risk case as NORMAL. Please enter clinical justification:"));
         if (!reason) {
-          Alert.alert("Required", "Justification is mandatory for risk downgrades.");
+          Alert.alert(t('required', 'Required'), t('justificationMandatory', 'Justification is mandatory for risk downgrades.'));
           return;
         }
         persistData(reason);
       } else {
-        Alert.alert("Governance Required", "Please justify the risk downgrade in the clinical notes before saving.");
+        Alert.alert(t('governanceRequired', 'Governance Required'), t('justifyDowngrade', 'Please justify the risk downgrade in the clinical notes before saving.'));
       }
       return;
     }
@@ -273,13 +282,13 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
             ) : null}
 
             <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+              <View style={[styles.inputGroup, { flex: 1, minWidth: 120 }]}>
                 <Text style={styles.label}>{t('bpSystolic', 'BP Systolic')} <Text style={styles.required}>*</Text></Text>
                 <TextInput style={styles.input} value={tracker.bpSystolic}
                   onChangeText={(t) => setTracker({ ...tracker, bpSystolic: t })}
                   placeholder="120" keyboardType="numeric" />
               </View>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
+              <View style={[styles.inputGroup, { flex: 1, minWidth: 120 }]}>
                 <Text style={styles.label}>{t('bpDiastolic', 'BP Diastolic')}</Text>
                 <TextInput style={styles.input} value={tracker.bpDiastolic}
                   onChangeText={(t) => setTracker({ ...tracker, bpDiastolic: t })}
@@ -288,14 +297,14 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
             </View>
 
             <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+              <View style={[styles.inputGroup, { flex: 1, minWidth: 120 }]}>
                 <Text style={styles.label}>{t('hbLevel')}</Text>
                 <TextInput style={styles.input} value={tracker.hbLevel}
                   onChangeText={(t) => setTracker({ ...tracker, hbLevel: t })}
-                  placeholder="11.0" keyboardType="numeric" />
+                  placeholder="11.5" keyboardType="numeric" />
               </View>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.label}>{t('weight')}</Text>
+              <View style={[styles.inputGroup, { flex: 1, minWidth: 120 }]}>
+                <Text style={styles.label}>{t('weightKg', 'Weight (kg)')}</Text>
                 <TextInput style={styles.input} value={tracker.weight}
                   onChangeText={(t) => setTracker({ ...tracker, weight: t })}
                   placeholder="55" keyboardType="numeric" />
@@ -376,17 +385,31 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>{t('ncdScreening')}</Text>
             <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+              <View style={[styles.inputGroup, { flex: 1, minWidth: 120 }]}>
                 <Text style={styles.label}>{t('bpSystolic', 'BP Systolic')}</Text>
                 <TextInput style={styles.input} value={tracker.bpSystolic}
                   onChangeText={(t) => setTracker({ ...tracker, bpSystolic: t })}
                   placeholder="120" keyboardType="numeric" />
               </View>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
+              <View style={[styles.inputGroup, { flex: 1, minWidth: 120 }]}>
                 <Text style={styles.label}>{t('bpDiastolic', 'BP Diastolic')}</Text>
                 <TextInput style={styles.input} value={tracker.bpDiastolic}
                   onChangeText={(t) => setTracker({ ...tracker, bpDiastolic: t })}
                   placeholder="80" keyboardType="numeric" />
+              </View>
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, { flex: 1, minWidth: 120 }]}>
+                <Text style={styles.label}>{t('bloodSugar', 'Blood Sugar (mg/dL)')}</Text>
+                <TextInput style={styles.input} value={tracker.bloodSugar}
+                  onChangeText={(t) => setTracker({ ...tracker, bloodSugar: t })}
+                  placeholder="90" keyboardType="numeric" />
+              </View>
+              <View style={[styles.inputGroup, { flex: 1, minWidth: 120 }]}>
+                <Text style={styles.label}>{t('heartRate', 'Heart Rate (bpm)')}</Text>
+                <TextInput style={styles.input} value={tracker.heartRate}
+                  onChangeText={(t) => setTracker({ ...tracker, heartRate: t })}
+                  placeholder="72" keyboardType="numeric" />
               </View>
             </View>
 
@@ -485,7 +508,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 6 },
   required: { color: COLORS.error },
   input: { height: 48, backgroundColor: '#FAFAFA', borderRadius: 8, paddingHorizontal: 12, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, color: COLORS.text },
-  row: { flexDirection: 'row' },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   divider: { height: 1, backgroundColor: COLORS.border, marginVertical: 20 },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   switchLabel: { fontSize: 14, fontWeight: '600', color: COLORS.text },

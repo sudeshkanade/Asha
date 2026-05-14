@@ -8,7 +8,8 @@ import {
   TouchableOpacity,
   Alert,
   TextInput,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
@@ -36,6 +37,10 @@ const SurveillanceScreen = ({ user, onBack }) => {
   };
 
   const handleAddIdsp = async () => {
+    if (Platform.OS !== 'web') {
+      Alert.alert('Not Supported', 'Please use the web portal for syndromic surveillance entry.');
+      return;
+    }
     const fever = window.prompt("Enter number of Fever cases today:");
     const diarrhea = window.prompt("Enter number of Diarrhea cases today:");
     
@@ -57,6 +62,11 @@ const SurveillanceScreen = ({ user, onBack }) => {
   };
 
   const handleAddVector = async () => {
+    if (Platform.OS !== 'web') {
+      Alert.alert('Not Supported', 'Please use the web portal for larval survey entry.');
+      return;
+    }
+
     // RUTHLESS FIX: Linking Surveys to Families (Prevent Orphaned Data)
     const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
     const villageFamilies = allFamilies.filter(f => f.villageId === user.villageId);

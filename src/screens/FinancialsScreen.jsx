@@ -27,15 +27,26 @@ const FinancialsScreen = ({ user, onBack, onNavigate }) => {
 
   const loadData = async () => {
     setLoading(true);
-    const members = await storage.getAll(STORAGE_KEYS.MEMBERS);
+    const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
     
+    // FIX: Scope members to user's jurisdiction (consistent with every other screen)
+    let members = allMembers;
+    if (user?.role === 'ASHA') {
+      members = allMembers.filter(m => m.ashaId === user.id || m.villageId === user.villageId);
+    } else if (user?.role === 'ANM') {
+      members = allMembers.filter(m => m.subCenterId === user.subCenterId);
+    } else if (user?.role === 'MO') {
+      members = allMembers.filter(m => m.phcId === user.phcId);
+    }
+
     // Referral Tickets: High Risk cases needing closure
+    // FIX: Use parseFloat for hbLevel — stored as string, direct comparison `< 7` fails
     const tickets = members
-      .filter(m => m.healthData?.isHighRisk || m.healthData?.hbLevel < 7)
+      .filter(m => m.healthData?.isHighRisk || parseFloat(m.healthData?.hbLevel) < 7)
       .map(m => ({
         id: m.id,
         name: `${m.firstName} ${m.lastName}`,
-        type: m.healthData?.hbLevel < 7 ? 'Severe Anemia' : 'High Risk ANC',
+        type: parseFloat(m.healthData?.hbLevel) < 7 ? 'Severe Anemia' : 'High Risk ANC',
         status: m.referralStatus || 'Open',
         village: m.villageName,
         asha: m.ashaId
@@ -45,7 +56,17 @@ const FinancialsScreen = ({ user, onBack, onNavigate }) => {
 
     // RUTHLESS FIX: Load Real Payment Status from Claims Registry
     const allClaims = await storage.getAll(STORAGE_KEYS.CLAIMS);
-    const paymentsData = allClaims.map(c => ({
+    // FIX: Scope claims to user's jurisdiction
+    let scopedClaims = allClaims;
+    if (user?.role === 'ASHA') {
+      scopedClaims = allClaims.filter(c => c.ashaId === user.id);
+    } else if (user?.role === 'ANM') {
+      scopedClaims = allClaims.filter(c => c.subCenterId === user.subCenterId);
+    } else if (user?.role === 'MO') {
+      scopedClaims = allClaims.filter(c => c.phcId === user.phcId);
+    }
+
+    const paymentsData = scopedClaims.map(c => ({
       id: c.id,
       name: c.memberName,
       scheme: c.activityType.replace(/_/g, ' '),
@@ -59,12 +80,12 @@ const FinancialsScreen = ({ user, onBack, onNavigate }) => {
 
   const handleCloseTicket = async (ticket) => {
     Alert.alert(
-      "Close Referral Ticket",
-      `Mark ${ticket.name} as treated/resolved?`,
+      t('closeReferralTicket', 'Close Referral Ticket'),
+      t('markAsResolvedConfirm', 'Mark {{name}} as treated/resolved?', { name: ticket.name }),
       [
-        { text: "Cancel" },
+        { text: t('cancel', 'Cancel') },
         { 
-          text: "Confirm", 
+          text: t('confirm', 'Confirm'), 
           onPress: async () => {
             const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
             const memberToUpdate = allMembers.find(m => m.id === ticket.id);
@@ -122,7 +143,7 @@ const FinancialsScreen = ({ user, onBack, onNavigate }) => {
                 <Text style={styles.cardSub}>{item.type} • {item.village}</Text>
                 {item.status === 'Open' && (
                   <TouchableOpacity style={styles.closeBtn} onPress={() => handleCloseTicket(item)}>
-                    <Text style={styles.closeBtnText}>✓ Mark Resolved</Text>
+                    <Text style={styles.closeBtnText}>✓ {t('markResolved', 'Mark Resolved')}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -147,10 +168,10 @@ const FinancialsScreen = ({ user, onBack, onNavigate }) => {
           />
         ) : (
           <View style={styles.center}>
-            <Text style={styles.empty}>Incentive Verification Hub</Text>
-            <Text style={styles.cardSub}>Review and approve ASHA claim forms for this month.</Text>
+            <Text style={styles.empty}>{t('incentiveHub', 'Incentive Verification Hub')}</Text>
+            <Text style={styles.cardSub}>{t('reviewClaims', 'Review and approve ASHA claim forms for this month.')}</Text>
             <TouchableOpacity style={styles.primaryBtn} onPress={() => onNavigate('Claims')}>
-              <Text style={styles.primaryBtnText}>Open Claims Register</Text>
+              <Text style={styles.primaryBtnText}>{t('openClaimsRegister', 'Open Claims Register')}</Text>
             </TouchableOpacity>
           </View>
         )}

@@ -298,5 +298,13 @@ export const storage = {
 
   clearAll: async () => {
     await AsyncStorage.clear();
-  }
+  },
+
+  /**
+   * Alias for clearAll — used by LoginScreen factory reset & cloud wipe flows.
+   * Wipes ALL local AsyncStorage data.
+   */
+  wipeAllData: async () => {
+    await AsyncStorage.clear();
+  },
 };

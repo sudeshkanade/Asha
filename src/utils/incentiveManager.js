@@ -86,20 +86,32 @@ export const incentiveManager = {
 
   /**
    * Trigger claims based on vital events
+   * Note: This receives the saved event/session object directly (not a sync-queue item).
    */
   processEventTriggers: async (event, user) => {
     if (!event || !user || user.role !== 'ASHA') return;
 
     // Trigger 4: Institutional Delivery
+    // FIX: event is the vital event object itself — use event.type and event.place directly
     if (event.type === 'Birth' && event.place === 'Hospital') {
-       // We might need a dummy member or the mother's ID
-       const mockMember = { id: event.id, firstName: event.name || 'Newborn', lastName: '', villageId: event.villageId };
+       const mockMember = { 
+         id: event.id, 
+         firstName: event.name || 'Newborn', 
+         lastName: '', 
+         villageId: event.villageId || user.villageId 
+       };
        await incentiveManager.recordClaim(mockMember, 'INSTITUTIONAL_DELIVERY', user);
     }
 
     // Trigger 5: VHND Session
-    if (event.tableName === 'vhnd_sessions') {
-       const mockMember = { id: event.id, firstName: 'VHND', lastName: event.payload?.venue || 'Session', villageId: user.villageId };
+    // FIX: VHND session objects have event.type === 'VHND', not event.tableName
+    if (event.type === 'VHND') {
+       const mockMember = { 
+         id: event.id, 
+         firstName: 'VHND', 
+         lastName: event.venue || 'Session', 
+         villageId: event.villageId || user.villageId 
+       };
        await incentiveManager.recordClaim(mockMember, 'VHND_SESSION', user);
     }
   }

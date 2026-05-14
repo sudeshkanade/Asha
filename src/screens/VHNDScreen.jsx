@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
+import { cloudSyncManager } from '../database/cloudSync';
+import { incentiveManager } from '../utils/incentiveManager';
 import { useTranslation } from 'react-i18next';
 
 const VHNDScreen = ({ user, onBack }) => {
@@ -41,9 +43,19 @@ const VHNDScreen = ({ user, onBack }) => {
 
   const handleSave = async () => {
     if (!formData.sessionDate) {
-      Alert.alert('Error', 'Session date is required.');
+      Alert.alert(t('error', 'Error'), t('sessionDateRequired', 'Session date is required.'));
       return;
     }
+    
+    try {
+      const lockedPeriods = await storage.getAll(STORAGE_KEYS.LOCKED_PERIODS);
+      const currentMonth = formData.sessionDate.slice(0, 7);
+      if (lockedPeriods.some(p => p.id === currentMonth)) {
+         if (Platform.OS === 'web') window.alert(t('periodLockedError', 'This reporting period is locked.'));
+         else Alert.alert(t('error', 'Error'), t('periodLockedError', 'This reporting period is locked.'));
+         return;
+      }
+    } catch(e) {}
 
     const session = {
       id: storage.generateId('vhnd', user?.id),
@@ -67,6 +79,12 @@ const VHNDScreen = ({ user, onBack }) => {
     };
 
     await storage.save(STORAGE_KEYS.VHND_SESSIONS, session);
+    // Auto-generate VHND_SESSION incentive claim for ASHA workers
+    if (user?.role === 'ASHA') {
+      await incentiveManager.processEventTriggers(session, user);
+    }
+    // Immediately push to cloud so supervisor sees it right away
+    cloudSyncManager.startBackgroundSync().catch(e => console.warn('VHND sync failed:', e.message));
     
     const notifySupervisor = () => {
       const beneficiaries = (parseInt(formData.pregnantAttended) || 0) + (parseInt(formData.childrenAttended) || 0) + (parseInt(formData.adolescentsAttended) || 0);
@@ -130,19 +148,19 @@ const VHNDScreen = ({ user, onBack }) => {
             <Text style={styles.statBarText}>{t('total')}: {totalBeneficiaries}</Text>
           </View>
           <View style={styles.row}>
-            <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+            <View style={[styles.inputGroup, { flex: 1, minWidth: 100 }]}>
               <Text style={styles.label}>🤰 {t('pregnantWomen')}</Text>
               <TextInput style={styles.input} value={formData.pregnantAttended}
                 onChangeText={(t) => setFormData({ ...formData, pregnantAttended: t })}
                 placeholder="0" keyboardType="numeric" />
             </View>
-            <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+            <View style={[styles.inputGroup, { flex: 1, minWidth: 100 }]}>
               <Text style={styles.label}>👶 {t('children05')}</Text>
               <TextInput style={styles.input} value={formData.childrenAttended}
                 onChangeText={(t) => setFormData({ ...formData, childrenAttended: t })}
                 placeholder="0" keyboardType="numeric" />
             </View>
-            <View style={[styles.inputGroup, { flex: 1 }]}>
+            <View style={[styles.inputGroup, { flex: 1, minWidth: 100 }]}>
               <Text style={styles.label}>🧑 {t('adolescents')}</Text>
               <TextInput style={styles.input} value={formData.adolescentsAttended}
                 onChangeText={(t) => setFormData({ ...formData, adolescentsAttended: t })}
@@ -202,10 +220,10 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 6 },
   required: { color: COLORS.error },
   input: { height: 48, backgroundColor: '#FAFAFA', borderRadius: 8, paddingHorizontal: 12, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, color: COLORS.text },
-  row: { flexDirection: 'row' },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   statBar: { backgroundColor: '#F0F4FF', padding: 10, borderRadius: 8, marginBottom: 16, alignItems: 'center' },
   statBarText: { fontSize: 16, fontWeight: '700', color: COLORS.primary },
-  stockRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  stockRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   stockLabel: { fontSize: 14, fontWeight: '600', color: COLORS.text, flex: 1 },
   stockInput: { width: 80, height: 44, backgroundColor: '#FAFAFA', borderRadius: 8, paddingHorizontal: 12, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, textAlign: 'center', color: COLORS.text },
   saveButton: { height: 52, backgroundColor: COLORS.primary, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
