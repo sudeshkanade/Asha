@@ -227,10 +227,10 @@ export const cloudSyncManager = {
    * Pull data from Firestore and merge into local storage
    * SECURITY: Enforces jurisdictional isolation via Firestore queries
    */
-  pullFromCloud: async (user) => {
-    if (!db || !user) {
-      console.warn('❌ CloudSync: Missing DB or User for pull.');
-      return { success: false, message: 'Auth required' };
+  pullFromCloud: async (user = null) => {
+    if (!db) {
+      console.warn('❌ CloudSync: Missing DB for pull.');
+      return { success: false, message: 'DB not initialized' };
     }
 
     const startTime = Date.now();
@@ -259,9 +259,14 @@ export const cloudSyncManager = {
 
       for (const col of collectionsToPull) {
         try {
-          // RUTHLESS REFACTOR: Fail-Closed Jurisdictional Security
+          // JURISDICTIONAL SECURITY
           let q = collection(db, col.table);
           if (['members', 'families', 'vital_events', 'claims'].includes(col.table)) {
+            if (!user) {
+              console.log(`🛡️ Security: Skipping clinical table ${col.table} for unauthenticated pull.`);
+              continue; // Skip clinical data if no user is logged in
+            }
+
             switch (user.role) {
               case 'ASHA':
                 q = query(q, where("villageId", "==", user.villageId || 'FORCE_BLOCK'));
@@ -273,6 +278,9 @@ export const cloudSyncManager = {
                 break;
               case 'MO':
                 q = query(q, where("phcId", "==", user.phcId || 'FORCE_BLOCK'));
+                break;
+              case 'Admin':
+                // Admin pulls everything for these tables
                 break;
               default:
                 // FORCE BLOCK: Unauthorized role access
