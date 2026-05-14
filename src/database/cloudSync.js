@@ -1,7 +1,7 @@
 import { storage } from './storage';
 import { STORAGE_KEYS } from './constants';
 import { db } from './firebaseConfig';
-import { collection, doc, setDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, setDoc, getDocs, query, where, serverTimestamp } from 'firebase/firestore';
 
 /**
  * Collection name mapping: localStorage key → Firestore collection
@@ -123,7 +123,7 @@ export const cloudSyncManager = {
           console.log(`📤 CloudSync [${i}]: ${type || 'save'} → ${collectionName}/${docId}`);
 
           // RUTHLESS FIX: Atomic Sync Item Processing with Server-Side Clock Truth
-          const { serverTimestamp } = require('firebase/firestore'); 
+          // (serverTimestamp is imported at the top)
           
           const syncPromise = (async () => {
             if (type === 'delete') {

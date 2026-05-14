@@ -14,7 +14,7 @@ import {
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { db } from '../database/firebaseConfig';
-import { collection, getDocs, doc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, setDoc, getDocs, query, where, serverTimestamp, deleteDoc, writeBatch } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { cloudSyncManager } from '../database/cloudSync';
 
@@ -102,55 +102,57 @@ const LoginScreen = ({ onLogin }) => {
 
     setLoading(true);
 
-    // Role-based validation
-    if (formData.role === 'ASHA' && (!formData.villageId || !formData.phcId)) {
-      setLoading(false);
-      Alert.alert(t('error'), t('ashaRequired'));
-      return;
-    }
-    
-    if (formData.role === 'ANM' && !formData.subCenterId) {
-      setLoading(false);
-      Alert.alert(t('error'), t('subCenterRequired', 'Sub-Center selection is required for ANM.'));
-      return;
-    }
+    try {
+      // Role-based validation
+      if (formData.role === 'ASHA' && (!formData.villageId || !formData.phcId)) {
+        Alert.alert(t('error'), t('ashaRequired'));
+        return;
+      }
+      
+      if (formData.role === 'ANM' && !formData.subCenterId) {
+        Alert.alert(t('error'), t('subCenterRequired', 'Sub-Center selection is required for ANM.'));
+        return;
+      }
 
-    if (formData.role === 'MO' && !formData.phcId) {
+      if (formData.role === 'MO' && !formData.phcId) {
+        Alert.alert(t('error'), t('phcRequired', 'PHC selection is required for MO.'));
+        return;
+      }
+
+      const selectedVillage = villages.find(v => v.id === formData.villageId);
+      const selectedSC = subCenters.find(sc => sc.id === formData.subCenterId);
+      const selectedPHC = phcs.find(p => p.id === formData.phcId);
+      
+      const newUser = {
+        ...formData,
+        id: storage.generateId('user', 'new'),
+        approvalStatus: 'pending', 
+        village: selectedVillage?.name,
+        villageName: selectedVillage?.name,
+        subCenterName: selectedSC?.name,
+        phcName: selectedPHC?.name,
+        phcId: formData.phcId?.toString(),
+        subCenterId: formData.subCenterId?.toString(),
+        villageId: formData.villageId?.toString(),
+      };
+
+      const users = await storage.getAll(STORAGE_KEYS.USERS);
+      if (users.find(u => u.username === newUser.username)) {
+        Alert.alert(t('error'), t('usernameExists'));
+        return;
+      }
+
+      await storage.save(STORAGE_KEYS.USERS, newUser);
+      await cloudSyncManager.startBackgroundSync();
+      
+      Alert.alert(t('pendingApproval'), t('regSubmitted'));
+      setIsRegister(false);
+    } catch (err) {
+      console.error('Registration Error:', err);
+      Alert.alert(t('error'), t('registrationFailed', 'Registration failed. Please check your connection.'));
+    } finally {
       setLoading(false);
-      Alert.alert(t('error'), t('phcRequired', 'PHC selection is required for MO.'));
-      return;
     }
-
-    const selectedVillage = villages.find(v => v.id === formData.villageId);
-    const selectedSC = subCenters.find(sc => sc.id === formData.subCenterId);
-    const selectedPHC = phcs.find(p => p.id === formData.phcId);
-    
-    const newUser = {
-      ...formData,
-      id: storage.generateId('user', 'new'),
-      approvalStatus: 'pending', 
-      village: selectedVillage?.name,
-      villageName: selectedVillage?.name,
-      subCenterName: selectedSC?.name,
-      phcName: selectedPHC?.name,
-      phcId: formData.phcId?.toString(),
-      subCenterId: formData.subCenterId?.toString(),
-      villageId: formData.villageId?.toString(),
-    };
-
-    const users = await storage.getAll(STORAGE_KEYS.USERS);
-    if (users.find(u => u.username === newUser.username)) {
-      setLoading(false);
-      Alert.alert(t('error'), t('usernameExists'));
-      return;
-    }
-
-    await storage.save(STORAGE_KEYS.USERS, newUser);
-    await cloudSyncManager.startBackgroundSync();
-    
-    setLoading(false);
-    Alert.alert(t('success'), t('regSubmitted'));
-    setIsRegister(false);
   };
 
   const handleAdminTap = () => {
@@ -173,7 +175,8 @@ const LoginScreen = ({ onLogin }) => {
           const querySnapshot = await getDocs(collection(db, colName));
           if (querySnapshot.empty) continue;
 
-          // Firestore has a limit of 500 operations per batch
+          // RUTHLESS FIX: Atomic Sync Item Processing with Server-Side Clock Truth
+          // (serverTimestamp is now imported at top)
           let batch = writeBatch(db);
           let count = 0;
 
@@ -351,7 +354,12 @@ const LoginScreen = ({ onLogin }) => {
             onPress={isRegister ? handleRegister : handleLogin}
             disabled={loading}
           >
-            {loading ? <ActivityIndicator color="#FFF" /> : (
+            {loading ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <ActivityIndicator color="#FFF" style={{ marginRight: 10 }} />
+                <RNText style={styles.mainBtnText}>{isRegister ? t('sendingRequest', 'Sending Request...') : t('loggingIn', 'Logging in...')}</RNText>
+              </View>
+            ) : (
               <RNText style={styles.mainBtnText}>{isRegister ? t('register') : t('login')}</RNText>
             )}
           </TouchableOpacity>
