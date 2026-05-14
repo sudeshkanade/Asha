@@ -346,7 +346,7 @@ export const cloudSyncManager = {
             totalDeleted += deletedInCloud.length;
           }
 
-          await storage.saveAll(storageKey, merged);
+          await storage._saveAll(storageKey, merged);
           totalPulled += cloudData.length;
         }
 

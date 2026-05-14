@@ -297,29 +297,38 @@ export const storage = {
     });
   },
 
-  addToDeleteQueue: async (tableName, id) => {
+  /**
+   * Internal logic for addToDeleteQueue (no lock)
+   */
+  _addToDeleteQueue: async (tableName, id) => {
     if (!id) return;
     if (tableName === STORAGE_KEYS.MEMBERS) {
       const dependentKeys = [STORAGE_KEYS.VITAL_EVENTS, STORAGE_KEYS.CLAIMS, STORAGE_KEYS.TASK_COMPLETIONS];
       for (const depKey of dependentKeys) {
-        await storage.update(depKey, (data) => data.filter(item => item.memberId !== id && item.id !== id));
+        await storage._update(depKey, (data) => data.filter(item => item.memberId !== id && item.id !== id));
       }
     }
     if (tableName === STORAGE_KEYS.FAMILIES) {
-      const memberData = await storage.getAll(STORAGE_KEYS.MEMBERS);
+      const memberData = await storage._getAll(STORAGE_KEYS.MEMBERS);
       const membersToDelete = memberData.filter(m => m.familyId === id);
       for (const member of membersToDelete) {
-        await storage.addToDeleteQueue(STORAGE_KEYS.MEMBERS, member.id);
+        await storage._addToDeleteQueue(STORAGE_KEYS.MEMBERS, member.id);
       }
     }
-    await storage.addToSyncQueue(tableName, { id }, 'delete');
+    await storage._addToSyncQueue(tableName, { id }, 'delete');
     
     // Add to local tombstones
-    await storage.update(STORAGE_KEYS.DELETED_IDS, (tombstones) => {
+    await storage._update(STORAGE_KEYS.DELETED_IDS, (tombstones) => {
       if (!tombstones.includes(id.toString())) {
         return [...tombstones, id.toString()];
       }
       return tombstones;
+    });
+  },
+
+  addToDeleteQueue: async (tableName, id) => {
+    return await storage.withLock(async () => {
+      return await storage._addToDeleteQueue(tableName, id);
     });
   },
 
