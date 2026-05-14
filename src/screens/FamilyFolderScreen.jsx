@@ -31,6 +31,10 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
 
   const [villages, setVillages] = useState([]);
 
+  const memoizedFilteredFamilies = useMemo(() => {
+    return filteredFamilies.filter(f => !selectedVillageId || f.villageId === selectedVillageId);
+  }, [filteredFamilies, selectedVillageId]);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -286,7 +290,7 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
         </View>
       ) : activeTab === 'Families' ? (
         <FlatList
-          data={useMemo(() => filteredFamilies.filter(f => !selectedVillageId || f.villageId === selectedVillageId), [filteredFamilies, selectedVillageId])}
+          data={memoizedFilteredFamilies}
           renderItem={renderFamily}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
