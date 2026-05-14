@@ -100,8 +100,24 @@ const LoginScreen = ({ onLogin }) => {
       return;
     }
 
+    setLoading(true);
+
+    // Role-based validation
     if (formData.role === 'ASHA' && (!formData.villageId || !formData.phcId)) {
+      setLoading(false);
       Alert.alert(t('error'), t('ashaRequired'));
+      return;
+    }
+    
+    if (formData.role === 'ANM' && !formData.subCenterId) {
+      setLoading(false);
+      Alert.alert(t('error'), t('subCenterRequired', 'Sub-Center selection is required for ANM.'));
+      return;
+    }
+
+    if (formData.role === 'MO' && !formData.phcId) {
+      setLoading(false);
+      Alert.alert(t('error'), t('phcRequired', 'PHC selection is required for MO.'));
       return;
     }
 
@@ -112,7 +128,7 @@ const LoginScreen = ({ onLogin }) => {
     const newUser = {
       ...formData,
       id: storage.generateId('user', 'new'),
-      approvalStatus: 'pending', // Default status
+      approvalStatus: 'pending', 
       village: selectedVillage?.name,
       villageName: selectedVillage?.name,
       subCenterName: selectedSC?.name,
@@ -124,6 +140,7 @@ const LoginScreen = ({ onLogin }) => {
 
     const users = await storage.getAll(STORAGE_KEYS.USERS);
     if (users.find(u => u.username === newUser.username)) {
+      setLoading(false);
       Alert.alert(t('error'), t('usernameExists'));
       return;
     }
@@ -131,6 +148,7 @@ const LoginScreen = ({ onLogin }) => {
     await storage.save(STORAGE_KEYS.USERS, newUser);
     await cloudSyncManager.startBackgroundSync();
     
+    setLoading(false);
     Alert.alert(t('success'), t('regSubmitted'));
     setIsRegister(false);
   };
@@ -290,7 +308,7 @@ const LoginScreen = ({ onLogin }) => {
                     {phcs.length === 0 && <RNText style={styles.noData}>{t('noPhcs')}</RNText>}
                   </View>
 
-                  {formData.phcId && (
+                  {formData.phcId && (formData.role === 'ASHA' || formData.role === 'ANM') && (
                     <>
                       <RNText style={styles.label}>{t('subCenter')}</RNText>
                       <View style={styles.chipGrid}>
@@ -307,7 +325,7 @@ const LoginScreen = ({ onLogin }) => {
                     </>
                   )}
 
-                  {formData.subCenterId && (
+                  {formData.subCenterId && formData.role === 'ASHA' && (
                     <>
                       <RNText style={styles.label}>{t('village')}</RNText>
                       <View style={styles.chipGrid}>
@@ -329,10 +347,13 @@ const LoginScreen = ({ onLogin }) => {
           )}
 
           <TouchableOpacity 
-            style={styles.mainBtn} 
+            style={[styles.mainBtn, loading && { opacity: 0.7 }]} 
             onPress={isRegister ? handleRegister : handleLogin}
+            disabled={loading}
           >
-            <RNText style={styles.mainBtnText}>{isRegister ? t('register') : t('login')}</RNText>
+            {loading ? <ActivityIndicator color="#FFF" /> : (
+              <RNText style={styles.mainBtnText}>{isRegister ? t('register') : t('login')}</RNText>
+            )}
           </TouchableOpacity>
 
           {!isRegister && (
