@@ -10,6 +10,7 @@ import {
   Alert,
   Switch,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { getSuggestedNames, validateAadhaar, calculateAge } from '../utils/healthLogic';
@@ -203,7 +204,8 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>{t('memberDetails')}</Text>
 
@@ -242,6 +244,7 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
             <TextInput
               style={styles.input}
               placeholder={t('firstName')}
+              placeholderTextColor={COLORS.textSecondary}
               value={formData.firstName}
               onChangeText={(text) => setFormData({ ...formData, firstName: text })}
             />
@@ -252,6 +255,7 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
             <TextInput
               style={styles.input}
               placeholder={t('fatherHusband')}
+              placeholderTextColor={COLORS.textSecondary}
               value={formData.middleName}
               onChangeText={(text) => setFormData({ ...formData, middleName: text })}
             />
@@ -262,6 +266,7 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
             <TextInput
               style={styles.input}
               placeholder={t('lastName')}
+              placeholderTextColor={COLORS.textSecondary}
               value={formData.lastName}
               onChangeText={(text) => setFormData({ ...formData, lastName: text })}
             />
@@ -273,6 +278,7 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
               <TextInput
                 style={[styles.input, { flex: 1 }]}
                 placeholder="DD/MM/YYYY"
+                placeholderTextColor={COLORS.textSecondary}
                 value={formData.dob}
                 onChangeText={handleDobChange}
                 keyboardType="numeric"
@@ -290,6 +296,7 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
             <TextInput
               style={styles.input}
               placeholder={t('mobilePlaceholder')}
+              placeholderTextColor={COLORS.textSecondary}
               value={formData.mobile}
               onChangeText={(text) => setFormData({ ...formData, mobile: text })}
               keyboardType="phone-pad"
@@ -304,6 +311,7 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
               value={formData.aadhaar}
               onChangeText={(text) => setFormData({ ...formData, aadhaar: text })}
               placeholder="0000 0000 0000"
+              placeholderTextColor={COLORS.textSecondary}
               keyboardType="numeric"
               maxLength={12}
             />
@@ -316,6 +324,7 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
               value={formData.abhaId}
               onChangeText={(text) => setFormData({ ...formData, abhaId: text })}
               placeholder="Health ID"
+              placeholderTextColor={COLORS.textSecondary}
             />
           </View>
 
@@ -393,6 +402,7 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
                   <TextInput
                     style={styles.input}
                     placeholder="DD/MM/YYYY"
+                    placeholderTextColor={COLORS.textSecondary}
                     value={formData.lmp}
                     onChangeText={(text) => {
                       let cleaned = text.replace(/[^\d/]/g, '');
@@ -436,7 +446,8 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
         <TouchableOpacity style={styles.cancelButton} onPress={onBack}>
           <Text style={[styles.saveButtonText, { color: COLORS.error }]}>{t('cancelBack')}</Text>
         </TouchableOpacity>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

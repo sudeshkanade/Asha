@@ -27,7 +27,7 @@ const TeamScreen = ({ user, onBack }) => {
     const hierarchy = [];
 
     // 1. Find the Medical Officer (MO) for this PHC
-    const mo = allUsers.find(u => u.role === 'MO' && u.phcId === user?.phcId);
+    const mo = allUsers.find(u => !u.deleted && u.role === 'MO' && u.phcId === user?.phcId);
     if (mo) {
       hierarchy.push({
         role: t('mo'),
@@ -40,7 +40,7 @@ const TeamScreen = ({ user, onBack }) => {
     }
 
     // 2. Find the ANM for this Sub-Center
-    const anm = allUsers.find(u => u.role === 'ANM' && u.subCenterId === user?.subCenterId);
+    const anm = allUsers.find(u => !u.deleted && u.role === 'ANM' && u.subCenterId === user?.subCenterId);
     if (anm) {
       hierarchy.push({
         role: t('anmSupervisor', 'ANM (Supervisor)'),

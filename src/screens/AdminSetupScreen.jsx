@@ -521,7 +521,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
                   <Text style={styles.listSubText}>{t('block')}: {p.block || t('na')}</Text>
                   <Text style={styles.childCountText}>📍 {subCenters.filter(s => s.phcId === p.id).length} {t('subCenters')}</Text>
                   
-                  {users.filter(u => u.role === 'MO' && u.phcId === p.id).map(mo => (
+                  {users.filter(u => !u.deleted && u.role === 'MO' && u.phcId === p.id).map(mo => (
                     <View key={mo.id} style={styles.assignedUserRow}>
                       <Text style={styles.assignedUserText}>👤 MO: {mo.name}</Text>
                       <TouchableOpacity onPress={() => handleDeleteUser(mo.id, mo.name, 'MO')}>
@@ -600,7 +600,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
                   <Text style={styles.listSubText}>{t('phc')}: {phcs.find(p => p.id === sc.phcId)?.name || t('unknown')}</Text>
                   <Text style={styles.childCountText}>🏡 {villages.filter(v => v.subCenterId === sc.id).length} {t('villages')}</Text>
                   
-                  {users.filter(u => u.role === 'ANM' && u.subCenterId === sc.id).map(anm => (
+                  {users.filter(u => !u.deleted && u.role === 'ANM' && u.subCenterId === sc.id).map(anm => (
                     <View key={anm.id} style={styles.assignedUserRow}>
                       <Text style={styles.assignedUserText}>👤 ANM: {anm.name} ({t(anm.approvalStatus) || t('pending')})</Text>
                       <TouchableOpacity onPress={() => handleDeleteUser(anm.id, anm.name, 'ANM')}>
@@ -689,7 +689,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
                   <Text style={styles.listSubText}>{t('sc')}: {subCenters.find(sc => sc.id === v.subCenterId)?.name || t('unknown')}</Text>
                   <Text style={styles.popStatText}>👪 {stats.familyCounts[v.id] || 0} {t('families')} • 👥 {stats.memberCounts[v.id] || 0} {t('members')}</Text>
                   
-                  {users.filter(u => u.role === 'ASHA' && u.villageId === v.id).map(asha => (
+                  {users.filter(u => !u.deleted && u.role === 'ASHA' && u.villageId === v.id).map(asha => (
                     <View key={asha.id} style={styles.assignedUserRow}>
                       <Text style={styles.assignedUserText}>👤 ASHA: {asha.name} ({t(asha.approvalStatus) || t('pending')})</Text>
                       <TouchableOpacity onPress={() => handleDeleteUser(asha.id, asha.name, 'ASHA')}>
@@ -726,6 +726,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
 
             {users
               .filter(u => {
+                if (u.deleted) return false;
                 if (searchQuery && u.name?.toLowerCase().includes(searchQuery.toLowerCase()) === false && u.username?.toLowerCase().includes(searchQuery.toLowerCase()) === false) return false;
                 if (isAdmin) return true;
                 if (user.role === 'MO') {
@@ -775,6 +776,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
             }
             
             {users.filter(u => {
+                if (u.deleted) return false;
                 if (searchQuery && u.name?.toLowerCase().includes(searchQuery.toLowerCase()) === false && u.username?.toLowerCase().includes(searchQuery.toLowerCase()) === false) return false;
                 if (isAdmin) return true;
                 if (user.role === 'MO') return u.phcId === user.phcId;

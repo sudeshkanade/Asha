@@ -10,6 +10,7 @@ import {
   Alert,
   Linking,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
@@ -123,7 +124,8 @@ const VHNDScreen = ({ user, onBack }) => {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Session Info */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>{t('sessionDetails')}</Text>
@@ -131,13 +133,13 @@ const VHNDScreen = ({ user, onBack }) => {
             <Text style={styles.label}>{t('sessionDate')} <Text style={styles.required}>*</Text></Text>
             <TextInput style={styles.input} value={formData.sessionDate}
               onChangeText={(t) => setFormData({ ...formData, sessionDate: t })}
-              placeholder="YYYY-MM-DD" />
+              placeholder="YYYY-MM-DD" placeholderTextColor={COLORS.textSecondary} />
           </View>
           <View style={styles.inputGroup}>
             <Text style={styles.label}>{t('venueAWC')}</Text>
             <TextInput style={styles.input} value={formData.venue}
               onChangeText={(t) => setFormData({ ...formData, venue: t })}
-              placeholder={t('awcPlaceholder')} />
+              placeholder={t('awcPlaceholder')} placeholderTextColor={COLORS.textSecondary} />
           </View>
         </View>
 
@@ -152,19 +154,19 @@ const VHNDScreen = ({ user, onBack }) => {
               <Text style={styles.label}>🤰 {t('pregnantWomen')}</Text>
               <TextInput style={styles.input} value={formData.pregnantAttended}
                 onChangeText={(t) => setFormData({ ...formData, pregnantAttended: t })}
-                placeholder="0" keyboardType="numeric" />
+                placeholder="0" placeholderTextColor={COLORS.textSecondary} keyboardType="numeric" />
             </View>
             <View style={[styles.inputGroup, { flex: 1, minWidth: 100 }]}>
               <Text style={styles.label}>👶 {t('children05')}</Text>
               <TextInput style={styles.input} value={formData.childrenAttended}
                 onChangeText={(t) => setFormData({ ...formData, childrenAttended: t })}
-                placeholder="0" keyboardType="numeric" />
+                placeholder="0" placeholderTextColor={COLORS.textSecondary} keyboardType="numeric" />
             </View>
             <View style={[styles.inputGroup, { flex: 1, minWidth: 100 }]}>
               <Text style={styles.label}>🧑 {t('adolescents')}</Text>
               <TextInput style={styles.input} value={formData.adolescentsAttended}
                 onChangeText={(t) => setFormData({ ...formData, adolescentsAttended: t })}
-                placeholder="0" keyboardType="numeric" />
+                placeholder="0" placeholderTextColor={COLORS.textSecondary} keyboardType="numeric" />
             </View>
           </View>
         </View>
@@ -180,6 +182,7 @@ const VHNDScreen = ({ user, onBack }) => {
                 value={formData[item.key]}
                 onChangeText={(t) => setFormData({ ...formData, [item.key]: t })}
                 placeholder={item.placeholder}
+                placeholderTextColor={COLORS.textSecondary}
                 keyboardType="numeric"
               />
             </View>
@@ -194,6 +197,7 @@ const VHNDScreen = ({ user, onBack }) => {
             value={formData.notes}
             onChangeText={(t) => setFormData({ ...formData, notes: t })}
             placeholder={t('notesPlaceholder')}
+            placeholderTextColor={COLORS.textSecondary}
             multiline
           />
         </View>
@@ -201,7 +205,8 @@ const VHNDScreen = ({ user, onBack }) => {
         <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
           <Text style={styles.saveButtonText}>{t('submitVHND')}</Text>
         </TouchableOpacity>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

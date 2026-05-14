@@ -10,6 +10,8 @@ import {
   Alert,
   FlatList,
   Linking,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
@@ -233,7 +235,8 @@ const VitalEventsScreen = ({ user, onBack }) => {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Event Type Selector */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>{t('eventType')}</Text>
@@ -259,7 +262,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
             <Text style={styles.label}>{t('visitDate')} <Text style={styles.required}>*</Text></Text>
             <TextInput style={styles.input} value={formData.date}
               onChangeText={(t) => setFormData({ ...formData, date: t })}
-              placeholder="YYYY-MM-DD" />
+              placeholder="YYYY-MM-DD" placeholderTextColor={COLORS.textSecondary} />
           </View>
 
           {eventType === 'Birth' ? (
@@ -268,7 +271,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
                 <Text style={styles.label}>{t('childName')} <Text style={styles.required}>*</Text></Text>
                 <TextInput style={styles.input} value={formData.name}
                   onChangeText={(t) => setFormData({ ...formData, name: t })}
-                  placeholder="Newborn Name" />
+                  placeholder="Newborn Name" placeholderTextColor={COLORS.textSecondary} />
               </View>
 
               <View style={styles.inputGroup}>
@@ -291,6 +294,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   placeholder="Search mother..."
+                  placeholderTextColor={COLORS.textSecondary}
                 />
                 {searchQuery.length > 0 && (
                   <View style={styles.memberList}>
@@ -312,7 +316,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
                   <Text style={styles.label}>{t('birthWeight')}</Text>
                   <TextInput style={styles.input} value={formData.birthWeight}
                     onChangeText={(t) => setFormData({ ...formData, birthWeight: t })}
-                    placeholder="2.5" keyboardType="numeric" />
+                    placeholder="2.5" placeholderTextColor={COLORS.textSecondary} keyboardType="numeric" />
                 </View>
                 <View style={[styles.inputGroup, { flex: 1, minWidth: 150 }]}>
                   <Text style={styles.label}>{t('placeOfDelivery')}</Text>
@@ -336,6 +340,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
                     value={formData.hospitalName}
                     onChangeText={(t) => setFormData({ ...formData, hospitalName: t })}
                     placeholder={t('enterHospitalName', 'Enter Hospital Name')} 
+                    placeholderTextColor={COLORS.textSecondary}
                   />
                 </View>
               )}
@@ -375,6 +380,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   placeholder="Search member..."
+                  placeholderTextColor={COLORS.textSecondary}
                 />
                 {searchQuery.length > 0 && (
                   <View style={styles.memberList}>
@@ -409,6 +415,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
                 <TextInput style={styles.input} value={formData.ageAtDeath}
                   onChangeText={(t) => setFormData({ ...formData, ageAtDeath: t })}
                   placeholder={t('autoFilled', 'Auto-filled from register')}
+                  placeholderTextColor={COLORS.textSecondary}
                   keyboardType="numeric" />
               </View>
             </>
@@ -445,7 +452,8 @@ const VitalEventsScreen = ({ user, onBack }) => {
             ))}
           </View>
         )}
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

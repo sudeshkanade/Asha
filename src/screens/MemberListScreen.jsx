@@ -33,11 +33,11 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
     // Hierarchy filtering
     let scopedMembers = allMembers;
     if (user?.role === 'ASHA') {
-      scopedMembers = allMembers.filter(m => m.ashaId === user.id || m.villageId === user.villageId);
+      scopedMembers = allMembers.filter(m => m.ashaId === user.id || m.villageId === user.villageId || !m.villageId);
     } else if (user?.role === 'ANM') {
-      scopedMembers = allMembers.filter(m => m.subCenterId === user.subCenterId);
+      scopedMembers = allMembers.filter(m => m.subCenterId === user.subCenterId || !m.subCenterId);
     } else if (user?.role === 'MO') {
-      scopedMembers = allMembers.filter(m => m.phcId === user.phcId);
+      scopedMembers = allMembers.filter(m => m.phcId === user.phcId || !m.phcId);
     }
 
     let filtered = scopedMembers;
@@ -224,6 +224,7 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
         <TextInput
           style={styles.searchInput}
           placeholder={t('searchHouseName')}
+          placeholderTextColor={COLORS.textSecondary}
           value={searchQuery}
           onChangeText={handleSearch}
         />
@@ -310,6 +311,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
+    paddingBottom: 120,
   },
   memberCard: {
     backgroundColor: COLORS.surface,
@@ -339,6 +341,7 @@ const styles = StyleSheet.create({
   },
   badgeContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 4,
     marginRight: 8,
   },

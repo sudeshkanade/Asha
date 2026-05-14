@@ -49,21 +49,21 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
     // 1. Filter Families by Hierarchy
     let scopedFamilies = f;
     if (user?.role === 'ASHA') {
-      scopedFamilies = f.filter(fam => fam.villageId === user.villageId);
+      scopedFamilies = f.filter(fam => fam.villageId === user.villageId || !fam.villageId);
     } else if (user?.role === 'ANM') {
-      scopedFamilies = f.filter(fam => fam.subCenterId === user.subCenterId);
+      scopedFamilies = f.filter(fam => fam.subCenterId === user.subCenterId || !fam.subCenterId);
     } else if (user?.role === 'MO') {
-      scopedFamilies = f.filter(fam => fam.phcId === user.phcId);
+      scopedFamilies = f.filter(fam => fam.phcId === user.phcId || !fam.phcId);
     }
 
     // 2. Filter Members by Hierarchy for EC List
     let scopedMembers = m;
     if (user?.role === 'ASHA') {
-      scopedMembers = m.filter(mem => mem.ashaId === user.id || mem.villageId === user.villageId);
+      scopedMembers = m.filter(mem => mem.ashaId === user.id || mem.villageId === user.villageId || !mem.villageId);
     } else if (user?.role === 'ANM') {
-      scopedMembers = m.filter(mem => mem.subCenterId === user.subCenterId);
+      scopedMembers = m.filter(mem => mem.subCenterId === user.subCenterId || !mem.subCenterId);
     } else if (user?.role === 'MO') {
-      scopedMembers = m.filter(mem => mem.phcId === user.phcId);
+      scopedMembers = m.filter(mem => mem.phcId === user.phcId || !mem.phcId);
     }
 
     // 3. Identify Eligible Couples (Married Females 15-49) within scope
@@ -252,6 +252,7 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
             <TextInput
               style={styles.searchInput}
               placeholder={t('searchHouseName')}
+              placeholderTextColor={COLORS.textSecondary}
               value={searchQuery}
               onChangeText={handleSearch}
             />
@@ -307,7 +308,7 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
       )}
 
       {/* Floating Action Buttons */}
-      <View style={styles.fabContainer}>
+      <View style={styles.fabContainer} pointerEvents="box-none">
         <TouchableOpacity 
           style={[styles.fab, { backgroundColor: COLORS.accent }]} 
           onPress={async () => {
@@ -398,21 +399,21 @@ const styles = StyleSheet.create({
   },
   searchContainer: { padding: 16, backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   searchInput: { height: 44, backgroundColor: '#F3F4F6', borderRadius: 10, paddingHorizontal: 16, fontSize: 14, color: COLORS.text },
-  listContent: { padding: 16 },
+  listContent: { padding: 16, paddingBottom: 140 },
   familyCard: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 12, elevation: 2, borderLeftWidth: 4, borderLeftColor: COLORS.secondary },
   familyInfo: { flex: 1 },
   villageName: { fontSize: 10, fontWeight: '800', color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
   houseNo: { fontSize: 12, fontWeight: '600', color: COLORS.primary },
   headName: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginTop: 2 },
   memberCount: { fontSize: 12, color: COLORS.textSecondary },
-  familyDetailsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  familyDetailsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, flexWrap: 'wrap' },
   dotSeparator: { color: COLORS.border, marginHorizontal: 4 },
-  actions: { flexDirection: 'row', gap: 12 },
+  actions: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
   viewBtn: { padding: 8, backgroundColor: '#F0F4FF', borderRadius: 8 },
   viewBtnText: { fontSize: 18 },
   editBtn: { padding: 8, backgroundColor: '#F0F9FF', borderRadius: 8 },
   editBtnText: { fontSize: 18 },
-  fpBadgeRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  fpBadgeRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, flexWrap: 'wrap' },
   badge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   badgeText: { fontSize: 10, fontWeight: '800' },
   deleteBtn: { padding: 8, backgroundColor: '#FFF0F0', borderRadius: 8 },
@@ -427,6 +428,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'center',
     gap: 8,
     paddingHorizontal: 16,

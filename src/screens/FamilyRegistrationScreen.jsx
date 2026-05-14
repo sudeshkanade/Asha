@@ -8,6 +8,8 @@ import {
   ScrollView,
   Switch,
   SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
@@ -71,7 +73,8 @@ const FamilyRegistrationScreen = ({ user, onSave, onBack }) => {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>{t('identityLocation')}</Text>
           
@@ -98,6 +101,7 @@ const FamilyRegistrationScreen = ({ user, onSave, onBack }) => {
               <TextInput
                 style={[styles.input, { flex: 1 }]}
                 placeholder={t('houseNoExample')}
+                placeholderTextColor={COLORS.textSecondary}
                 value={formData.houseNo}
                 onChangeText={(text) => setFormData({ ...formData, houseNo: text })}
               />
@@ -144,6 +148,7 @@ const FamilyRegistrationScreen = ({ user, onSave, onBack }) => {
             <TextInput
               style={styles.input}
               placeholder={t('twelveDigitNumber')}
+              placeholderTextColor={COLORS.textSecondary}
               value={formData.rationCardNo}
               onChangeText={(text) => setFormData({ ...formData, rationCardNo: text })}
               keyboardType="numeric"
@@ -171,7 +176,8 @@ const FamilyRegistrationScreen = ({ user, onSave, onBack }) => {
         <TouchableOpacity style={styles.cancelButton} onPress={onBack}>
           <Text style={styles.cancelButtonText}>{t('cancelBack')}</Text>
         </TouchableOpacity>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
