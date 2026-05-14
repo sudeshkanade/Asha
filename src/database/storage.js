@@ -296,7 +296,6 @@ export const storage = {
       return await storage._addToSyncQueue(tableName, payload, type);
     });
   },
-  },
 
   addToDeleteQueue: async (tableName, id) => {
     if (!id) return;
