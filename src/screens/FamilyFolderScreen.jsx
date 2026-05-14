@@ -264,7 +264,7 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
                 style={[styles.villageChip, !selectedVillageId && styles.activeVillageChip]}
                 onPress={() => setSelectedVillageId(null)}
               >
-                <Text style={[styles.villageChipText, !selectedVillageId && styles.activeVillageChipText]}>{t('allVillages', 'All Villages')}</Text>
+                <Text style={[styles.villageChipText, !selectedVillageId && styles.activeVillageChipText]}>{t('allVillages')}</Text>
               </TouchableOpacity>
               {villages.filter(v => {
                 if (user?.role === 'ASHA') return v.id === user.villageId;
@@ -295,7 +295,7 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
           renderItem={renderFamily}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
-          ListEmptyComponent={<Text style={styles.emptyText}>{t('noFamilies', 'No families found for this village.')}</Text>}
+          ListEmptyComponent={<Text style={styles.emptyText}>{t('noFamilies')}</Text>}
         />
       ) : (
         <FlatList

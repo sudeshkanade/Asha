@@ -74,7 +74,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
 
   const handleAddPhc = async () => {
     if (!newPhc.name) {
-      Alert.alert('Error', 'PHC Name is required');
+      Alert.alert(t('error'), t('phcNameRequired'));
       return;
     }
     if (editingItem) {
@@ -99,13 +99,13 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
       setLoading(true);
       const res = await cloudSyncManager.startBackgroundSync();
       if (res.success) {
-        Alert.alert('Success', `PHC ${editingItem ? 'updated' : 'added'} and synced to cloud.`);
+        Alert.alert(t('success'), `PHC ${editingItem ? t('updated') : t('added')} ${t('itemAddedSynced')}`);
       } else {
-        Alert.alert('Partially Saved', `Saved locally, but cloud push failed: ${res.error || 'Check connection'}`);
+        Alert.alert(t('success'), `${t('partiallySaved')} ${res.error || t('checkConnection')}`);
       }
     } catch (e) {
       console.error(e);
-      Alert.alert('Success', `Saved locally. (Cloud Sync background)`);
+      Alert.alert(t('success'), t('savedLocally'));
     } finally {
       setLoading(false);
     }
@@ -113,7 +113,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
 
   const handleAddSubCenter = async () => {
     if (!newSubCenter.name || !newSubCenter.phcId) {
-      Alert.alert('Error', 'Name and PHC selection are required');
+      Alert.alert(t('error'), t('scNameRequired'));
       return;
     }
     if (editingItem) {
@@ -138,12 +138,12 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
       setLoading(true);
       const res = await cloudSyncManager.startBackgroundSync();
       if (res.success) {
-        Alert.alert('Success', `Sub-Center ${editingItem ? 'updated' : 'added'} and synced.`);
+        Alert.alert(t('success'), `Sub-Center ${editingItem ? t('updated') : t('added')} ${t('itemAddedSynced')}`);
       } else {
-        Alert.alert('Partially Saved', 'Saved locally. Sync pending.');
+        Alert.alert(t('success'), t('partiallySaved'));
       }
     } catch (e) {
-      Alert.alert('Success', 'Saved locally.');
+      Alert.alert(t('success'), t('savedLocally'));
     } finally {
       setLoading(false);
     }

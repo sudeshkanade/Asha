@@ -26,7 +26,7 @@ import VitalEventsScreen from './src/screens/VitalEventsScreen';
 import VHNDScreen from './src/screens/VHNDScreen';
 import ClaimsScreen from './src/screens/ClaimsScreen';
 import TeamScreen from './src/screens/TeamScreen';
-import AdminSettingsScreen from './src/screens/AdminSettingsScreen2';
+import AdminSettingsScreen from './src/screens/AdminSettingsScreen';
 import FamilyFolderScreen from './src/screens/FamilyFolderScreen';
 import LogisticsScreen from './src/screens/LogisticsScreen';
 import SurveillanceScreen from './src/screens/SurveillanceScreen';

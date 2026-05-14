@@ -51,8 +51,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
       const houseNo = window.prompt(t('enterHouseNo') || 'Enter House Number:');
       if (houseNo) finalizeClosedBuilding(houseNo);
     } else {
-      // In Native, we'd use a Modal. For now, using a safe alert.
-      Alert.alert("Feature Restricted", "Please use the Web portal for bulk administrative tasks.");
+      Alert.alert(t('featureRestricted'), t('bulkAdminWebOnly'));
     }
   };
 
@@ -61,7 +60,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
     const closedFamily = {
       id: storage.generateId('closed', user?.id),
       houseNo: houseNo,
-      headName: 'Closed / Locked Building',
+      headName: t('closedBuilding', 'Closed / Locked Building'),
       isClosed: true,
       ashaId: user.id,
       villageId: user.villageId,
@@ -72,7 +71,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
     };
 
     await storage.save(STORAGE_KEYS.FAMILIES, closedFamily);
-    Alert.alert(t('success'), t('closedBuildingAdded') || 'Building marked as closed.');
+    Alert.alert(t('success'), t('closedBuildingAdded'));
   };
 
   const loadLiveStats = async () => {
@@ -145,7 +144,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
         await loadLiveStats();
         const msg = `Sync complete! Pushed: ${pushResult.syncedCount || 0}, Pulled: ${pullResult.pulledCount || 0}`;
         if (Platform.OS === 'web') window.alert(msg);
-        else Alert.alert('Sync Result', msg);
+        else Alert.alert(t('syncResult'), msg);
       } else {
         const errorMsg = pushResult.message || pullResult.message || 'Check connection';
         if (Platform.OS === 'web') window.alert(`Sync failed: ${errorMsg}`);

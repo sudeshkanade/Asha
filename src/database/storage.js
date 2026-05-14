@@ -49,12 +49,71 @@ export const storage = {
   },
 
   /**
+   * Internal logic for getAll (no lock)
+   */
+  _getAll: async (key) => {
+    try {
+      const value = await AsyncStorage.getItem(key);
+      return value != null ? JSON.parse(value) : [];
+    } catch (e) {
+      return [];
+    }
+  },
+
+  /**
+   * Internal logic for saveAll (no lock)
+   */
+  _saveAll: async (key, items) => {
+    try {
+      await AsyncStorage.setItem(key, JSON.stringify(items));
+      return true;
+    } catch (e) {
+      console.error('❌ Storage._saveAll error:', e);
+      return false;
+    }
+  },
+
+  /**
+   * Internal logic for update (no lock)
+   */
+  _update: async (tableName, updateFn) => {
+    const currentData = await storage._getAll(tableName);
+    const newData = updateFn(currentData);
+    if (!newData) return null; 
+    await storage._saveAll(tableName, newData);
+    return newData;
+  },
+
+  /**
+   * Internal logic for addToSyncQueue (no lock)
+   */
+  _addToSyncQueue: async (tableName, payload, type = 'save') => {
+    return await storage._update(STORAGE_KEYS.SYNC_QUEUE, (queue) => {
+      const syncItem = {
+        id: storage.generateId('sync'),
+        tableName,
+        docId: payload.id,
+        payload,
+        type,
+        timestamp: Date.now()
+      };
+      const existingIdx = queue.findIndex(q => q.docId === payload.id && q.tableName === tableName && q.type === 'save');
+      if (existingIdx >= 0 && type === 'save') {
+        queue[existingIdx] = syncItem;
+      } else {
+        queue.push(syncItem);
+      }
+      return queue;
+    });
+  },
+
+  /**
    * Save a record with Conflict Resolution (Last-Write-Wins)
    */
   save: async (key, data) => {
     return storage.withLock(async () => {
       try {
-        const existingData = await storage.getAll(key);
+        const existingData = await storage._getAll(key);
         const timestamp = new Date().getTime();
         
         let normalizedData = { ...data };
@@ -77,10 +136,10 @@ export const storage = {
           lastUpdatedAt: timestamp 
         };
 
-        const tombstones = await storage.getAll(STORAGE_KEYS.DELETED_IDS);
+        const tombstones = await storage._getAll(STORAGE_KEYS.DELETED_IDS);
         if (tombstones.includes(newData.id.toString())) {
           const updatedTombstones = tombstones.filter(id => id !== newData.id.toString());
-          await storage.saveAll(STORAGE_KEYS.DELETED_IDS, updatedTombstones);
+          await storage._saveAll(STORAGE_KEYS.DELETED_IDS, updatedTombstones);
         }
 
         const existingIndex = existingData.findIndex(item => item.id === newData.id);
@@ -115,7 +174,7 @@ export const storage = {
            await storage.updateSummary(newData, (existingIndex >= 0 ? existingData[existingIndex] : null));
         }
 
-        await storage.addToSyncQueue(key, newData);
+        await storage._addToSyncQueue(key, newData);
         return true;
       } catch (e) {
         console.error('❌ Storage.save error:', e);
@@ -150,13 +209,9 @@ export const storage = {
   },
 
   saveAll: async (key, items) => {
-    try {
-      await AsyncStorage.setItem(key, JSON.stringify(items));
-      return true;
-    } catch (e) {
-      console.error('❌ Storage.saveAll error:', e);
-      return false;
-    }
+    return storage.withLock(async () => {
+      return await storage._saveAll(key, items);
+    });
   },
 
   autoPrune: async () => {
@@ -228,41 +283,19 @@ export const storage = {
 
   update: async (tableName, updateFn) => {
     return await storage.withLock(async () => {
-      const currentData = await storage.getAll(tableName);
-      const newData = updateFn(currentData);
-      if (!newData) return null; 
-      await storage.saveAll(tableName, newData);
-      return newData;
+      return await storage._update(tableName, updateFn);
     });
   },
 
   getAll: async (key) => {
-    try {
-      const value = await AsyncStorage.getItem(key);
-      return value != null ? JSON.parse(value) : [];
-    } catch (e) {
-      return [];
-    }
+    return await storage._getAll(key);
   },
 
   addToSyncQueue: async (tableName, payload, type = 'save') => {
-    return await storage.update(STORAGE_KEYS.SYNC_QUEUE, (queue) => {
-      const syncItem = {
-        id: storage.generateId('sync'),
-        tableName,
-        docId: payload.id,
-        payload,
-        type,
-        timestamp: Date.now()
-      };
-      const existingIdx = queue.findIndex(q => q.docId === payload.id && q.tableName === tableName && q.type === 'save');
-      if (existingIdx >= 0 && type === 'save') {
-        queue[existingIdx] = syncItem;
-      } else {
-        queue.push(syncItem);
-      }
-      return queue;
+    return await storage.withLock(async () => {
+      return await storage._addToSyncQueue(tableName, payload, type);
     });
+  },
   },
 
   addToDeleteQueue: async (tableName, id) => {
