@@ -24,17 +24,33 @@ const ClaimsScreen = ({ user, onBack }) => {
 
   const loadClaims = async () => {
     try {
-      const members = await storage.getAll(STORAGE_KEYS.MEMBERS);
-      const events = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
-      const rates = await getActiveRates();
+      const allClaims = await storage.getAll(STORAGE_KEYS.CLAIMS);
+      
+      // Filter for current user and current month
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
 
-      const filteredMembers = members.filter(m => {
-        if (user?.role === 'ASHA') return m.villageId === user?.villageId;
-        return true;
+      const userClaims = allClaims.filter(c => {
+        const matchesUser = user?.role === 'ASHA' ? c.ashaId === user.id : true;
+        const matchesMonth = c.month === currentMonth && c.year === currentYear;
+        return matchesUser && matchesMonth;
       });
 
-      const result = calculateClaims(filteredMembers, events, rates);
-      setClaims(result);
+      const totalEarnings = userClaims.reduce((sum, c) => sum + (c.status === 'processed' ? c.amount : 0), 0);
+      const pendingEarnings = userClaims.reduce((sum, c) => sum + (c.status === 'pending' ? c.amount : 0), 0);
+
+      setClaims({
+        totalEarnings,
+        pendingEarnings,
+        claimsCount: userClaims.length,
+        claimsList: userClaims.map(c => ({
+          type: c.activityType.replace(/_/g, ' '),
+          member: c.memberName,
+          amount: c.amount,
+          status: c.status
+        }))
+      });
     } catch (e) {
       console.error('Error loading claims', e);
     } finally {
@@ -65,8 +81,9 @@ const ClaimsScreen = ({ user, onBack }) => {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Earnings Summary */}
         <View style={styles.earningsCard}>
-          <Text style={styles.earningsLabel}>{t('totalEarningsMonth')}</Text>
+          <Text style={styles.earningsLabel}>{t('totalProcessedEarnings')}</Text>
           <Text style={styles.earningsAmount}>₹{claims?.totalEarnings || 0}</Text>
+          <Text style={[styles.earningsLabel, { marginTop: 10 }]}>{t('pendingApproval')}: ₹{claims?.pendingEarnings || 0}</Text>
           <Text style={styles.earningsCount}>{claims?.claimsCount || 0} {t('activitiesClaimed')}</Text>
         </View>
 
@@ -80,7 +97,12 @@ const ClaimsScreen = ({ user, onBack }) => {
                   <Text style={styles.claimType}>{t(claim.type.toLowerCase().replace(/[^a-z]/g, '')) || claim.type}</Text>
                   <Text style={styles.claimMember}>{claim.member}</Text>
                 </View>
-                <Text style={styles.claimAmount}>₹{claim.amount}</Text>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={styles.claimAmount}>₹{claim.amount}</Text>
+                  <Text style={[styles.claimStatus, { color: claim.status === 'processed' ? COLORS.success : COLORS.primary }]}>
+                    {t(claim.status)}
+                  </Text>
+                </View>
               </View>
             ))
           ) : (
@@ -129,6 +151,7 @@ const styles = StyleSheet.create({
   claimType: { fontSize: 14, fontWeight: '600', color: COLORS.text },
   claimMember: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
   claimAmount: { fontSize: 16, fontWeight: '700', color: COLORS.secondary },
+  claimStatus: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', marginTop: 2 },
   emptyText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', padding: 20, lineHeight: 22 },
   rateRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   rateLabel: { fontSize: 14, color: COLORS.text },

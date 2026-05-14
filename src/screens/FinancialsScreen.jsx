@@ -43,18 +43,17 @@ const FinancialsScreen = ({ user, onBack, onNavigate }) => {
     
     setReferrals(tickets);
 
-    // Mock Payment Status for JSY/PMMVY
-    const mockPayments = members
-      .filter(m => m.healthData?.isPregnant)
-      .map(m => ({
-        id: m.id,
-        name: `${m.firstName} ${m.lastName}`,
-        scheme: 'JSY',
-        status: ['Pending', 'Processed', 'Rejected'][Math.floor(Math.random() * 3)],
-        amount: 1400
-      }));
+    // RUTHLESS FIX: Load Real Payment Status from Claims Registry
+    const allClaims = await storage.getAll(STORAGE_KEYS.CLAIMS);
+    const paymentsData = allClaims.map(c => ({
+      id: c.id,
+      name: c.memberName,
+      scheme: c.activityType.replace(/_/g, ' '),
+      status: c.status.charAt(0).toUpperCase() + c.status.slice(1),
+      amount: c.amount
+    }));
     
-    setPayments(mockPayments);
+    setPayments(paymentsData);
     setLoading(false);
   };
 

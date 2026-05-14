@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
-  Text,
+  Text as RNText,
   TextInput,
   TouchableOpacity,
   SafeAreaView,
@@ -222,14 +222,14 @@ const LoginScreen = ({ onLogin }) => {
           style={styles.langToggle} 
           onPress={() => i18n.changeLanguage(i18n.language === 'en' ? 'mr' : 'en')}
         >
-          <Text style={styles.langToggleText}>{i18n.language === 'en' ? 'मराठी' : 'EN'}</Text>
+          <RNText style={styles.langToggleText}>{i18n.language === 'en' ? 'मराठी' : 'EN'}</RNText>
         </TouchableOpacity>
       </View>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.logoText}>🩺</Text>
-          <Text style={styles.title}>{t('title')}</Text>
-          <Text style={styles.subtitle}>{isRegister ? t('newWorkerReg') : t('workerLogin')}</Text>
+          <RNText style={styles.logoText}>🩺</RNText>
+          <RNText style={styles.title}>{t('title')}</RNText>
+          <RNText style={styles.subtitle}>{isRegister ? t('newWorkerReg') : t('workerLogin')}</RNText>
         </View>
 
         <View style={styles.form}>
@@ -256,7 +256,7 @@ const LoginScreen = ({ onLogin }) => {
                 value={formData.name}
                 onChangeText={(t) => setFormData({...formData, name: t})}
               />
-              <Text style={styles.label}>{t('selectRole')}</Text>
+              <RNText style={styles.label}>{t('selectRole')}</RNText>
               <View style={styles.roleGrid}>
                 {['ASHA', 'ANM', 'MO'].map(r => (
                   <TouchableOpacity 
@@ -264,7 +264,7 @@ const LoginScreen = ({ onLogin }) => {
                     style={[styles.roleBtn, formData.role === r && styles.activeRoleBtn]}
                     onPress={() => setFormData({...formData, role: r})}
                   >
-                    <Text style={[styles.roleText, formData.role === r && styles.activeRoleText]}>{r}</Text>
+                    <RNText style={[styles.roleText, formData.role === r && styles.activeRoleText]}>{r}</RNText>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -272,9 +272,9 @@ const LoginScreen = ({ onLogin }) => {
               {loading ? <ActivityIndicator color={COLORS.primary} /> : (
                 <View style={styles.hierarchySection}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <Text style={styles.label}>{t('phc')}</Text>
+                    <RNText style={styles.label}>{t('phc')}</RNText>
                     <TouchableOpacity onPress={loadHierarchy}>
-                      <Text style={{ fontSize: 12, color: COLORS.primary, fontWeight: '700' }}>{t('refreshList')}</Text>
+                      <RNText style={{ fontSize: 12, color: COLORS.primary, fontWeight: '700' }}>{t('refreshList')}</RNText>
                     </TouchableOpacity>
                   </View>
                   <View style={styles.chipGrid}>
@@ -284,15 +284,15 @@ const LoginScreen = ({ onLogin }) => {
                         style={[styles.chip, formData.phcId === p.id && styles.activeChip]}
                         onPress={() => setFormData({...formData, phcId: p.id, subCenterId: '', villageId: ''})}
                       >
-                        <Text style={[styles.chipText, formData.phcId === p.id && styles.activeChipText]}>{p.name}</Text>
+                        <RNText style={[styles.chipText, formData.phcId === p.id && styles.activeChipText]}>{p.name}</RNText>
                       </TouchableOpacity>
                     ))}
-                    {phcs.length === 0 && <Text style={styles.noData}>{t('noPhcs')}</Text>}
+                    {phcs.length === 0 && <RNText style={styles.noData}>{t('noPhcs')}</RNText>}
                   </View>
 
                   {formData.phcId && (
                     <>
-                      <Text style={styles.label}>{t('subCenter')}</Text>
+                      <RNText style={styles.label}>{t('subCenter')}</RNText>
                       <View style={styles.chipGrid}>
                         {subCenters.filter(sc => sc.phcId === formData.phcId).map(sc => (
                           <TouchableOpacity 
@@ -300,7 +300,7 @@ const LoginScreen = ({ onLogin }) => {
                             style={[styles.chip, formData.subCenterId === sc.id && styles.activeChip]}
                             onPress={() => setFormData({...formData, subCenterId: sc.id, villageId: ''})}
                           >
-                            <Text style={[styles.chipText, formData.subCenterId === sc.id && styles.activeChipText]}>{sc.name}</Text>
+                            <RNText style={[styles.chipText, formData.subCenterId === sc.id && styles.activeChipText]}>{sc.name}</RNText>
                           </TouchableOpacity>
                         ))}
                       </View>
@@ -309,7 +309,7 @@ const LoginScreen = ({ onLogin }) => {
 
                   {formData.subCenterId && (
                     <>
-                      <Text style={styles.label}>{t('village')}</Text>
+                      <RNText style={styles.label}>{t('village')}</RNText>
                       <View style={styles.chipGrid}>
                         {villages.filter(v => v.subCenterId === formData.subCenterId).map(v => (
                           <TouchableOpacity 
@@ -317,7 +317,7 @@ const LoginScreen = ({ onLogin }) => {
                             style={[styles.chip, formData.villageId === v.id && styles.activeChip]}
                             onPress={() => setFormData({...formData, villageId: v.id, ward: v.ward})}
                           >
-                            <Text style={[styles.chipText, formData.villageId === v.id && styles.activeChipText]}>{v.name}</Text>
+                            <RNText style={[styles.chipText, formData.villageId === v.id && styles.activeChipText]}>{v.name}</RNText>
                           </TouchableOpacity>
                         ))}
                       </View>
@@ -332,7 +332,7 @@ const LoginScreen = ({ onLogin }) => {
             style={styles.mainBtn} 
             onPress={isRegister ? handleRegister : handleLogin}
           >
-            <Text style={styles.mainBtnText}>{isRegister ? t('register') : t('login')}</Text>
+            <RNText style={styles.mainBtnText}>{isRegister ? t('register') : t('login')}</RNText>
           </TouchableOpacity>
 
           {!isRegister && (
@@ -345,37 +345,37 @@ const LoginScreen = ({ onLogin }) => {
                 Alert.alert(t('success'), t('accountsSynced'));
               }}
             >
-              <Text style={{ color: COLORS.secondary, fontSize: 12, fontWeight: '700' }}>
+              <RNText style={{ color: COLORS.secondary, fontSize: 12, fontWeight: '700' }}>
                 ↻ {t('syncAccounts')}
-              </Text>
+              </RNText>
             </TouchableOpacity>
           )}
 
           <TouchableOpacity onPress={() => setIsRegister(!isRegister)} style={styles.switchBtn}>
-            <Text style={styles.switchBtnText}>
+            <RNText style={styles.switchBtnText}>
               {isRegister ? t('alreadyHaveAccount') : t('newAshaRegister')}
-            </Text>
+            </RNText>
           </TouchableOpacity>
         </View>
 
         {showHiddenTools && (
           <View style={styles.hiddenTools}>
-            <Text style={styles.hiddenToolsTitle}>{t('maintenanceMode')}</Text>
+            <RNText style={styles.hiddenToolsTitle}>{t('maintenanceMode')}</RNText>
             <TouchableOpacity style={styles.resetBtn} onPress={handleFactoryReset}>
-              <Text style={styles.resetBtnText}>{t('wipeLocalData')}</Text>
+              <RNText style={styles.resetBtnText}>{t('wipeLocalData')}</RNText>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.resetBtn, { backgroundColor: '#7F1D1D', marginTop: 10 }]} onPress={handleCloudReset}>
-              <Text style={styles.resetBtnText}>{t('wipeAllData')}</Text>
+              <RNText style={styles.resetBtnText}>{t('wipeAllData')}</RNText>
             </TouchableOpacity>
             <TouchableOpacity style={styles.closeHiddenBtn} onPress={() => setShowHiddenTools(false)}>
-              <Text style={styles.closeHiddenBtnText}>{t('closeTools')}</Text>
+              <RNText style={styles.closeHiddenBtnText}>{t('closeTools')}</RNText>
             </TouchableOpacity>
           </View>
         )}
 
         <TouchableOpacity style={styles.footer} onPress={handleAdminTap} activeOpacity={1}>
-          <Text style={styles.footerText}>{t('systemName')}</Text>
-          <Text style={styles.footerSubText}>{t('systemVersion')}</Text>
+          <RNText style={styles.footerText}>{t('systemName')}</RNText>
+          <RNText style={styles.footerSubText}>{t('systemVersion')}</RNText>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

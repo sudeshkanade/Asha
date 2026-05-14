@@ -14,6 +14,7 @@ import {
 import { COLORS } from '../constants/colors';
 import { calculateChildSchedule, shouldShowMaternalFields, ANC_RISK_FACTORS, calculateVaccinationSchedule } from '../utils/healthLogic';
 import { storage, STORAGE_KEYS } from '../database/storage';
+import { incentiveManager } from '../utils/incentiveManager';
 import { useTranslation } from 'react-i18next';
 
 const RenderInput = ({ label, value, onChange, placeholder, keyboardType = 'default' }) => (
@@ -145,6 +146,12 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
     }
 
     await storage.save(STORAGE_KEYS.MEMBERS, updatedMember);
+    
+    // RED TEAM FIX: Trigger atomic incentive generation
+    if (user?.role === 'ASHA') {
+      await incentiveManager.processMemberTriggers(updatedMember, user);
+    }
+
     if (onSave) onSave(updatedMember);
     else if (onBack) onBack();
   };

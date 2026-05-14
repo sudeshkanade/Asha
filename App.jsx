@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   View, 
   StyleSheet, 
-  Text, 
+  Text as RNText, 
   TouchableOpacity, 
   Platform, 
   Alert, 
@@ -51,6 +51,7 @@ export default function App() {
   const [registrationKey, setRegistrationKey] = useState(1);
   const [initError, setInitError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [adminSetupData, setAdminSetupData] = useState(null);
 
 
   useEffect(() => {
@@ -114,6 +115,8 @@ export default function App() {
         await storage.purgeOrphanedData(user);
       } catch (syncError) {
         console.error("Initial sync failed, proceeding offline:", syncError);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -167,11 +170,11 @@ export default function App() {
   if (initError) {
     return (
       <View style={{ flex: 1, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center', padding: 30 }}>
-        <Text style={{ fontSize: 40, marginBottom: 20 }}>🏥</Text>
-        <Text style={{ fontSize: 20, fontWeight: '800', color: '#1E293B', textAlign: 'center' }}>System Recovery Mode</Text>
-        <Text style={{ fontSize: 14, color: '#64748B', textAlign: 'center', marginVertical: 15 }}>
+        <RNText style={{ fontSize: 40, marginBottom: 20 }}>🏥</RNText>
+        <RNText style={{ fontSize: 20, fontWeight: '800', color: '#1E293B', textAlign: 'center' }}>System Recovery Mode</RNText>
+        <RNText style={{ fontSize: 14, color: '#64748B', textAlign: 'center', marginVertical: 15 }}>
           The local database could not be loaded. This usually happens if device storage is full.
-        </Text>
+        </RNText>
         <TouchableOpacity 
           style={{ backgroundColor: '#EF4444', padding: 16, borderRadius: 12, width: '100%' }}
           onPress={async () => {
@@ -179,10 +182,10 @@ export default function App() {
              if (typeof window !== 'undefined') window.location.reload();
           }}
         >
-          <Text style={{ color: '#FFF', fontWeight: '700', textAlign: 'center' }}>FORCE RESET APP (Wipes Local Data)</Text>
+          <RNText style={{ color: '#FFF', fontWeight: '700', textAlign: 'center' }}>FORCE RESET APP (Wipes Local Data)</RNText>
         </TouchableOpacity>
         <TouchableOpacity style={{ marginTop: 20 }} onPress={() => { if (typeof window !== 'undefined') window.location.reload(); }}>
-          <Text style={{ color: '#0F172A', fontWeight: '600' }}>Retry Initialization</Text>
+          <RNText style={{ color: '#0F172A', fontWeight: '600' }}>Retry Initialization</RNText>
         </TouchableOpacity>
       </View>
     );
@@ -191,8 +194,8 @@ export default function App() {
   if (loading && !user) {
     return (
        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
-         <Text style={{fontSize: 24, fontWeight: '800', color: '#0F172A'}}>RHT Operating System</Text>
-         <Text style={{fontSize: 12, color: '#64748B', marginTop: 8}}>Booting Clinical Engine...</Text>
+         <RNText style={{fontSize: 24, fontWeight: '800', color: '#0F172A'}}>RHT Operating System</RNText>
+         <RNText style={{fontSize: 12, color: '#64748B', marginTop: 8}}>Booting Clinical Engine...</RNText>
        </View>
     );
   }
@@ -267,7 +270,7 @@ export default function App() {
     }
   };
 
-  const [adminSetupData, setAdminSetupData] = useState(null);
+
 
   const renderScreen = () => {
     switch (currentScreen) {

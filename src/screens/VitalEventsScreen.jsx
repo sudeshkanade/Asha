@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
+import { incentiveManager } from '../utils/incentiveManager';
 import { useTranslation } from 'react-i18next';
 
 const VitalEventsScreen = ({ user, onBack }) => {
@@ -158,6 +159,11 @@ const VitalEventsScreen = ({ user, onBack }) => {
       await storage.save(STORAGE_KEYS.MEMBERS, newborn);
       await storage.save(STORAGE_KEYS.MEMBERS, updatedMother);
       await storage.save(STORAGE_KEYS.VITAL_EVENTS, newEvent);
+
+      // RED TEAM FIX: Trigger atomic incentive for institutional delivery
+      if (user?.role === 'ASHA') {
+        await incentiveManager.processEventTriggers(newEvent, user);
+      }
       
       Alert.alert(t('success'), `${t('birth')} ${t('success')}`);
     } else {
