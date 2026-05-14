@@ -152,9 +152,16 @@ const LoginScreen = ({ onLogin }) => {
       }
 
       await storage.save(STORAGE_KEYS.USERS, newUser);
-      await cloudSyncManager.startBackgroundSync();
+      const syncResult = await cloudSyncManager.startBackgroundSync();
       
-      Alert.alert(t('pendingApproval'), t('regSubmitted'));
+      if (syncResult && syncResult.success) {
+        Alert.alert(t('pendingApproval'), t('regSubmitted', 'Registration Submitted. Please wait for Admin approval.'));
+      } else {
+        Alert.alert(
+          t('savedLocally', 'Saved Locally'), 
+          t('regOffline', 'Saved locally. Please ensure the device connects to the internet soon to submit your registration to the Admin.')
+        );
+      }
       setIsRegister(false);
     } catch (err) {
       console.error('Registration Error:', err);

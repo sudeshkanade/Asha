@@ -60,7 +60,7 @@ const AdminDashboard = ({ user, onBack, onNavigate }) => {
               </View>
               <TouchableOpacity 
                 style={[styles.statCard, { backgroundColor: COLORS.error }]}
-                onPress={() => onNavigate('AdminSetup', { initialTab: 'Approvals' })}
+                onPress={() => onNavigate('AdminSetup', { initialTab: 'users' })}
               >
                 <Text style={styles.statVal}>{stats.pending}</Text>
                 <Text style={styles.statLabel}>Pending Approvals</Text>
@@ -79,7 +79,7 @@ const AdminDashboard = ({ user, onBack, onNavigate }) => {
                 title={t('userManagement', 'User Management')} 
                 icon="👥" 
                 desc="Roles, Resets & Deletion" 
-                onPress={() => onNavigate('AdminSetup', { initialTab: 'Approvals' })}
+                onPress={() => onNavigate('AdminSetup', { initialTab: 'users' })}
               />
               <ToolItem 
                 title={t('masterData', 'Master Data')} 

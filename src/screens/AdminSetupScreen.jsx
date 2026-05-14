@@ -19,7 +19,7 @@ import { cloudSyncManager } from '../database/cloudSync';
 const AdminSetupScreen = ({ user, initialTab, onBack }) => {
   const { t } = useTranslation();
   const isAdmin = user?.role === 'Admin';
-  const [activeTab, setActiveTab] = useState(initialTab || (isAdmin ? 'phcs' : 'sc')); // phcs, sc, villages, approvals
+  const [activeTab, setActiveTab] = useState(initialTab || (isAdmin ? 'phcs' : 'sc')); // phcs, sc, villages, users
   const [phcs, setPhcs] = useState([]);
   const [subCenters, setSubCenters] = useState([]);
   const [villages, setVillages] = useState([]);
@@ -375,6 +375,41 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
     }
   };
 
+  const handleResetPassword = async (userId, userName) => {
+    const defaultPassword = 'User@123';
+    const confirmReset = async () => {
+      try {
+        await storage.update(STORAGE_KEYS.USERS, (usersList) => {
+          const idx = usersList.findIndex(u => u.id === userId);
+          if (idx >= 0) {
+            usersList[idx].password = defaultPassword;
+            usersList[idx].lastUpdatedAt = Date.now();
+          }
+          return usersList;
+        });
+        
+        const updatedUser = (await storage.getAll(STORAGE_KEYS.USERS)).find(u => u.id === userId);
+        if (updatedUser) await storage.addToSyncQueue(STORAGE_KEYS.USERS, updatedUser);
+        
+        await cloudSyncManager.startBackgroundSync();
+        Alert.alert(t('success'), `${t('passwordResetSuccess', 'Password reset to')} ${defaultPassword}`);
+        await loadData();
+      } catch (e) {
+        Alert.alert(t('error'), t('passwordResetFailed', 'Failed to reset password'));
+      }
+    };
+
+    const message = `${t('confirmResetPassword', 'Are you sure you want to reset the password for')} ${userName}? ${t('newPasswordWillBe', 'The new password will be:')} ${defaultPassword}`;
+    if (Platform.OS === 'web' || typeof window !== 'undefined') {
+      if (window.confirm(message)) confirmReset();
+    } else {
+      Alert.alert(t('resetPassword', 'Reset Password'), message, [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('reset', 'Reset'), style: 'destructive', onPress: confirmReset }
+      ]);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -405,10 +440,10 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
       </View>
 
       <View style={styles.tabBar}>
-        {['phcs', 'sc', 'villages', 'approvals'].filter(tabKey => {
+        {['phcs', 'sc', 'villages', 'users'].filter(tabKey => {
           if (user?.role === 'Admin') return true;
           if (tabKey === 'phcs') return false;
-          if (tabKey === 'approvals') return user?.role === 'MO' || user?.role === 'ANM';
+          if (tabKey === 'users') return user?.role === 'MO' || user?.role === 'ANM';
           return true;
         }).map(tab => (
           <TouchableOpacity 
@@ -678,7 +713,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
             ))}
           </View>
         )}
-        {activeTab === 'approvals' && (
+        {activeTab === 'users' && (
           <View>
             <View style={styles.infoBox}>
               <Text style={styles.infoLabel}>{t('roleBasedControl')}:</Text>
@@ -691,7 +726,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
 
             {users
               .filter(u => {
-                if (u.approvalStatus === 'approved') return false;
+                if (searchQuery && u.name?.toLowerCase().includes(searchQuery.toLowerCase()) === false && u.username?.toLowerCase().includes(searchQuery.toLowerCase()) === false) return false;
                 if (isAdmin) return true;
                 if (user.role === 'MO') {
                   return u.phcId === user.phcId;
@@ -702,26 +737,36 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
                 return false;
               })
               .map(u => (
-                <View key={u.id} style={[styles.listItem, { borderLeftColor: u.approvalStatus === 'rejected' ? COLORS.error : '#EAB308' }]}>
+                <View key={u.id} style={[styles.listItem, { borderLeftColor: u.approvalStatus === 'rejected' ? COLORS.error : (u.approvalStatus === 'approved' ? COLORS.success : '#EAB308') }]}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.listText}>{u.name} ({u.role})</Text>
                     <Text style={styles.listSubText}>{t('username')}: {u.username}</Text>
                     <Text style={styles.listSubText}>{t('village')}: {u.villageName || t('na')}</Text>
-                    <Text style={styles.listSubText}>{t('status')}: <Text style={{fontWeight:'700', color: u.approvalStatus === 'rejected' ? COLORS.error : '#EAB308'}}>{t(u.approvalStatus || 'pending').toUpperCase()}</Text></Text>
+                    <Text style={styles.listSubText}>{t('status')}: <Text style={{fontWeight:'700', color: u.approvalStatus === 'rejected' ? COLORS.error : (u.approvalStatus === 'approved' ? COLORS.success : '#EAB308')}}>{t(u.approvalStatus || 'pending').toUpperCase()}</Text></Text>
                   </View>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <TouchableOpacity 
-                      style={[styles.approveBtn, { backgroundColor: COLORS.success }]} 
-                      onPress={() => handleUpdateUserStatus(u.id, 'approved')}
-                    >
-                      <Text style={styles.approveBtnText}>✓ {t('approve')}</Text>
-                    </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                    {u.approvalStatus !== 'approved' && (
+                      <TouchableOpacity 
+                        style={[styles.approveBtn, { backgroundColor: COLORS.success }]} 
+                        onPress={() => handleUpdateUserStatus(u.id, 'approved')}
+                      >
+                        <Text style={styles.approveBtnText}>✓ {t('approve')}</Text>
+                      </TouchableOpacity>
+                    )}
                     {u.approvalStatus !== 'rejected' && (
                       <TouchableOpacity 
                         style={[styles.approveBtn, { backgroundColor: COLORS.error }]} 
                         onPress={() => handleUpdateUserStatus(u.id, 'rejected')}
                       >
-                        <Text style={styles.approveBtnText}>✕ {t('reject')}</Text>
+                        <Text style={styles.approveBtnText}>🔒 {t('lockAccount', 'Lock')}</Text>
+                      </TouchableOpacity>
+                    )}
+                    {u.approvalStatus === 'approved' && (
+                      <TouchableOpacity 
+                        style={[styles.approveBtn, { backgroundColor: '#3B82F6' }]} 
+                        onPress={() => handleResetPassword(u.id, u.name)}
+                      >
+                        <Text style={styles.approveBtnText}>🔑 {t('resetPassword', 'Reset Password')}</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -730,14 +775,14 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
             }
             
             {users.filter(u => {
-                if (u.approvalStatus === 'approved') return false;
+                if (searchQuery && u.name?.toLowerCase().includes(searchQuery.toLowerCase()) === false && u.username?.toLowerCase().includes(searchQuery.toLowerCase()) === false) return false;
                 if (isAdmin) return true;
                 if (user.role === 'MO') return u.phcId === user.phcId;
                 if (user.role === 'ANM') return u.subCenterId === user.subCenterId && u.role === 'ASHA';
                 return false;
               }).length === 0 && (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>{t('noPendingApprovals')}</Text>
+                  <Text style={styles.emptyStateText}>{t('noUsersFound', 'No users found matching your criteria.')}</Text>
                 </View>
               )
             }
