@@ -95,15 +95,15 @@ const VHNDScreen = ({ user, onBack }) => {
     };
 
     if (Platform.OS === 'web') {
-      if (window.confirm('VHND session logged successfully! Do you want to notify your supervisor via WhatsApp?')) {
+      if (window.confirm(t('vhndSuccessNotify'))) {
         notifySupervisor();
       } else {
         onBack();
       }
     } else {
-      Alert.alert('Success', 'VHND session logged successfully! Notify supervisor?', [
-        { text: 'No', onPress: onBack, style: 'cancel' },
-        { text: 'Notify (WhatsApp)', onPress: notifySupervisor }
+      Alert.alert(t('success'), t('vhndSuccessNotify'), [
+        { text: t('no'), onPress: onBack, style: 'cancel' },
+        { text: t('notifyWhatsApp'), onPress: notifySupervisor }
       ]);
     }
   };

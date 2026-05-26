@@ -58,6 +58,24 @@ export default function App() {
     const APP_VERSION = '1.2.0';
     
     const initApp = async () => {
+      let restoredUser = null;
+      try {
+        const storedUserStr = await AsyncStorage.getItem('LOGGED_IN_USER');
+        if (storedUserStr) {
+          restoredUser = JSON.parse(storedUserStr);
+          setUser(restoredUser);
+          if (restoredUser.role === 'Admin') {
+            setCurrentScreen('AdminDashboard');
+          } else if (restoredUser.role === 'MO') {
+            setCurrentScreen('MODashboard');
+          } else {
+            setCurrentScreen('Dashboard');
+          }
+        }
+      } catch (e) {
+        console.warn('Session restore failed:', e);
+      }
+
       // RUTHLESS FIX: Throttled Version Heartbeat (Protect Battery Life)
       try {
         const lastCheck = await AsyncStorage.getItem('LAST_VERSION_CHECK') || 0;
@@ -93,31 +111,28 @@ export default function App() {
         return;
       }
 
-      await storage.autoPrune();
-      
-      // 1. Version Check (Cache Buster)
-      const storedVersion = await storage.getRaw('app_version');
-      if (storedVersion && storedVersion !== APP_VERSION) {
-        await storage.saveRaw('app_version', APP_VERSION);
-        if (typeof window !== 'undefined') window.location.reload(true);
-      } else {
-        await storage.saveRaw('app_version', APP_VERSION);
-      }
-
-      // 2. Initial Sync: Pull hierarchy first (no auth needed) then clinical data if user exists.
-      // FIX: On first boot 'user' is null — pullFromCloud skips clinical tables (members, families,
-      // claims) when user is null. After login, the useEffect re-runs with the actual user,
-      // triggering a full clinical pull. This is the primary fix for data not being pulled.
-      console.log("App: Performing initial cloud pull (user:", user?.role || 'unauthenticated', ")...");
       try {
-        await cloudSyncManager.pullFromCloud(user);
+        await storage.autoPrune();
+        
+        // 1. Version Check (Cache Buster)
+        const storedVersion = await storage.getRaw('app_version');
+        if (storedVersion && storedVersion !== APP_VERSION) {
+          await storage.saveRaw('app_version', APP_VERSION);
+          if (typeof window !== 'undefined') window.location.reload(true);
+        } else {
+          await storage.saveRaw('app_version', APP_VERSION);
+        }
+
+        // 2. Initial Sync: Pull hierarchy first (no auth needed) then clinical data if user exists.
+        console.log("App: Performing initial cloud pull (user:", restoredUser?.role || 'unauthenticated', ")...");
+        await cloudSyncManager.pullFromCloud(restoredUser);
         await cloudSyncManager.startBackgroundSync();
         // RED TEAM FIX: Prune old logs to prevent storage crashes
         await storage.autoPrune();
         // RED TEAM FIX: Purge data from old jurisdictions
-        await storage.purgeOrphanedData(user);
+        await storage.purgeOrphanedData(restoredUser);
       } catch (syncError) {
-        console.error("Initial sync failed, proceeding offline:", syncError);
+        console.error("Initial app load sequence failed, proceeding offline:", syncError);
       } finally {
         setLoading(false);
       }
@@ -221,6 +236,7 @@ export default function App() {
 
   const handleLogin = (userData) => {
     setUser(userData);
+    AsyncStorage.setItem('LOGGED_IN_USER', JSON.stringify(userData)).catch(err => console.warn(err));
     if (userData.role === 'Admin') {
       setCurrentScreen('AdminDashboard');
     } else if (userData.role === 'MO') {
@@ -307,6 +323,7 @@ export default function App() {
                      setCurrentFilter(null);
                      setFamilyIdFilter(null);
                      setAdminSetupData(null);
+                     AsyncStorage.removeItem('LOGGED_IN_USER').catch(err => console.warn(err));
                      setCurrentScreen('Login');
                      return;
                    }

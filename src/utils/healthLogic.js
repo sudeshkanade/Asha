@@ -177,9 +177,9 @@ export const generateAllTasks = (members) => {
 
       ancSchedule.forEach((visit) => {
         const dueDate = new Date(visit.date);
-        const semanticId = `anc-visit-${visit.week}-${member.id}`;
+        const semanticId = `anc-visit-${visit.id}-${member.id}`;
         const isActuallyDone = completedTaskIds.includes(semanticId);
-        const isSequenceSuperceded = visit.week < maxCompletedAncWeek;
+        const isSequenceSuperceded = visit.id < maxCompletedAncWeek;
 
         if (!isActuallyDone && !isSequenceSuperceded) {
           generatedTasks.push({
@@ -478,7 +478,13 @@ export const getSuggestedNames = (relative, relation) => {
   const rel = relation.toLowerCase();
   
   if (['son', 'daughter', 'grandson', 'granddaughter'].includes(rel)) {
-    suggestedMiddle = relative.firstName || '';
+    // Under Maharashtra conventions, child's middle name is the father's first name.
+    // If the family head (relative) is female, her middle name is the husband's first name.
+    if (relative.gender === 'Female' || relative.gender === 'female') {
+      suggestedMiddle = relative.middleName || '';
+    } else {
+      suggestedMiddle = relative.firstName || '';
+    }
   } else if (['wife', 'daughter-in-law'].includes(rel)) {
     suggestedMiddle = relative.firstName || '';
   }

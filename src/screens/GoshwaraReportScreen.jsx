@@ -12,8 +12,8 @@ import {
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { generateGoshwaraReport } from '../utils/goshwaraLogic';
-import { exportMasterPopulation, exportVitalEvents, exportFPRegister, exportVHNDSessions } from '../utils/exportLogic';
-import * as XLSX from 'xlsx';
+import { exportMasterPopulation, exportVitalEvents, exportFPRegister, exportVHNDSessions, exportPHCMonthlyWorkbook, exportFamilySurveyReport } from '../utils/exportLogic';
+
 import { useTranslation } from 'react-i18next';
 
 const GoshwaraReportScreen = ({ user, onBack }) => {
@@ -35,22 +35,32 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
     setLoading(true);
     const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
     const allEvents = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
+    const allVitalEvents = await storage.getAll(STORAGE_KEYS.VITAL_EVENTS);
+    const allVhndSessions = await storage.getAll(STORAGE_KEYS.VHND_SESSIONS);
     
     // Hierarchy filtering
     let members = allMembers;
     let events = allEvents;
+    let vitalEvents = allVitalEvents;
+    let vhndSessions = allVhndSessions;
     if (user?.role === 'ASHA') {
       members = allMembers.filter(m => m.ashaId === user.id || m.villageId === user.villageId);
       events = allEvents.filter(e => e.payload?.ashaId === user.id);
+      vitalEvents = allVitalEvents.filter(e => e.ashaId === user.id || e.villageId === user.villageId);
+      vhndSessions = allVhndSessions.filter(s => s.ashaId === user.id || s.villageId === user.villageId);
     } else if (user?.role === 'ANM') {
       members = allMembers.filter(m => m.subCenterId === user.subCenterId);
       events = allEvents.filter(e => e.payload?.subCenterId === user.subCenterId);
+      vitalEvents = allVitalEvents.filter(e => e.subCenterId === user.subCenterId);
+      vhndSessions = allVhndSessions.filter(s => s.subCenterId === user.subCenterId);
     } else if (user?.role === 'MO') {
       members = allMembers.filter(m => m.phcId === user.phcId);
       events = allEvents.filter(e => e.payload?.phcId === user.phcId);
+      vitalEvents = allVitalEvents.filter(e => e.phcId === user.phcId);
+      vhndSessions = allVhndSessions.filter(s => s.phcId === user.phcId);
     }
 
-    const report = generateGoshwaraReport(members, events, currentMonth, currentYear);
+    const report = generateGoshwaraReport(members, vitalEvents, vhndSessions, events, currentMonth, currentYear);
     setData(report);
     setLoading(false);
   };
@@ -60,112 +70,46 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
     if (list && list.length > 0) {
       setDrillDownList({ label, list });
     } else {
-      Alert.alert('No Records', `There are no line-listing records for ${label}.`);
+      Alert.alert(t('noRecords', 'No Records'), t('noRecordsDetails', 'There are no line-listing records for ') + label);
     }
   };
 
   const handleFinalize = async () => {
     const monthYear = `${currentMonth}-${currentYear}`;
     await storage.save(STORAGE_KEYS.LOCKED_PERIODS, { id: monthYear, finalizedAt: new Date().toISOString() });
-    Alert.alert('Report Frozen', `The Goshwara for ${monthName} ${currentYear} has been locked. No further changes can be made for this period.`);
+    Alert.alert(t('reportFrozen', 'Report Frozen'), t('reportFrozenDetails', 'The Goshwara for ') + `${monthName} ${currentYear}` + t('reportFrozenDetailsSuffix', ' has been locked. No further changes can be made for this period.'));
     onBack();
   };
 
-  // ===== EXPORT: Full Goshwara Abstract as Excel =====
+  // ===== EXPORT: Monthly Report (PHC Workbook) =====
   const handleExportGoshwara = async () => {
     setExporting('GOSHWARA');
     try {
-      const s = data.stats;
-
-      // Sheet 1: Demographics
-      const demoRows = [
-        { 'Age Group': '0-12 Months', 'Male': s.demographics.age_0_12m.m, 'Female': s.demographics.age_0_12m.f, 'Total': s.demographics.age_0_12m.m + s.demographics.age_0_12m.f },
-        { 'Age Group': '13-24 Months', 'Male': s.demographics.age_13_24m.m, 'Female': s.demographics.age_13_24m.f, 'Total': s.demographics.age_13_24m.m + s.demographics.age_13_24m.f },
-        { 'Age Group': '5-6 Years', 'Male': s.demographics.age_5_6y.m, 'Female': s.demographics.age_5_6y.f, 'Total': s.demographics.age_5_6y.m + s.demographics.age_5_6y.f },
-        { 'Age Group': '10-11 Years', 'Male': s.demographics.age_10_11y.m, 'Female': s.demographics.age_10_11y.f, 'Total': s.demographics.age_10_11y.m + s.demographics.age_10_11y.f },
-        { 'Age Group': '16-17 Years', 'Male': s.demographics.age_16_17y.m, 'Female': s.demographics.age_16_17y.f, 'Total': s.demographics.age_16_17y.m + s.demographics.age_16_17y.f },
-        { 'Age Group': '17-19 Years', 'Male': s.demographics.age_17_19y.m, 'Female': s.demographics.age_17_19y.f, 'Total': s.demographics.age_17_19y.m + s.demographics.age_17_19y.f },
-        { 'Age Group': '40-60 Years', 'Male': s.demographics.age_40_60y.m, 'Female': s.demographics.age_40_60y.f, 'Total': s.demographics.age_40_60y.m + s.demographics.age_40_60y.f },
-        { 'Age Group': '60+ Years', 'Male': s.demographics.age_60plus.m, 'Female': s.demographics.age_60plus.f, 'Total': s.demographics.age_60plus.m + s.demographics.age_60plus.f },
-      ];
-
-      // Sheet 2: Maternal Health
-      const maternalRows = [
-        { 'Indicator': 'MH-01: New ANC Registrations', 'Count': s.maternal.mh01_newANC },
-        { 'Indicator': 'MH-02: Early ANC (≤12 weeks)', 'Count': s.maternal.mh02_earlyANC },
-        { 'Indicator': 'MH-03: TD Doses Given', 'Count': s.maternal.mh03_tdDoses },
-        { 'Indicator': 'MH-04: 4+ ANC Visits', 'Count': s.maternal.mh04_anc4 },
-        { 'Indicator': 'MH-05: HRP Identified', 'Count': s.maternal.mh05_hrpIdentified },
-        { 'Indicator': 'MH-06: Severe Anemia (Hb<7)', 'Count': s.maternal.mh06_severeAnemia },
-        { 'Indicator': 'MH-07: IFA 180 Tabs Given', 'Count': s.maternal.mh07_ifa180 },
-      ];
-
-      // Sheet 3: Delivery
-      const deliveryRows = [
-        { 'Indicator': 'DL-01: Institutional (Public)', 'Count': s.delivery.dl01_instPublic },
-        { 'Indicator': 'DL-02: Institutional (Private)', 'Count': s.delivery.dl02_instPrivate },
-        { 'Indicator': 'DL-03: Home (Skilled)', 'Count': s.delivery.dl03_homeSkilled },
-        { 'Indicator': 'DL-04: Home (Unskilled)', 'Count': s.delivery.dl04_homeUnskilled },
-        { 'Indicator': 'DL-05: Live Births (Male)', 'Count': s.delivery.dl05_liveBirthM },
-        { 'Indicator': 'DL-06: Live Births (Female)', 'Count': s.delivery.dl06_liveBirthF },
-        { 'Indicator': 'DL-07: Still Births', 'Count': s.delivery.dl07_stillBirths },
-        { 'Indicator': 'DL-09: PNC within 48hr', 'Count': s.delivery.dl09_pnc48hr },
-      ];
-
-      // Sheet 4: Child Health
-      const childRows = [
-        { 'Indicator': 'CH-01: Newborns Weighed', 'Count': s.child.ch01_weighed },
-        { 'Indicator': 'CH-02: LBW Babies (<2.5kg)', 'Count': s.child.ch02_lbw },
-        { 'Indicator': 'CH-03: Breastfeeding Initiated', 'Count': s.child.ch03_bfInitiated },
-        { 'Indicator': 'CH-04: BCG Given', 'Count': s.child.ch04_bcg },
-        { 'Indicator': 'CH-05: Penta-3 Given', 'Count': s.child.ch05_penta3 },
-        { 'Indicator': 'CH-06: MR-1 Given', 'Count': s.child.ch06_mr1 },
-        { 'Indicator': 'CH-07: Fully Immunized (Male)', 'Count': s.child.ch07_fullyImm_M },
-        { 'Indicator': 'CH-08: Fully Immunized (Female)', 'Count': s.child.ch08_fullyImm_F },
-        { 'Indicator': 'CH-11: SAM Referrals', 'Count': s.child.ch11_samReferral },
-      ];
-
-      // Sheet 5: Vital Statistics
-      const vitalRows = [
-        { 'Indicator': 'VS-01: Neonatal Deaths', 'Count': s.vital.vs01_neonatalDeath },
-        { 'Indicator': 'VS-02: Infant Deaths', 'Count': s.vital.vs02_infantDeath },
-        { 'Indicator': 'VS-03: Child Deaths (1-5)', 'Count': s.vital.vs03_childDeath },
-        { 'Indicator': 'VS-04: Maternal Deaths', 'Count': s.vital.vs04_maternalDeath },
-        { 'Indicator': 'VS-05: Adult Deaths', 'Count': s.vital.vs05_adultDeath },
-      ];
-
-      // Sheet 6: Family Planning
-      const fpRows = [
-        { 'Indicator': 'FP-01: Tubectomy', 'Count': s.fp.fp01_tubectomy },
-        { 'Indicator': 'FP-02: Vasectomy', 'Count': s.fp.fp02_vasectomy },
-        { 'Indicator': 'FP-03: IUCD', 'Count': s.fp.fp03_iucd },
-        { 'Indicator': 'FP-05: OCP', 'Count': s.fp.fp05_ocp },
-        { 'Indicator': 'FP-06: Condoms', 'Count': s.fp.fp06_condoms },
-      ];
-
-      // Build multi-sheet workbook
-      const wb = XLSX.utils.book_new();
-      const addSheet = (name, rows) => {
-        const ws = XLSX.utils.json_to_sheet(rows);
-        ws['!cols'] = Object.keys(rows[0] || {}).map(k => ({ wch: Math.max(k.length + 2, 15) }));
-        XLSX.utils.book_append_sheet(wb, ws, name);
-      };
-
-      addSheet('Demographics', demoRows);
-      addSheet('Maternal_Health', maternalRows);
-      addSheet('Deliveries', deliveryRows);
-      addSheet('Child_Health', childRows);
-      addSheet('Vital_Statistics', vitalRows);
-      addSheet('Family_Planning', fpRows);
-
-      const timestamp = new Date().toISOString().split('T')[0];
-      const location = user?.villageName || user?.village || user?.name || 'SC';
-      XLSX.writeFile(wb, `Goshwara_${monthName}_${currentYear}_${location}_${timestamp}.xlsx`);
-
-      Alert.alert('Success', 'Goshwara Abstract downloaded as Excel.');
+      const success = await exportPHCMonthlyWorkbook(user, data);
+      if (success) {
+        Alert.alert(t('success'), t('goshwaraSuccess'));
+      } else {
+        Alert.alert(t('error'), t('exportFailed'));
+      }
     } catch (e) {
-      console.error('Goshwara Export Error:', e);
-      Alert.alert('Error', 'Failed to export Goshwara: ' + e.message);
+      console.error('Monthly Report Export Error:', e);
+      Alert.alert(t('error'), t('exportFailed') + ': ' + e.message);
+    }
+    setExporting(null);
+  };
+
+  // ===== EXPORT: Family Survey Goshwara =====
+  const handleExportFamilySurvey = async () => {
+    setExporting('FAMILY_SURVEY');
+    try {
+      const success = await exportFamilySurveyReport(user);
+      if (success) {
+        Alert.alert(t('success'), t('familySurveySuccess', 'Family Survey Goshwara downloaded successfully.'));
+      } else {
+        Alert.alert(t('error'), t('exportFailed'));
+      }
+    } catch (e) {
+      Alert.alert(t('error'), e.message);
     }
     setExporting(null);
   };
@@ -189,9 +133,9 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
         case 'SAM': success = await exportMasterPopulation(user, 'SAM_CHILDREN'); break;
         default: success = await exportMasterPopulation(user, type);
       }
-      if (success) Alert.alert('Success', 'Excel downloaded.');
-      else Alert.alert('Error', 'Export failed.');
-    } catch (e) { Alert.alert('Error', e.message); }
+      if (success) Alert.alert(t('success'), t('excelSuccess'));
+      else Alert.alert(t('error'), t('exportFailed'));
+    } catch (e) { Alert.alert(t('error'), e.message); }
     setExporting(null);
   };
 
@@ -293,7 +237,19 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
           {exporting === 'GOSHWARA' ? (
             <ActivityIndicator size="small" color="#FFF" />
           ) : (
-            <Text style={styles.fullExportText}>📥 {t('downloadFullGoshwara', 'Download Full Goshwara Abstract (Multi-Sheet Excel)')}</Text>
+            <Text style={styles.fullExportText}>📥 {t('downloadMonthlyReport', 'Download Monthly Report (Excel)')}</Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.fullExportBtn, { backgroundColor: '#0F766E' }]}
+          onPress={handleExportFamilySurvey}
+          disabled={exporting !== null}
+        >
+          {exporting === 'FAMILY_SURVEY' ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : (
+            <Text style={styles.fullExportText}>📋 {t('downloadFamilySurvey', 'Download Family Survey Goshwara')}</Text>
           )}
         </TouchableOpacity>
 
@@ -319,6 +275,9 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
             { label: t('earlyReg'), value: data.stats.maternal.mh02_earlyANC },
             { label: t('highRisk'), value: data.stats.maternal.mh05_hrpIdentified, drillKey: 'mh05_hrpIdentified' },
             { label: t('severeAnemia'), value: data.stats.maternal.mh06_severeAnemia, drillKey: 'mh06_severeAnemia' },
+            { label: t('tdDosesGiven'), value: data.stats.maternal.mh03_tdDoses || 0 },
+            { label: t('anc4Completed'), value: data.stats.maternal.mh04_anc4 || 0 },
+            { label: t('ifa180Given'), value: data.stats.maternal.mh07_ifa180 || 0 },
           ]}
         />
 
@@ -330,6 +289,9 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
             { label: t('instPrivate'), value: data.stats.delivery.dl02_instPrivate },
             { label: t('liveBirths'), value: data.stats.delivery.dl05_liveBirthM + data.stats.delivery.dl06_liveBirthF },
             { label: t('stillBirths'), value: data.stats.delivery.dl07_stillBirths },
+            { label: t('homeSkilled'), value: data.stats.delivery.dl03_homeSkilled || 0 },
+            { label: t('homeUnskilled'), value: data.stats.delivery.dl04_homeUnskilled || 0 },
+            { label: t('pnc48hr'), value: data.stats.delivery.dl09_pnc48hr || 0 },
           ]}
         />
 
@@ -341,6 +303,15 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
             { label: t('fullyImm'), value: data.stats.child.ch07_fullyImm_M + data.stats.child.ch08_fullyImm_F },
             { label: t('samReferral'), value: data.stats.child.ch11_samReferral, drillKey: 'ch11_samReferral' },
             { label: t('matDeaths'), value: data.stats.vital.vs04_maternalDeath, drillKey: 'vs04_maternalDeath' },
+            { label: t('newbornsWeighed'), value: data.stats.child.ch01_weighed || 0 },
+            { label: t('bfInitiated'), value: data.stats.child.ch03_bfInitiated || 0 },
+            { label: t('bcgGiven'), value: data.stats.child.ch04_bcg || 0 },
+            { label: t('penta3Given'), value: data.stats.child.ch05_penta3 || 0 },
+            { label: t('mr1Given'), value: data.stats.child.ch06_mr1 || 0 },
+            { label: t('neonatalDeaths'), value: data.stats.vital.vs01_neonatalDeath || 0 },
+            { label: t('infantDeaths'), value: data.stats.vital.vs02_infantDeath || 0 },
+            { label: t('childDeaths'), value: data.stats.vital.vs03_childDeath || 0 },
+            { label: t('adultDeaths'), value: data.stats.vital.vs05_adultDeath || 0 },
           ]}
         />
 
@@ -377,7 +348,7 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.backButton} onPress={onBack}>
-          <Text style={styles.backButtonText}>Back to Dashboard</Text>
+          <Text style={styles.backButtonText}>{t('backToDashboard', 'Back to Dashboard')}</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -394,7 +365,7 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
               ))}
             </ScrollView>
             <TouchableOpacity style={styles.closeButton} onPress={() => setDrillDownList(null)}>
-              <Text style={styles.closeButtonText}>Close List</Text>
+              <Text style={styles.closeButtonText}>{t('closeList', 'Close List')}</Text>
             </TouchableOpacity>
           </View>
         </View>

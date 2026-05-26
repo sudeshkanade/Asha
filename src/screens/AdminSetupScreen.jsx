@@ -151,7 +151,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
 
   const handleAddVillage = async () => {
     if (!newVillage.name || !newVillage.subCenterId) {
-      Alert.alert('Error', 'Name and Sub-Center selection are required');
+      Alert.alert(t('error'), t('villageNameRequired'));
       return;
     }
     if (editingItem) {
@@ -176,12 +176,12 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
       setLoading(true);
       const res = await cloudSyncManager.startBackgroundSync();
       if (res.success) {
-        Alert.alert('Success', `Village ${editingItem ? 'updated' : 'added'} and synced.`);
+        Alert.alert(t('success'), `Village ${editingItem ? t('updated') : t('added')} ${t('itemAddedSynced')}`);
       } else {
-        Alert.alert('Partially Saved', 'Saved locally. Sync pending.');
+        Alert.alert(t('success'), t('partiallySaved'));
       }
     } catch (e) {
-      Alert.alert('Success', 'Saved locally.');
+      Alert.alert(t('success'), t('savedLocally'));
     } finally {
       setLoading(false);
     }
@@ -208,7 +208,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
     const hasChildren = currentSubCenters.some(sc => sc.phcId === id);
     
     if (hasChildren) {
-      Alert.alert('Cannot Delete', 'This PHC has linked Sub-Centers. Delete them first.');
+      Alert.alert(t('cannotDelete'), t('cannotDeletePhc'));
       return;
     }
 

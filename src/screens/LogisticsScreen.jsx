@@ -48,9 +48,9 @@ const LogisticsScreen = ({ user, onBack }) => {
 
   const handleLogTemp = async () => {
     // RUTHLESS FIX: Native Crash Prevention
-    const temp = Platform.OS === 'web' ? window.prompt("Enter ILR Temperature (°C):") : null;
+    const temp = Platform.OS === 'web' ? window.prompt(t('enterIlrTemp')) : null;
     if (!temp || isNaN(temp)) {
-      if (Platform.OS !== 'web') Alert.alert("Feature Notice", "Temperature logging via prompt is Web-only. Native UI update pending.");
+      if (Platform.OS !== 'web') Alert.alert(t('featureNotice'), t('tempFeatureWebOnly'));
       return;
     }
 
@@ -68,7 +68,7 @@ const LogisticsScreen = ({ user, onBack }) => {
     await storage.save(STORAGE_KEYS.COLD_CHAIN, newLog);
     
     if (newLog.status === 'Critical') {
-      Alert.alert("🚨 Temperature Alert", `Temperature ${temp}°C is outside the safe range (2-8°C)!`);
+      Alert.alert(t('tempAlertTitle'), t('tempAlertMsg', { temp }));
     }
   };
 
@@ -81,7 +81,7 @@ const LogisticsScreen = ({ user, onBack }) => {
           <View style={{ flexDirection: 'row', gap: 4 }}>
             {item.expiryDate && new Date(item.expiryDate) < new Date() && (
               <View style={[styles.badge, { backgroundColor: COLORS.error }]}>
-                <Text style={styles.badgeText}>EXPIRED</Text>
+                <Text style={styles.badgeText}>{t('expired')}</Text>
               </View>
             )}
             <View style={[styles.badge, { backgroundColor: isLow ? COLORS.error : COLORS.success }]}>
@@ -139,7 +139,7 @@ const LogisticsScreen = ({ user, onBack }) => {
             renderItem={renderStockItem}
             keyExtractor={item => item.id}
             contentContainerStyle={{ paddingBottom: 80 }}
-            ListEmptyComponent={<Text style={styles.emptyText}>No stock items found.</Text>}
+            ListEmptyComponent={<Text style={styles.emptyText}>{t('noStockItems')}</Text>}
           />
         ) : activeTab === 'Cold Chain' ? (
           <ScrollView>

@@ -9,11 +9,13 @@ import {
   SafeAreaView,
   Alert,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { DEFAULT_INCENTIVE_RATES } from '../utils/claimsLogic';
 
 const AdminSettingsScreen = ({ user, onBack }) => {
+  const { t } = useTranslation();
   const [rates, setRates] = useState({ ...DEFAULT_INCENTIVE_RATES });
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -47,17 +49,17 @@ const AdminSettingsScreen = ({ user, onBack }) => {
     };
     await storage.save(STORAGE_KEYS.APP_CONFIG, ratesConfig);
     setHasChanges(false);
-    Alert.alert('Success', 'Incentive rates updated successfully. All ASHA earnings will now use these new rates.');
+    Alert.alert(t('success'), t('ratesUpdatedSuccess'));
   };
 
   const handleReset = () => {
     Alert.alert(
-      'Reset to Defaults',
-      'This will restore all incentive rates to the standard government amounts.',
+      t('resetDefaultsTitle'),
+      t('resetDefaultsMsg'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Reset', style: 'destructive',
+          text: t('reset'), style: 'destructive',
           onPress: () => {
             setRates({ ...DEFAULT_INCENTIVE_RATES });
             setHasChanges(true);
@@ -68,12 +70,12 @@ const AdminSettingsScreen = ({ user, onBack }) => {
   };
 
   const rateFields = [
-    { key: 'ANC_REGISTRATION', label: 'ANC Registration', desc: 'Per new pregnancy registered', icon: '🤰' },
-    { key: 'INSTITUTIONAL_DELIVERY', label: 'Institutional Delivery', desc: 'Per hospital delivery facilitated', icon: '🏥' },
-    { key: 'FULL_IMMUNIZATION', label: 'Full Immunization', desc: 'Per child fully immunized', icon: '💉' },
-    { key: 'HBNC_VISIT', label: 'HBNC Home Visit', desc: 'Per home visit completed', icon: '🏠' },
-    { key: 'VHND_SESSION', label: 'VHND Session', desc: 'Per outreach session conducted', icon: '🏕️' },
-    { key: 'NCD_SCREENING', label: 'NCD Screening', desc: 'Per NCD screening performed (30+)', icon: '🩺' },
+    { key: 'ANC_REGISTRATION', label: t('ancRegistration'), desc: t('ancRegistrationDesc'), icon: '🤰' },
+    { key: 'INSTITUTIONAL_DELIVERY', label: t('instDelivery'), desc: t('instDeliveryDesc'), icon: '🏥' },
+    { key: 'FULL_IMMUNIZATION', label: t('fullImmunization'), desc: t('fullImmunizationDesc'), icon: '💉' },
+    { key: 'HBNC_VISIT', label: t('hbncHomeVisit'), desc: t('hbncHomeVisitDesc'), icon: '🏠' },
+    { key: 'VHND_SESSION', label: t('vhndSession'), desc: t('vhndSessionDesc'), icon: '🏕️' },
+    { key: 'NCD_SCREENING', label: t('ncdScreening'), desc: t('ncdScreeningDesc'), icon: '🩺' },
   ];
 
   return (
@@ -83,23 +85,23 @@ const AdminSettingsScreen = ({ user, onBack }) => {
           <Text style={styles.backBtnText}>←</Text>
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Incentive Rate Settings</Text>
-          <Text style={styles.headerSubtitle}>ANM / Admin Configuration Panel</Text>
+          <Text style={styles.headerTitle}>{t('incentiveRateSettings')}</Text>
+          <Text style={styles.headerSubtitle}>{t('anmAdminPanel')}</Text>
         </View>
         {hasChanges && (
           <View style={styles.unsavedBadge}>
-            <Text style={styles.unsavedText}>Unsaved</Text>
+            <Text style={styles.unsavedText}>{t('unsaved')}</Text>
           </View>
         )}
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={[styles.card, { backgroundColor: '#FFF7ED' }]}>
-          <Text style={styles.warningText}>⚠️ Changes here affect incentive calculations for all ASHAs under your supervision. Ensure rates match current government notifications.</Text>
+          <Text style={styles.warningText}>{t('rateWarningText')}</Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Activity-Based Incentives (₹)</Text>
+          <Text style={styles.sectionTitle}>{t('activityBasedIncentives')}</Text>
           {rateFields.map((field, i) => (
             <View key={i} style={styles.rateRow}>
               <View style={{ flex: 1 }}>
@@ -121,10 +123,10 @@ const AdminSettingsScreen = ({ user, onBack }) => {
 
         <View style={styles.buttonRow}>
           <TouchableOpacity style={styles.resetBtn} onPress={handleReset}>
-            <Text style={styles.resetBtnText}>Reset to Defaults</Text>
+            <Text style={styles.resetBtnText}>{t('resetDefaults')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.saveBtn, !hasChanges && styles.saveBtnDisabled]} onPress={handleSave} disabled={!hasChanges}>
-            <Text style={styles.saveBtnText}>Publish Rates</Text>
+            <Text style={styles.saveBtnText}>{t('publishRates')}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

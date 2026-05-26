@@ -38,11 +38,11 @@ const SurveillanceScreen = ({ user, onBack }) => {
 
   const handleAddIdsp = async () => {
     if (Platform.OS !== 'web') {
-      Alert.alert('Not Supported', 'Please use the web portal for syndromic surveillance entry.');
+      Alert.alert(t('notSupported'), t('syndromicWebOnly'));
       return;
     }
-    const fever = window.prompt("Enter number of Fever cases today:");
-    const diarrhea = window.prompt("Enter number of Diarrhea cases today:");
+    const fever = window.prompt(t('enterFeverCases'));
+    const diarrhea = window.prompt(t('enterDiarrheaCases'));
     
     if (!fever || !diarrhea) return;
 
@@ -58,12 +58,12 @@ const SurveillanceScreen = ({ user, onBack }) => {
     const updatedLogs = [newLog, ...idspLogs];
     setIdspLogs(updatedLogs);
     await storage.save(STORAGE_KEYS.IDSP_SURVEILLANCE, newLog);
-    Alert.alert(t('success'), "Weekly IDSP log saved.");
+    Alert.alert(t('success'), t('weeklyIdspSaved'));
   };
 
   const handleAddVector = async () => {
     if (Platform.OS !== 'web') {
-      Alert.alert('Not Supported', 'Please use the web portal for larval survey entry.');
+      Alert.alert(t('notSupported'), t('larvalWebOnly'));
       return;
     }
 
@@ -72,14 +72,14 @@ const SurveillanceScreen = ({ user, onBack }) => {
     const villageFamilies = allFamilies.filter(f => f.villageId === user.villageId);
     
     if (villageFamilies.length === 0) {
-      Alert.alert("Data Missing", "No families registered in this village. Please ensure ASHA has completed registration.");
+      Alert.alert(t('dataMissing'), t('noFamiliesRegistered'));
       return;
     }
 
-    const houseNo = window.prompt(`Enter House Number (Suggested: ${villageFamilies[0]?.houseNo}...):`);
+    const houseNo = window.prompt(t('enterHouseNoPrompt', { suggested: villageFamilies[0]?.houseNo }));
     if (!houseNo) return;
 
-    const positive = window.prompt("Positive breeding sites found (Larvae detected):");
+    const positive = window.prompt(t('breedingSitesFound'));
     if (positive === null) return;
 
     const newSurvey = {
@@ -94,7 +94,7 @@ const SurveillanceScreen = ({ user, onBack }) => {
     const updatedSurveys = [newSurvey, ...vectorSurveys];
     setVectorSurveys(updatedSurveys);
     await storage.save(STORAGE_KEYS.VECTOR_SURVEYS, newSurvey);
-    Alert.alert(t('success'), `Vector survey for House ${houseNo} recorded.`);
+    Alert.alert(t('success'), t('vectorSurveyRecorded', { houseNo }));
   };
 
   const indices = calculateVectorIndices(vectorSurveys.map(s => ({
@@ -143,11 +143,11 @@ const SurveillanceScreen = ({ user, onBack }) => {
                 <View style={styles.logStats}>
                   <View style={styles.statBox}>
                     <Text style={styles.statVal}>{log.feverCount}</Text>
-                    <Text style={styles.statLabel}>Fever</Text>
+                    <Text style={styles.statLabel}>{t('fever')}</Text>
                   </View>
                   <View style={styles.statBox}>
                     <Text style={styles.statVal}>{log.diarrheaCount}</Text>
-                    <Text style={styles.statLabel}>Diarrhea</Text>
+                    <Text style={styles.statLabel}>{t('diarrhea')}</Text>
                   </View>
                 </View>
               </View>
@@ -158,11 +158,11 @@ const SurveillanceScreen = ({ user, onBack }) => {
             <View style={styles.summaryGrid}>
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryVal}>{indices.houseIndex.toFixed(1)}%</Text>
-                <Text style={styles.summaryLabel}>House Index</Text>
+                <Text style={styles.summaryLabel}>{t('houseIndex')}</Text>
               </View>
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryVal}>{indices.containerIndex.toFixed(1)}%</Text>
-                <Text style={styles.summaryLabel}>Container Index</Text>
+                <Text style={styles.summaryLabel}>{t('containerIndex')}</Text>
               </View>
             </View>
 
@@ -178,7 +178,7 @@ const SurveillanceScreen = ({ user, onBack }) => {
                   <Text style={styles.logVillage}>Checked: {survey.housesChecked}</Text>
                 </View>
                 <Text style={[styles.logResult, { color: survey.positiveHouses > 0 ? COLORS.error : COLORS.success }]}>
-                  {survey.positiveHouses} Positive
+                  {survey.positiveHouses} {t('positive')}
                 </Text>
               </View>
             ))}
@@ -187,12 +187,12 @@ const SurveillanceScreen = ({ user, onBack }) => {
           <View>
             <Text style={styles.emptyText}>{t('tbLeprosyTracking', 'Long-term Infectious Case Tracking')}</Text>
             <View style={styles.featureCard}>
-              <Text style={styles.featureTitle}>Sputum Collection & Transport</Text>
-              <Text style={styles.featureDesc}>Log and track TB samples from field to lab.</Text>
+              <Text style={styles.featureTitle}>{t('sputumCollectionTransport')}</Text>
+              <Text style={styles.featureDesc}>{t('sputumCollectionTransportDesc')}</Text>
             </View>
             <View style={styles.featureCard}>
-              <Text style={styles.featureTitle}>Contact Tracing</Text>
-              <Text style={styles.featureDesc}>Manage screening for family members of positive cases.</Text>
+              <Text style={styles.featureTitle}>{t('contactTracing')}</Text>
+              <Text style={styles.featureDesc}>{t('contactTracingDesc')}</Text>
             </View>
           </View>
         )}

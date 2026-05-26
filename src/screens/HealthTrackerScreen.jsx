@@ -34,6 +34,8 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
     bpSystolic: member?.healthData?.bpSystolic || '',
     bpDiastolic: member?.healthData?.bpDiastolic || '',
     sugarLevel: member?.healthData?.sugarLevel || '',
+    hbLevel: member?.healthData?.hbLevel || '',
+    heartRate: member?.healthData?.heartRate || '',
     weight: member?.healthData?.weight || '',
     height: member?.healthData?.height || '',
     muac: member?.healthData?.muac || '',
@@ -232,18 +234,24 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
         </View>
       </View>
 
-      <View style={styles.tabBar}>
-        {tabs.map(tab => (
-          <TouchableOpacity 
-            key={tab} 
-            style={[styles.tab, activeTab === tab && styles.tabActive]}
-            onPress={() => setActiveTab(tab)}
-          >
-            <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-              {tab === 'ANC' ? t('ancDetails') : tab === 'CHILD' ? t('childHealth') : tab === 'FP' ? t('familyPlanning') : t('ncdScreening')}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      <View style={styles.tabBarContainer}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabBarScroll}
+        >
+          {tabs.map(tab => (
+            <TouchableOpacity 
+              key={tab} 
+              style={[styles.tab, activeTab === tab && styles.tabActive]}
+              onPress={() => setActiveTab(tab)}
+            >
+              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
+                {tab === 'ANC' ? t('ancDetails') : tab === 'CHILD' ? t('childHealth') : tab === 'FP' ? t('familyPlanning') : t('ncdScreening')}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -401,8 +409,8 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
             <View style={styles.row}>
               <View style={[styles.inputGroup, { flex: 1, minWidth: 120 }]}>
                 <Text style={styles.label}>{t('bloodSugar', 'Blood Sugar (mg/dL)')}</Text>
-                <TextInput style={styles.input} value={tracker.bloodSugar}
-                  onChangeText={(t) => setTracker({ ...tracker, bloodSugar: t })}
+                <TextInput style={styles.input} value={tracker.sugarLevel}
+                  onChangeText={(t) => setTracker({ ...tracker, sugarLevel: t })}
                   placeholder="90" keyboardType="numeric" />
               </View>
               <View style={[styles.inputGroup, { flex: 1, minWidth: 120 }]}>
@@ -496,8 +504,9 @@ const styles = StyleSheet.create({
   backBtnText: { fontSize: 24, color: COLORS.primary, fontWeight: '700' },
   headerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text },
   headerSubtitle: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  tabBar: { flexDirection: 'row', backgroundColor: COLORS.surface, padding: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8 },
+  tabBarContainer: { backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  tabBarScroll: { flexDirection: 'row', padding: 8, gap: 8 },
+  tab: { paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', borderRadius: 8, minWidth: 100 },
   tabActive: { backgroundColor: COLORS.primary },
   tabText: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
   tabTextActive: { color: '#FFF' },

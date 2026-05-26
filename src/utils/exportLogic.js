@@ -134,6 +134,21 @@ const pncColumns = (health) => ({
   'Hospital Name': health.lastDeliveryHospital || 'N/A',
 });
 
+const isCurrentMonth = (dateStr) => {
+  if (!dateStr) return false;
+  const ts = typeof dateStr === 'number' ? dateStr : Date.parse(dateStr);
+  if (isNaN(ts)) return false;
+  const date = new Date(ts);
+  const now = new Date();
+  return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+};
+
+const diseaseColumns = (health) => ({
+  'TB Suspect': health.tbScreening?.hasCoughTwoWeeks || (health.tbScreening?.hasFever && health.tbScreening?.hasWeightLoss) ? 'Yes' : 'No',
+  'Malaria Suspect (Fever/Chills)': health.hasFeverWithChills ? 'Yes' : 'No',
+  'Leprosy Suspect (Skin Patches)': health.hasSkinPatches ? 'Yes' : 'No',
+});
+
 // ===================== MAIN EXPORT FUNCTION =====================
 
 export const exportMasterPopulation = async (user, filterType = null) => {
@@ -173,6 +188,41 @@ export const exportMasterPopulation = async (user, filterType = null) => {
           case 'BPL_FAMILIES':
             const fam = allFamilies.find(f => f.id === m.familyId);
             return fam?.isBPL === true;
+          case 'PENDING_ANC':
+            return health.edd && !isCurrentMonth(m.lastUpdatedAt || health.lastUpdatedAt);
+          case 'FULLY_IMMUNIZED': {
+            const dobStr = m.dob;
+            if (!dobStr) return false;
+            const dob = new Date(dobStr);
+            if (isNaN(dob.getTime())) return false;
+            const now = new Date();
+            const ageInMonths = (now.getFullYear() - dob.getFullYear()) * 12 + (now.getMonth() - dob.getMonth());
+            if (ageInMonths < 12) return false;
+            
+            const mandatoryVaccines = ['BCG', 'Pentavalent 3', 'MR 1', 'OPV 3'];
+            const memberVaccines = m.vaccines?.map(v => v.name) || [];
+            return mandatoryVaccines.every(v => memberVaccines.includes(v));
+          }
+          case 'FP_PERMANENT':
+            return m.gender === 'Female' && age >= 15 && age <= 49 &&
+              (m.maritalStatus === 'Married' || m.relation === 'Wife' || m.relationToHead === 'Wife') &&
+              (health.fpMethod === 'permanent' || health.fpMethod === 'tubectomy');
+          case 'FP_SPACING':
+            return m.gender === 'Female' && age >= 15 && age <= 49 &&
+              (m.maritalStatus === 'Married' || m.relation === 'Wife' || m.relationToHead === 'Wife') &&
+              health.fpMethod && health.fpMethod !== 'none' && health.fpMethod !== 'permanent' && health.fpMethod !== 'tubectomy';
+          case 'FP_NONE':
+            return m.gender === 'Female' && age >= 15 && age <= 49 &&
+              (m.maritalStatus === 'Married' || m.relation === 'Wife' || m.relationToHead === 'Wife') &&
+              (!health.fpMethod || health.fpMethod === 'none');
+          case 'TB_SUSPECTS': {
+            const tb = health.tbScreening;
+            return !!(tb?.hasCoughTwoWeeks || (tb?.hasFever && tb?.hasWeightLoss));
+          }
+          case 'MALARIA_SUSPECTS':
+            return !!health.hasFeverWithChills;
+          case 'LEPROSY_SUSPECTS':
+            return !!health.hasSkinPatches;
           default:
             return true;
         }
@@ -188,18 +238,27 @@ export const exportMasterPopulation = async (user, filterType = null) => {
 
       switch (filterType) {
         case 'NEW_ANC':
+        case 'PENDING_ANC':
         case 'HIGH_RISK_ANC':
         case 'SEVERE_ANEMIA':
           return { ...base, ...ancColumns(health) };
         case 'SAM_CHILDREN':
         case 'CHILDREN_0_5':
+        case 'FULLY_IMMUNIZED':
           return { ...base, ...childColumns(health) };
         case 'ELIGIBLE_COUPLE':
+        case 'FP_PERMANENT':
+        case 'FP_SPACING':
+        case 'FP_NONE':
           return { ...base, ...fpColumns(health), ...ancColumns(health) };
         case 'NCD_SCREENING':
           return { ...base, ...ncdColumns(health) };
         case 'PNC_CASES':
           return { ...base, ...pncColumns(health), ...childColumns(health) };
+        case 'TB_SUSPECTS':
+        case 'MALARIA_SUSPECTS':
+        case 'LEPROSY_SUSPECTS':
+          return { ...base, ...diseaseColumns(health) };
         default:
           // MASTER export — include everything
           return {
@@ -242,19 +301,53 @@ export const exportMasterPopulation = async (user, filterType = null) => {
 
 // ===================== VITAL EVENTS EXPORT =====================
 
-export const exportVitalEvents = async (user, eventType = 'Birth') => {
+export const exportVitalEvents = async (user, eventType = 'Birth', placeFilter = null, infantOnly = false) => {
   try {
     const events = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
     const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+    const persistentVitalEvents = await storage.getAll(STORAGE_KEYS.VITAL_EVENTS);
 
-    const vitalEvents = events
-      .filter(e => e.tableName === 'vital_events')
+    // Combine persistent events and queue events (prevent duplicates by ID)
+    const queueVitalEvents = events
+      .filter(e => e.tableName === 'vital_events' || e.tableName === '@rural_health_vital_events')
       .map(e => e.payload || e)
       .filter(p => p.type === eventType);
 
+    const combined = [...persistentVitalEvents.filter(e => e.type === eventType)];
+    queueVitalEvents.forEach(qe => {
+      if (!combined.some(pe => pe.id === qe.id)) {
+        combined.push(qe);
+      }
+    });
+
+    // Apply place filter for births/deliveries
+    let filteredEvents = combined;
+    if (placeFilter) {
+      filteredEvents = filteredEvents.filter(e => (e.place || '').toLowerCase() === placeFilter.toLowerCase());
+    }
+
+    // Apply infant only filter for deaths
+    if (infantOnly) {
+      filteredEvents = filteredEvents.filter(e => {
+        const deathAge = parseInt(e.ageAtDeath || e.age || 999);
+        const member = allMembers.find(m => m.id === e.memberId) || {};
+        const memberAge = parseInt(member.age || 999);
+        return deathAge < 1 || memberAge < 1 || e.causeOfDeath === 'infantDeath';
+      });
+    }
+
+    // Hierarchy filter combined list
+    if (user?.role === 'ASHA') {
+      filteredEvents = filteredEvents.filter(e => e.ashaId === user.id || e.villageId === user.villageId);
+    } else if (user?.role === 'ANM') {
+      filteredEvents = filteredEvents.filter(e => e.subCenterId === user.subCenterId);
+    } else if (user?.role === 'MO') {
+      filteredEvents = filteredEvents.filter(e => e.phcId === user.phcId);
+    }
+
     let rows;
     if (eventType === 'Birth') {
-      rows = vitalEvents.map((e, i) => ({
+      rows = filteredEvents.map((e, i) => ({
         'Sr.No.': i + 1,
         'Date of Birth': e.date || 'N/A',
         'Child Name': e.name || 'N/A',
@@ -265,11 +358,11 @@ export const exportVitalEvents = async (user, eventType = 'Birth') => {
         'Place of Delivery': e.place || 'N/A',
         'Hospital Name': e.hospitalName || 'N/A',
         'Delivery Type': e.deliveryType || 'N/A',
-        'Village': allMembers.find(m => m.id === e.motherId)?.villageName || 'N/A',
-        'House No.': allMembers.find(m => m.id === e.motherId)?.houseNo || 'N/A',
+        'Village': allMembers.find(m => m.id === e.motherId)?.villageName || e.villageName || 'N/A',
+        'House No.': allMembers.find(m => m.id === e.motherId)?.houseNo || e.houseNo || 'N/A',
       }));
     } else {
-      rows = vitalEvents.map((e, i) => {
+      rows = filteredEvents.map((e, i) => {
         const member = allMembers.find(m => m.id === e.memberId) || {};
         return {
           'Sr.No.': i + 1,
@@ -278,8 +371,8 @@ export const exportVitalEvents = async (user, eventType = 'Birth') => {
           'Gender': member.gender || 'N/A',
           'Age': member.age || 'N/A',
           'Cause of Death': e.cause || e.causeOfDeath || 'N/A',
-          'Village': member.villageName || 'N/A',
-          'House No.': member.houseNo || 'N/A',
+          'Village': member.villageName || e.villageName || 'N/A',
+          'House No.': member.houseNo || e.houseNo || 'N/A',
           'Status': 'Deceased',
         };
       });
@@ -308,26 +401,47 @@ export const exportVitalEvents = async (user, eventType = 'Birth') => {
 export const exportVHNDSessions = async (user) => {
   try {
     const events = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
-    const sessions = events
-      .filter(e => e.tableName === 'vhnd_sessions')
-      .map((e, i) => {
-        const p = e.payload || e;
-        return {
-          'Sr.No.': i + 1,
-          'Session Date': p.sessionDate || 'N/A',
-          'Venue': p.venue || 'N/A',
-          'Pregnant Women Attended': p.pregnantAttended || 0,
-          'Children Attended': p.childrenAttended || 0,
-          'Adolescents Attended': p.adolescentsAttended || 0,
-          'Total Beneficiaries': (p.pregnantAttended || 0) + (p.childrenAttended || 0) + (p.adolescentsAttended || 0),
-          'IFA Distributed': p.ifaDistributed || 0,
-          'ORS Distributed': p.orsDistributed || 0,
-          'Condoms Distributed': p.condomsDistributed || 0,
-          'OCP Distributed': p.ocpDistributed || 0,
-          'ECP Distributed': p.ecpDistributed || 0,
-          'Notes': p.notes || '',
-        };
-      });
+    const persistentSessions = await storage.getAll(STORAGE_KEYS.VHND_SESSIONS);
+
+    // Combine persistent sessions and queue sessions (prevent duplicates by ID)
+    const queueSessions = events
+      .filter(e => e.tableName === 'vhnd_sessions' || e.tableName === '@rural_health_vhnd')
+      .map(e => e.payload || e);
+
+    const combined = [...persistentSessions];
+    queueSessions.forEach(qs => {
+      if (!combined.some(ps => ps.id === qs.id)) {
+        combined.push(qs);
+      }
+    });
+
+    // Hierarchy filter combined list
+    let filteredSessions = combined;
+    if (user?.role === 'ASHA') {
+      filteredSessions = combined.filter(s => s.ashaId === user.id || s.villageId === user.villageId);
+    } else if (user?.role === 'ANM') {
+      filteredSessions = combined.filter(s => s.subCenterId === user.subCenterId);
+    } else if (user?.role === 'MO') {
+      filteredSessions = combined.filter(s => s.phcId === user.phcId);
+    }
+
+    const sessions = filteredSessions.map((p, i) => {
+      return {
+        'Sr.No.': i + 1,
+        'Session Date': p.sessionDate || 'N/A',
+        'Venue': p.venue || 'N/A',
+        'Pregnant Women Attended': p.pregnantAttended || 0,
+        'Children Attended': p.childrenAttended || 0,
+        'Adolescents Attended': p.adolescentsAttended || 0,
+        'Total Beneficiaries': (p.pregnantAttended || 0) + (p.childrenAttended || 0) + (p.adolescentsAttended || 0),
+        'IFA Distributed': p.ifaDistributed || 0,
+        'ORS Distributed': p.orsDistributed || 0,
+        'Condoms Distributed': p.condomsDistributed || 0,
+        'OCP Distributed': p.ocpDistributed || 0,
+        'ECP Distributed': p.ecpDistributed || 0,
+        'Notes': p.notes || '',
+      };
+    });
 
     if (sessions.length === 0) {
       sessions.push({ 'Info': 'No VHND sessions recorded.' });
@@ -373,7 +487,35 @@ export const exportFPRegister = async (user) => {
         'Wife Name': `${m.firstName || ''} ${m.lastName || ''}`,
         'Age': m.age || 'N/A',
         'Husband Name': m.middleName || 'N/A',
-        'No. of Children': 'N/A', // Future: count children in same family
+        'No. of Children': allMembers.filter(member => {
+          if (member.familyId !== m.familyId) return false;
+          if (member.id === m.id) return false;
+          
+          // Find the husband in the same family to get his first name (falling back to the wife's middle name)
+          const husband = allMembers.find(h => 
+            h.familyId === m.familyId &&
+            h.gender === 'Male' &&
+            (
+              (m.relationToHead === 'Wife' && (h.relationToHead === 'Self (Head)' || h.relationToHead === 'Head')) ||
+              ((m.relationToHead === 'Self (Head)' || m.relationToHead === 'Head') && h.relationToHead === 'Husband')
+            )
+          );
+          
+          const fatherFirstName = (husband ? husband.firstName : m.middleName || '').trim().toLowerCase();
+          
+          // Exclude the father/husband himself from the children count
+          if (husband && member.id === husband.id) return false;
+          if (fatherFirstName && (member.firstName || '').trim().toLowerCase() === fatherFirstName && member.gender === 'Male') return false;
+          
+          // Compare the child's middle name with the father's first name
+          const childMiddleName = (member.middleName || '').trim().toLowerCase();
+          const hasFatherMiddleName = fatherFirstName && childMiddleName === fatherFirstName;
+          
+          const relation = (member.relationToHead || member.relation || '').toLowerCase();
+          const isSonDaughter = ['son', 'daughter', 'child'].includes(relation);
+          
+          return hasFatherMiddleName || isSonDaughter;
+        }).length,
         'Current FP Method': health.fpMethod || 'None',
         'FP Method Category': health.fpMethod === 'permanent' ? 'Permanent' :
           (health.fpMethod && health.fpMethod !== 'none' ? 'Spacing' : 'None'),
@@ -500,6 +642,308 @@ export const exportIndent = async (user) => {
   }
 };
 
+// ===================== PHC MONTHLY WORKBOOK EXPORT =====================
+/**
+ * Generates the full PHC Monthly Workbook (21 sheets) as defined in REPORTS_CONFIG.
+ * Each sheet lists indicators (rows) with columns: Indicator | SubCenterId/Village | Actual | Target
+ * Role-based: ANM → scoped to their subCenter, MO → full PHC, ASHA → single village.
+ */
+export const exportPHCMonthlyWorkbook = async (user, reportData) => {
+  try {
+    const { REPORTS_CONFIG, INDICATOR_TARGETS } = await import('./goshwaraConfig.js');
+    const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+    const allVitalEvents = await storage.getAll(STORAGE_KEYS.VITAL_EVENTS);
+    const allVhndSessions = await storage.getAll(STORAGE_KEYS.VHND_SESSIONS);
+    const allStock = await storage.getAll(STORAGE_KEYS.STOCK);
+
+    // Scope label for the report header
+    let scopeLabel = user?.name || 'Report';
+    if (user?.role === 'ANM') scopeLabel = user?.subCenterName || user?.subCenterId || scopeLabel;
+    else if (user?.role === 'MO') scopeLabel = user?.phcName || user?.phcId || scopeLabel;
+
+    const monthName = new Date().toLocaleString('default', { month: 'long' });
+    const year = new Date().getFullYear();
+
+    // Build a simple aggregator lookup from live data
+    const members = applyHierarchyFilter(allMembers, user);
+
+    const aggregateLookup = buildMonthlyAggregator(members, allVitalEvents, allVhndSessions, allStock, user, reportData);
+
+    const wb = XLSX.utils.book_new();
+
+    REPORTS_CONFIG.forEach(({ sheetName, sectionTitle, params }) => {
+      const rows = [
+        { 'Section': sectionTitle, 'Indicator': 'MONTHLY REPORT - ' + monthName + ' ' + year, 'Scope': scopeLabel, 'Actual': '', 'Target': '' }
+      ];
+      params.forEach(param => {
+        const actual = aggregateLookup[param] ?? '';
+        const target = INDICATOR_TARGETS[param] ?? '';
+        rows.push({
+          'Section': '',
+          'Indicator': param,
+          'Scope': scopeLabel,
+          'Actual': actual,
+          'Target': target,
+        });
+      });
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [
+        { wch: 45 }, // Indicator
+        { wch: 12 }, // Scope
+        { wch: 12 }, // Actual
+        { wch: 12 }, // Target
+      ];
+      // Remove 'Section' column from display (first column), rename header
+      XLSX.utils.book_append_sheet(wb, ws, sheetName.substring(0, 31)); // Excel max 31 chars
+    });
+
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `Monthly_Report_${scopeLabel}_${monthName}_${year}_${timestamp}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    return true;
+  } catch (error) {
+    console.error('PHC Monthly Workbook Export Error:', error);
+    return false;
+  }
+};
+
+/**
+ * Builds a lookup table: indicatorLabel → computed count from live member/event data.
+ * Covers the main computable indicators. Others remain blank (to be filled manually or from VHND/Stock).
+ */
+const buildMonthlyAggregator = (members, vitalEvents, vhndSessions, stock, user, reportData) => {
+  const lookup = {};
+
+  // Use reportData if provided (from GoshwaraReportScreen which already has computed stats)
+  if (reportData && reportData.stats) {
+    const s = reportData.stats;
+    lookup['Total ANC Registered / एकूण नोंदणीकृत गरोदर माता'] = s.maternal?.mh01_newANC ?? 0;
+    lookup['ANC Registered < 12W / १२ आठवड्यांच्या आत नोंदणी'] = s.maternal?.mh02_earlyANC ?? 0;
+    lookup['High Risk Cases Detected / अतिधोकादायक माता शोधल्या'] = s.maternal?.mh05_hrpIdentified ?? 0;
+    lookup['Severe Anemia Managed / तीव्र ॲनिमिया व्यवस्थापन'] = s.maternal?.mh06_severeAnemia ?? 0;
+    lookup['Total Deliveries / एकूण प्रसूती'] = (s.delivery?.dl01_instPublic ?? 0) + (s.delivery?.dl02_instPrivate ?? 0) + (s.delivery?.dl03_homeSkilled ?? 0) + (s.delivery?.dl04_homeUnskilled ?? 0);
+    lookup['Institutional Deliveries / संस्थात्मक प्रसूती'] = (s.delivery?.dl01_instPublic ?? 0) + (s.delivery?.dl02_instPrivate ?? 0);
+    lookup['Home Deliveries / घरी प्रसूती'] = (s.delivery?.dl03_homeSkilled ?? 0) + (s.delivery?.dl04_homeUnskilled ?? 0);
+    lookup['Live Births (Male) / जिवंत जन्म (मुलगा)'] = s.delivery?.dl05_liveBirthM ?? 0;
+    lookup['Live Births (Female) / जिवंत जन्म (मुलगी)'] = s.delivery?.dl06_liveBirthF ?? 0;
+    lookup['Still Births / मृत जन्म'] = s.delivery?.dl07_stillBirths ?? 0;
+    lookup['PNC Checkups < 48 Hours / ४८ तासांच्या आत तपासणी'] = s.delivery?.dl09_pnc48hr ?? 0;
+    lookup['Maternal Deaths / माता मृत्यू'] = s.vital?.vs04_maternalDeath ?? 0;
+    lookup['Maternal Deaths (15-49 Yrs) / माता मृत्यू (१५-४९ वर्षे)'] = s.vital?.vs04_maternalDeath ?? 0;
+    lookup['Low Birth Weight (<2.5kg) / कमी वजनाचे बाळ'] = s.child?.ch02_lbw ?? 0;
+    lookup['BCG / बी.सी.जी.'] = s.child?.ch04_bcg ?? 0;
+    lookup['Penta 3 / पेंटा-३'] = s.child?.ch05_penta3 ?? 0;
+    lookup['Measles 1 / गोवर रुबेला-१'] = s.child?.ch06_mr1 ?? 0;
+    lookup['Full Immunised Children / पूर्ण लसीकरण बालके'] = (s.child?.ch07_fullyImm_M ?? 0) + (s.child?.ch08_fullyImm_F ?? 0);
+    lookup['Infant Deaths (<1yr) / अर्भक मृत्यू'] = s.vital?.vs02_infantDeath ?? 0;
+    lookup['Tubectomy / स्त्री नसबंदी'] = s.fp?.fp01_tubectomy ?? 0;
+    lookup['Vasectomy / पुरुष नसबंदी'] = s.fp?.fp02_vasectomy ?? 0;
+    lookup['IUD (Copper T) / तांबी'] = s.fp?.fp03_iucd ?? 0;
+    lookup['Oral Pills (OCP) / गर्भनिरोधक गोळ्या'] = s.fp?.fp05_ocp ?? 0;
+    lookup['Condoms / निरोध'] = s.fp?.fp06_condoms ?? 0;
+  }
+
+  // Derive from members if not already set
+  const ec = members.filter(m => m.gender === 'Female' && parseInt(m.age) >= 15 && parseInt(m.age) <= 49 && (m.maritalStatus === 'Married' || m.relation === 'Wife' || m.relationToHead === 'Wife'));
+
+  if (!lookup['Tubectomy / स्त्री नसबंदी']) {
+    lookup['Tubectomy / स्त्री नसबंदी'] = ec.filter(m => m.healthData?.fpMethod === 'tubectomy' || m.healthData?.fpMethod === 'permanent').length;
+  }
+  if (!lookup['IUD (Copper T) / तांबी']) {
+    lookup['IUD (Copper T) / तांबी'] = ec.filter(m => ['iud', 'iucd', 'copper_t'].includes((m.healthData?.fpMethod || '').toLowerCase())).length;
+  }
+
+  // VHND-based indicators
+  const totalSessions = vhndSessions.length;
+  lookup['MCP Session (Outreach) / एम.सी.पी. सत्र (बाह्यरुग्ण)'] = totalSessions;
+
+  const ironTotal = vhndSessions.reduce((acc, s) => acc + (s.ifaDistributed || 0), 0);
+  const orsTotal = vhndSessions.reduce((acc, s) => acc + (s.orsDistributed || 0), 0);
+  const condomTotal = vhndSessions.reduce((acc, s) => acc + (s.condomsDistributed || 0), 0);
+  lookup['IFA Prophylactic Dose 1 / आय.एफ.ए. प्रतिबंधात्मक मात्रा १'] = ironTotal;
+  lookup['ORS Packets Stock Out Days / ओ.आर.एस. साठा नसलेले दिवस'] = orsTotal > 0 ? 0 : totalSessions;
+  lookup['Condoms / निरोध'] = lookup['Condoms / निरोध'] || condomTotal;
+
+  return lookup;
+};
+
+// ===================== FAMILY SURVEY REPORT EXPORT =====================
+/**
+ * Generates the PHC Family Survey Goshwara (FP indicators per subcenter/village).
+ * Role-based: ANM → their subcenter villages, MO → all subcenters, ASHA → their village only.
+ * Creates one sheet per subcenter with all 152 FP indicators, plus summary Tables 1-6.
+ */
+export const exportFamilySurveyReport = async (user) => {
+  try {
+    const { FP_INDICATORS } = await import('./goshwaraConfig.js');
+    const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+    const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
+
+    const members = applyHierarchyFilter(allMembers, user);
+    const families = allFamilies.filter(f => members.some(m => m.familyId === f.id));
+
+    // Group members by subcenter then village
+    const subCenterMap = {};
+    members.forEach(m => {
+      const sc = m.subCenterId || 'Unknown';
+      if (!subCenterMap[sc]) subCenterMap[sc] = { name: m.subCenterName || sc, villages: {} };
+      const v = m.villageId || 'Unknown';
+      if (!subCenterMap[sc].villages[v]) subCenterMap[sc].villages[v] = { name: m.villageName || v, members: [] };
+      subCenterMap[sc].villages[v].members.push(m);
+    });
+
+    const wb = XLSX.utils.book_new();
+    const monthName = new Date().toLocaleString('default', { month: 'long' });
+    const year = new Date().getFullYear();
+
+    // Create one entry sheet per subcenter
+    Object.entries(subCenterMap).forEach(([scId, scData]) => {
+      const scName = scData.name.replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 20) || scId;
+      const sheetName = `Entry_${scName}`;
+
+      // Aggregate all villages under this subcenter
+      const scMembers = Object.values(scData.villages).flatMap(v => v.members);
+      const scFamilies = allFamilies.filter(f => scMembers.some(m => m.familyId === f.id));
+
+      const aggRow = aggregateFPIndicators(FP_INDICATORS, scMembers, scFamilies, allMembers);
+
+      const rows = FP_INDICATORS.map((indicator, idx) => ({
+        'Sr.': idx + 1,
+        'Indicator / निर्देशक': indicator,
+        'Count / संख्या': aggRow[indicator] ?? 0,
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [{ wch: 5 }, { wch: 70 }, { wch: 12 }];
+      XLSX.utils.book_append_sheet(wb, ws, sheetName.substring(0, 31));
+    });
+
+    // Table 1: Population Summary
+    const allEc = members.filter(m => m.gender === 'Female' && parseInt(m.age) >= 15 && parseInt(m.age) <= 49 && (m.maritalStatus === 'Married' || m.relation === 'Wife' || m.relationToHead === 'Wife'));
+    const table1Rows = [
+      { 'Indicator': 'Total Families / एकूण कुटुंबे', 'Count': families.length },
+      { 'Indicator': 'Total Population / एकूण लोकसंख्या', 'Count': members.length },
+      { 'Indicator': 'Males / पुरुष', 'Count': members.filter(m => m.gender === 'Male').length },
+      { 'Indicator': 'Females / स्त्रिया', 'Count': members.filter(m => m.gender === 'Female').length },
+      { 'Indicator': 'Eligible Couples (EC) / पात्र जोडपे', 'Count': allEc.length },
+      { 'Indicator': 'BPL Families / दारिद्र्य रेषेखालील कुटुंबे', 'Count': families.filter(f => f.isBPL).length },
+      { 'Indicator': 'SC Families / अनुसूचित जाती कुटुंबे', 'Count': families.filter(f => (f.religionCaste || '').toLowerCase().includes('sc')).length },
+      { 'Indicator': 'ST Families / अनुसूचित जमाती कुटुंबे', 'Count': families.filter(f => (f.religionCaste || '').toLowerCase().includes('st')).length },
+    ];
+    addSheet(wb, 'तक्ता_१', table1Rows);
+
+    // Table 2: FP Protected Couples
+    const fpProtected = allEc.filter(m => m.healthData?.fpMethod && m.healthData.fpMethod !== 'none');
+    const fpPermanent = allEc.filter(m => ['tubectomy', 'permanent', 'vasectomy'].includes((m.healthData?.fpMethod || '').toLowerCase()));
+    const fpSpacing = fpProtected.filter(m => !fpPermanent.includes(m));
+    const table2Rows = [
+      { 'Indicator': 'Protected Couples / संरक्षित जोडपे', 'Count': fpProtected.length },
+      { 'Indicator': 'Permanent (Sterilization) / कायमस्वरूपी पद्धत', 'Count': fpPermanent.length },
+      { 'Indicator': 'Spacing Methods / तात्पुरती पद्धत', 'Count': fpSpacing.length },
+      { 'Indicator': 'Unprotected (No Method) / असंरक्षित जोडपे', 'Count': allEc.length - fpProtected.length },
+      { 'Indicator': 'Copper T / IUCD / तांबी', 'Count': allEc.filter(m => ['iud', 'iucd', 'copper_t'].includes((m.healthData?.fpMethod || '').toLowerCase())).length },
+      { 'Indicator': 'OC Pills / गर्भनिरोधक गोळ्या', 'Count': allEc.filter(m => m.healthData?.fpMethod === 'ocp').length },
+      { 'Indicator': 'Condoms / निरोध', 'Count': allEc.filter(m => m.healthData?.fpMethod === 'condom' || m.healthData?.fpMethod === 'condoms').length },
+    ];
+    addSheet(wb, 'तक्ता_२', table2Rows);
+
+    // Table 3: ANC & Maternal
+    const pregnant = members.filter(m => m.healthData?.isPregnant || m.healthData?.ancStatus === 'active');
+    const hrp = pregnant.filter(m => m.healthData?.isHighRisk);
+    const table3Rows = [
+      { 'Indicator': 'Pregnant Women / गरोदर माता', 'Count': pregnant.length },
+      { 'Indicator': 'High Risk Pregnancies / अतिधोकादायक माता', 'Count': hrp.length },
+      { 'Indicator': 'Severe Anemia (Hb<7) / तीव्र ॲनिमिया', 'Count': pregnant.filter(m => parseFloat(m.healthData?.hbLevel) < 7 && parseFloat(m.healthData?.hbLevel) > 0).length },
+    ];
+    addSheet(wb, 'तक्ता_३', table3Rows);
+
+    // Table 4: Child Health
+    const children0_5 = members.filter(m => parseInt(m.age) >= 0 && parseInt(m.age) <= 5);
+    const table4Rows = [
+      { 'Indicator': 'Children 0-5 Years / ० ते ५ वर्षे बालके', 'Count': children0_5.length },
+      { 'Indicator': 'Boys / मुलगे', 'Count': children0_5.filter(m => m.gender === 'Male').length },
+      { 'Indicator': 'Girls / मुली', 'Count': children0_5.filter(m => m.gender === 'Female').length },
+      { 'Indicator': 'SAM Children / तीव्र कुपोषित बालके', 'Count': children0_5.filter(m => m.healthData?.malnutritionStatus === 'SAM' || m.healthData?.malnutritionStatus === 'high_risk').length },
+      { 'Indicator': 'MAM Children / मध्यम कुपोषित बालके', 'Count': children0_5.filter(m => m.healthData?.malnutritionStatus === 'MAM' || m.healthData?.malnutritionStatus === 'moderate').length },
+    ];
+    addSheet(wb, 'तक्ता_४', table4Rows);
+
+    // Table 5: Demographics by age group
+    const ageGroup = (min, max) => members.filter(m => parseInt(m.age) >= min && parseInt(m.age) <= max);
+    const table5Rows = [
+      { 'Age Group / वयोगट': '0-12 months', 'Male / पुरुष': ageGroup(0, 0).filter(m => m.gender === 'Male').length, 'Female / स्त्री': ageGroup(0, 0).filter(m => m.gender === 'Female').length },
+      { 'Age Group / वयोगट': '1-5 Years', 'Male / पुरुष': ageGroup(1, 5).filter(m => m.gender === 'Male').length, 'Female / स्त्री': ageGroup(1, 5).filter(m => m.gender === 'Female').length },
+      { 'Age Group / वयोगट': '5-10 Years', 'Male / पुरुष': ageGroup(5, 10).filter(m => m.gender === 'Male').length, 'Female / स्त्री': ageGroup(5, 10).filter(m => m.gender === 'Female').length },
+      { 'Age Group / वयोगट': '10-19 Years', 'Male / पुरुष': ageGroup(10, 19).filter(m => m.gender === 'Male').length, 'Female / स्त्री': ageGroup(10, 19).filter(m => m.gender === 'Female').length },
+      { 'Age Group / वयोगट': '20-39 Years', 'Male / पुरुष': ageGroup(20, 39).filter(m => m.gender === 'Male').length, 'Female / स्त्री': ageGroup(20, 39).filter(m => m.gender === 'Female').length },
+      { 'Age Group / वयोगट': '40-60 Years', 'Male / पुरुष': ageGroup(40, 60).filter(m => m.gender === 'Male').length, 'Female / स्त्री': ageGroup(40, 60).filter(m => m.gender === 'Female').length },
+      { 'Age Group / वयोगट': '60+ Years', 'Male / पुरुष': ageGroup(61, 200).filter(m => m.gender === 'Male').length, 'Female / स्त्री': ageGroup(61, 200).filter(m => m.gender === 'Female').length },
+    ];
+    addSheet(wb, 'तक्ता_५', table5Rows);
+
+    // Table 6: Disease Surveillance
+    const table6Rows = [
+      { 'Indicator': 'TB Suspects / क्षयरोग संशयित', 'Count': members.filter(m => m.healthData?.tbScreening?.hasCoughTwoWeeks || (m.healthData?.tbScreening?.hasFever && m.healthData?.tbScreening?.hasWeightLoss)).length },
+      { 'Indicator': 'Malaria Suspects / हिवताप संशयित', 'Count': members.filter(m => m.healthData?.hasFeverWithChills).length },
+      { 'Indicator': 'Leprosy Suspects / कुष्ठरोग संशयित', 'Count': members.filter(m => m.healthData?.hasSkinPatches).length },
+    ];
+    addSheet(wb, 'तक्ता_६', table6Rows);
+
+    const timestamp = new Date().toISOString().split('T')[0];
+    const scopeLabel = user?.subCenterName || user?.phcName || user?.name || 'SC';
+    const filename = `FamilySurvey_Goshwara_${scopeLabel}_${monthName}_${year}_${timestamp}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    return true;
+  } catch (error) {
+    console.error('Family Survey Export Error:', error);
+    return false;
+  }
+};
+
+// Helper to add a sheet to a workbook
+const addSheet = (wb, sheetName, rows) => {
+  if (!rows || rows.length === 0) return;
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const keys = Object.keys(rows[0] || {});
+  ws['!cols'] = keys.map((k, i) => ({ wch: i === 0 ? 50 : 15 }));
+  XLSX.utils.book_append_sheet(wb, ws, sheetName.substring(0, 31));
+};
+
+// Aggregates FP indicators for a set of members/families
+const aggregateFPIndicators = (indicators, members, families, allMembers) => {
+  const ec = members.filter(m => m.gender === 'Female' && parseInt(m.age) >= 15 && parseInt(m.age) <= 49 && (m.maritalStatus === 'Married' || m.relation === 'Wife' || m.relationToHead === 'Wife'));
+  const lookup = {};
+
+  // Caste/category counts
+  lookup['Caste SC - Families / सामाजिक प्रवर्ग - अनुसूचित जाती (SC) - कुटुंबे'] = families.filter(f => (f.religionCaste || '').toUpperCase().includes('SC')).length;
+  lookup['Caste ST - Families / सामाजिक प्रवर्ग - अनुसूचित जमाती (ST) - कुटुंबे'] = families.filter(f => (f.religionCaste || '').toUpperCase().includes('ST')).length;
+  lookup['Caste Other - Families / सामाजिक प्रवर्ग - इतर - कुटुंबे'] = families.filter(f => !(f.religionCaste || '').toUpperCase().match(/SC|ST/)).length;
+  lookup['BPL - Families / इतर दारिद्र्य रेषेखालील (BPL) - कुटुंबे (SC/ST वगळून)'] = families.filter(f => f.isBPL && !(f.religionCaste || '').toUpperCase().match(/SC|ST/)).length;
+
+  lookup['Caste SC - Population / सामाजिक प्रवर्ग - अनुसूचित जाती (SC) - लोकसंख्या'] = members.filter(m => { const f = families.find(f => f.id === m.familyId); return (f?.religionCaste || '').toUpperCase().includes('SC'); }).length;
+  lookup['Caste ST - Population / सामाजिक प्रवर्ग - अनुसूचित जमाती (ST) - लोकसंख्या'] = members.filter(m => { const f = families.find(f => f.id === m.familyId); return (f?.religionCaste || '').toUpperCase().includes('ST'); }).length;
+  lookup['BPL - Population / इतर दारिद्र्य रेषेखालील (BPL) - लोकसंख्या (SC/ST वगळून)'] = members.filter(m => { const f = families.find(f => f.id === m.familyId); return f?.isBPL && !(f?.religionCaste || '').toUpperCase().match(/SC|ST/); }).length;
+
+  // FP methods
+  lookup['Protected - Vasectomy / संरक्षित जोडपी - पुरुष नसबंदी'] = members.filter(m => m.gender === 'Male' && m.healthData?.fpMethod === 'vasectomy').length;
+  lookup['Protected - Tubectomy / संरक्षित जोडपी - स्त्री नसबंदी'] = ec.filter(m => ['tubectomy', 'permanent'].includes(m.healthData?.fpMethod)).length;
+  lookup['Protected - Copper T / संरक्षित जोडपी - तांबी'] = ec.filter(m => ['iud', 'iucd', 'copper_t'].includes((m.healthData?.fpMethod || '').toLowerCase())).length;
+  lookup['Protected - OC Pills / संरक्षित जोडपी - गर्भनिरोधक गोळ्या'] = ec.filter(m => m.healthData?.fpMethod === 'ocp').length;
+  lookup['Protected - Condoms / संरक्षित जोडपी - निरोध'] = ec.filter(m => ['condom', 'condoms'].includes(m.healthData?.fpMethod)).length;
+
+  // Pregnant women & children
+  lookup['Pregnant Women / पाहणीच्या वेळी गरोदर असणाऱ्या स्त्रियांची संख्या'] = members.filter(m => m.healthData?.isPregnant || m.healthData?.ancStatus === 'active').length;
+  lookup['Children 0-12 Months / ० ते १२ महिन्यांचे वयोगटातील बालकांची संख्या'] = members.filter(m => parseInt(m.age) === 0).length;
+  lookup['Children 13-24 Months / १३ ते २४ महिने पूर्ण वयोगटातील बालकांची संख्या'] = members.filter(m => parseInt(m.age) === 1).length;
+  lookup['Children 0-6 Years - Boys / ० ते ६ वर्षे वयोगटातील मुले'] = members.filter(m => parseInt(m.age) <= 6 && m.gender === 'Male').length;
+  lookup['Children 0-6 Years - Girls / ० ते ६ वर्षे वयोगटातील मुली'] = members.filter(m => parseInt(m.age) <= 6 && m.gender === 'Female').length;
+  lookup['Persons 40-60 Years / ४० वर्षांवरील ते ६० वर्षांखालील व्यक्तींची संख्या'] = members.filter(m => parseInt(m.age) >= 40 && parseInt(m.age) < 60).length;
+  lookup['Persons 60+ Years / ६० वर्षांवरील व्यक्तींची संख्या'] = members.filter(m => parseInt(m.age) >= 60).length;
+
+  return lookup;
+};
+
 // ===================== HELPERS =====================
 
 const getSheetName = (filterType) => {
@@ -514,6 +958,14 @@ const getSheetName = (filterType) => {
     'PNC_CASES': 'PNC_Register',
     'PWD': 'PwD_Register',
     'BPL_FAMILIES': 'BPL_Families',
+    'PENDING_ANC': 'Pending_ANC',
+    'FULLY_IMMUNIZED': 'Fully_Immunized',
+    'FP_PERMANENT': 'FP_Permanent',
+    'FP_SPACING': 'FP_Spacing',
+    'FP_NONE': 'FP_None',
+    'TB_SUSPECTS': 'TB_Suspects',
+    'MALARIA_SUSPECTS': 'Malaria_Suspects',
+    'LEPROSY_SUSPECTS': 'Leprosy_Suspects',
   };
   return names[filterType] || 'Population_Data';
 };

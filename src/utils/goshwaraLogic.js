@@ -2,7 +2,22 @@
  * Goshwara Aggregation Logic
  * Compiles individual records into SC-level abstract counts.
  */
-export const generateGoshwaraReport = (members, events, month, year) => {
+export const generateGoshwaraReport = (members, vitalEvents = [], vhndSessions = [], pendingEvents = [], month, year) => {
+  // Handle old signature calls (members, events, month, year) for backward compatibility
+  let actualVitalEvents = vitalEvents;
+  let actualVhndSessions = vhndSessions;
+  let actualPendingEvents = pendingEvents;
+  let actualMonth = month;
+  let actualYear = year;
+
+  if (typeof vhndSessions === 'number') {
+    actualVitalEvents = [];
+    actualVhndSessions = [];
+    actualPendingEvents = vitalEvents || [];
+    actualMonth = vhndSessions;
+    actualYear = pendingEvents;
+  }
+
   const stats = {
     maternal: {
       mh01_newANC: 0,
@@ -67,6 +82,13 @@ export const generateGoshwaraReport = (members, events, month, year) => {
     ch11_samReferral: [],
   };
 
+  const isMonthYear = (dateStr, m, y) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return false;
+    return (d.getMonth() + 1) === m && d.getFullYear() === y;
+  };
+
   // 1. Process Members
   members.forEach(m => {
     const health = m.healthData || {};
@@ -97,6 +119,42 @@ export const generateGoshwaraReport = (members, events, month, year) => {
       }
     }
 
+    // Family Planning active usage (Current Users)
+    if (m.gender === 'Female' && (health.fpMethod === 'permanent' || health.fpMethod === 'tubectomy')) {
+      stats.fp.fp01_tubectomy++;
+    } else if (m.gender === 'Male' && (health.fpMethod === 'permanent' || health.fpMethod === 'vasectomy')) {
+      stats.fp.fp02_vasectomy++;
+    } else if (health.fpMethod === 'iud' || health.fpMethod === 'iucd') {
+      stats.fp.fp03_iucd++;
+    } else if (health.fpMethod === 'ocp') {
+      stats.fp.fp05_ocp++;
+    } else if (health.fpMethod === 'condom' || health.fpMethod === 'condoms') {
+      stats.fp.fp06_condoms++;
+    }
+
+    // Process completed tasks for this member this month
+    const completed = health.completedTasks || [];
+    const lastUpdated = health.lastUpdatedAt || m.lastUpdatedAt;
+    if (lastUpdated && isMonthYear(lastUpdated, actualMonth, actualYear)) {
+      completed.forEach(taskId => {
+        if (taskId === `anc-visit-2-${m.id}` || taskId === `anc-visit-3-${m.id}`) {
+          stats.maternal.mh03_tdDoses++;
+        }
+        if (taskId === `anc-visit-4-${m.id}`) {
+          stats.maternal.mh04_anc4++;
+        }
+        if (taskId === `vax-atbirth-${m.id}`) {
+          stats.child.ch04_bcg++;
+        }
+        if (taskId === `vax-14weeks-${m.id}`) {
+          stats.child.ch05_penta3++;
+        }
+        if (taskId === `vax-9months-${m.id}`) {
+          stats.child.ch06_mr1++;
+        }
+      });
+    }
+
     // Child Health
     const childAge = parseInt(m.age);
     if (childAge <= 1 || (m.dob && ((new Date() - new Date(m.dob)) / (1000*60*60*24*365)) <= 1)) {
@@ -114,41 +172,135 @@ export const generateGoshwaraReport = (members, events, month, year) => {
     }
   });
 
-  // 2. Process Vital Events — FIX C5: Filter by month/year
-  events.forEach(e => {
-    const payload = e.payload || e;
-    const ts = e.timestamp ? new Date(e.timestamp) : null;
-    // Only process events from the requested month/year
-    if (ts && (ts.getMonth() + 1 !== month || ts.getFullYear() !== year)) return;
+  // 2. Process Persistent Vital Events
+  actualVitalEvents.forEach(e => {
+    if (!isMonthYear(e.date || e.timestamp, actualMonth, actualYear)) return;
 
-    // Delivery & Births
-    if (e.tableName === 'vital_events' && payload.type === 'Birth') {
-      if (payload.place === 'Hospital') stats.delivery.dl01_instPublic++;
-      else if (payload.place === 'Private') stats.delivery.dl02_instPrivate++;
-      else if (payload.isSBA) stats.delivery.dl03_homeSkilled++;
-      else if (payload.place === 'Home') stats.delivery.dl04_homeUnskilled++;
+    if (e.type === 'Birth') {
+      if (e.place === 'Hospital' || e.place === 'Public') stats.delivery.dl01_instPublic++;
+      else if (e.place === 'Private') stats.delivery.dl02_instPrivate++;
+      else if (e.isSBA) stats.delivery.dl03_homeSkilled++;
+      else if (e.place === 'Home') stats.delivery.dl04_homeUnskilled++;
 
-      if (payload.gender === 'Male') stats.delivery.dl05_liveBirthM++;
+      if (e.gender === 'Male') stats.delivery.dl05_liveBirthM++;
       else stats.delivery.dl06_liveBirthF++;
-    }
 
-    // Deaths
-    if (e.tableName === 'vital_events' && payload.type === 'Death') {
-      const deathAge = parseInt(payload.ageAtDeath);
-      if (payload.deathType === 'Maternal') {
-        stats.vital.vs04_maternalDeath++;
-        drillDown.vs04_maternalDeath.push(payload);
+      const bw = parseFloat(e.birthWeight);
+      if (!isNaN(bw) && bw > 0) {
+        stats.child.ch01_weighed++;
+        if (bw < 2.5) stats.child.ch02_lbw++;
       }
-      else if (!isNaN(deathAge) && deathAge <= 0) stats.vital.vs01_neonatalDeath++;
-      else if (!isNaN(deathAge) && deathAge <= 1) stats.vital.vs02_infantDeath++;
-      else if (!isNaN(deathAge) && deathAge <= 5) stats.vital.vs03_childDeath++;
-      else stats.vital.vs05_adultDeath++;
+
+      if (e.breastfeeding !== 'No' && e.breastfeeding !== 'no') {
+        stats.child.ch03_bfInitiated++;
+      }
+
+      if (e.place === 'Hospital' || e.place === 'Private' || e.place === 'Public') {
+        stats.delivery.dl09_pnc48hr++;
+      }
     }
 
-    // Stock / FP from VHND sessions
-    if (e.tableName === 'vhnd_sessions') {
+    if (e.type === 'Death') {
+      const deathAge = parseInt(e.ageAtDeath);
+      if (e.deathType === 'Maternal' || e.causeOfDeath === 'maternalDeath') {
+        stats.vital.vs04_maternalDeath++;
+        drillDown.vs04_maternalDeath.push(e);
+      } else if (!isNaN(deathAge)) {
+        if (deathAge <= 0) stats.vital.vs01_neonatalDeath++;
+        else if (deathAge <= 1) stats.vital.vs02_infantDeath++;
+        else if (deathAge <= 5) stats.vital.vs03_childDeath++;
+        else stats.vital.vs05_adultDeath++;
+      } else {
+        if (e.causeOfDeath === 'infantDeath') stats.vital.vs02_infantDeath++;
+        else stats.vital.vs05_adultDeath++;
+      }
+    }
+  });
+
+  // 3. Process Persistent VHND Sessions
+  actualVhndSessions.forEach(s => {
+    if (!isMonthYear(s.sessionDate || s.timestamp, actualMonth, actualYear)) return;
+
+    stats.fp.fp06_condoms += parseInt(s.condomsDistributed || 0);
+    stats.fp.fp05_ocp += parseInt(s.ocpDistributed || 0);
+    stats.maternal.mh07_ifa180 += parseInt(s.ifaDistributed || 0);
+  });
+
+  // 4. Process Pending Events in Sync Queue
+  actualPendingEvents.forEach(e => {
+    const payload = e.payload || e;
+    const eventTime = e.timestamp || payload.date || payload.sessionDate;
+    if (!isMonthYear(eventTime, actualMonth, actualYear)) return;
+
+    if (e.tableName === 'vital_events' || e.tableName === '@rural_health_vital_events') {
+      if (actualVitalEvents.some(ve => ve.id === payload.id)) return;
+
+      if (payload.type === 'Birth') {
+        if (payload.place === 'Hospital' || payload.place === 'Public') stats.delivery.dl01_instPublic++;
+        else if (payload.place === 'Private') stats.delivery.dl02_instPrivate++;
+        else if (payload.isSBA) stats.delivery.dl03_homeSkilled++;
+        else if (payload.place === 'Home') stats.delivery.dl04_homeUnskilled++;
+
+        if (payload.gender === 'Male') stats.delivery.dl05_liveBirthM++;
+        else stats.delivery.dl06_liveBirthF++;
+
+        const bw = parseFloat(payload.birthWeight);
+        if (!isNaN(bw) && bw > 0) {
+          stats.child.ch01_weighed++;
+          if (bw < 2.5) stats.child.ch02_lbw++;
+        }
+
+        if (payload.breastfeeding !== 'No' && payload.breastfeeding !== 'no') {
+          stats.child.ch03_bfInitiated++;
+        }
+
+        if (payload.place === 'Hospital' || payload.place === 'Private' || payload.place === 'Public') {
+          stats.delivery.dl09_pnc48hr++;
+        }
+      }
+
+      if (payload.type === 'Death') {
+        const deathAge = parseInt(payload.ageAtDeath);
+        if (payload.deathType === 'Maternal' || payload.causeOfDeath === 'maternalDeath') {
+          stats.vital.vs04_maternalDeath++;
+          drillDown.vs04_maternalDeath.push(payload);
+        } else if (!isNaN(deathAge)) {
+          if (deathAge <= 0) stats.vital.vs01_neonatalDeath++;
+          else if (deathAge <= 1) stats.vital.vs02_infantDeath++;
+          else if (deathAge <= 5) stats.vital.vs03_childDeath++;
+          else stats.vital.vs05_adultDeath++;
+        } else {
+          if (payload.causeOfDeath === 'infantDeath') stats.vital.vs02_infantDeath++;
+          else stats.vital.vs05_adultDeath++;
+        }
+      }
+    }
+
+    if (e.tableName === 'vhnd_sessions' || e.tableName === '@rural_health_vhnd') {
+      if (actualVhndSessions.some(vs => vs.id === payload.id)) return;
+
       stats.fp.fp06_condoms += parseInt(payload.condomsDistributed || 0);
       stats.fp.fp05_ocp += parseInt(payload.ocpDistributed || 0);
+      stats.maternal.mh07_ifa180 += parseInt(payload.ifaDistributed || 0);
+    }
+
+    if (e.tableName === 'task_completions' || e.tableName === 'asha_task_completions') {
+      const taskId = payload.taskId || '';
+      if (taskId.startsWith('anc-visit-2-') || taskId.startsWith('anc-visit-3-')) {
+        stats.maternal.mh03_tdDoses++;
+      }
+      if (taskId.startsWith('anc-visit-4-')) {
+        stats.maternal.mh04_anc4++;
+      }
+      if (taskId.startsWith('vax-atbirth-')) {
+        stats.child.ch04_bcg++;
+      }
+      if (taskId.startsWith('vax-14weeks-')) {
+        stats.child.ch05_penta3++;
+      }
+      if (taskId.startsWith('vax-9months-')) {
+        stats.child.ch06_mr1++;
+      }
     }
   });
 

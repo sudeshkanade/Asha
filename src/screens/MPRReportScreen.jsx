@@ -38,23 +38,31 @@ const MPRReportScreen = ({ user, onBack }) => {
     const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
     const allEvents = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
     const allUsers = await storage.getAll(STORAGE_KEYS.USERS);
+    const allVitalEvents = await storage.getAll(STORAGE_KEYS.VITAL_EVENTS);
+    const allVhndSessions = await storage.getAll(STORAGE_KEYS.VHND_SESSIONS);
     
     // Hierarchy filtering
     let members = allMembers;
     let events = allEvents;
+    let vitalEvents = allVitalEvents;
+    let vhndSessions = allVhndSessions;
     let currentAshaName = user?.name;
     
     if (user?.role === 'ASHA') {
       members = allMembers.filter(m => m.ashaId === user.id || m.villageId === user.villageId);
       events = allEvents.filter(e => e.payload?.ashaId === user.id || e.payload?.villageId === user.villageId);
+      vitalEvents = allVitalEvents.filter(e => e.ashaId === user.id || e.villageId === user.villageId);
+      vhndSessions = allVhndSessions.filter(s => s.ashaId === user.id || s.villageId === user.villageId);
     } else if (user?.role === 'ANM') {
       members = allMembers.filter(m => m.subCenterId === user.subCenterId);
       events = allEvents.filter(e => e.payload?.subCenterId === user.subCenterId);
-      // For ANM, we might be looking at multiple ASHAs, but if we filter by village later, we'd need that.
-      // For now, if ANM is looking, use "Sub-Center Report" or similar.
+      vitalEvents = allVitalEvents.filter(e => e.subCenterId === user.subCenterId);
+      vhndSessions = allVhndSessions.filter(s => s.subCenterId === user.subCenterId);
     } else if (user?.role === 'MO') {
       members = allMembers.filter(m => m.phcId === user.phcId);
       events = allEvents.filter(e => e.payload?.phcId === user.phcId);
+      vitalEvents = allVitalEvents.filter(e => e.phcId === user.phcId);
+      vhndSessions = allVhndSessions.filter(s => s.phcId === user.phcId);
     }
 
     // Try to find the ASHA for the primary village in this scope if current user is not ASHA
@@ -64,7 +72,7 @@ const MPRReportScreen = ({ user, onBack }) => {
       if (asha) currentAshaName = asha.name;
     }
 
-    const stats = generateMPRStats(members, events);
+    const stats = generateMPRStats(members, vitalEvents, vhndSessions, events);
     setReport(stats);
     setAshaName(currentAshaName);
     setLoading(false);
@@ -77,6 +85,15 @@ const MPRReportScreen = ({ user, onBack }) => {
       switch (filterType) {
         case 'VITAL_BIRTHS':
           success = await exportVitalEvents(user, 'Birth');
+          break;
+        case 'HOSPITAL_DELIVERIES':
+          success = await exportVitalEvents(user, 'Birth', 'Hospital');
+          break;
+        case 'HOME_DELIVERIES':
+          success = await exportVitalEvents(user, 'Birth', 'Home');
+          break;
+        case 'INFANT_DEATHS':
+          success = await exportVitalEvents(user, 'Death', null, true);
           break;
         case 'VITAL_DEATHS':
           success = await exportVitalEvents(user, 'Death');
@@ -150,29 +167,29 @@ const MPRReportScreen = ({ user, onBack }) => {
           <ReportRow label={t('totalAncReg')} value={report.maternal.newANC} onDownload={() => handleDownload('NEW_ANC')} loading={exporting === 'NEW_ANC'} />
           <ReportRow label={t('highRiskPreg')} value={report.maternal.highRiskTotal} isAlert={report.maternal.highRiskTotal > 0} onDownload={() => handleDownload('HIGH_RISK_ANC')} loading={exporting === 'HIGH_RISK_ANC'} />
           <ReportRow label={t('severeAnemiaHb')} value={report.maternal.severeAnemia} isAlert={report.maternal.severeAnemia > 0} onDownload={() => handleDownload('SEVERE_ANEMIA')} loading={exporting === 'SEVERE_ANEMIA'} />
-          <ReportRow label={t('hospDel')} value={report.maternal.hospitalDeliveries} />
-          <ReportRow label={t('homeDel')} value={report.maternal.homeDeliveries} />
-          <ReportRow label={t('pendingAncFollowup')} value={report.maternal.pendingANC} isAlert={report.maternal.pendingANC > 0} />
+          <ReportRow label={t('hospDel')} value={report.maternal.hospitalDeliveries} onDownload={() => handleDownload('HOSPITAL_DELIVERIES')} loading={exporting === 'HOSPITAL_DELIVERIES'} />
+          <ReportRow label={t('homeDel')} value={report.maternal.homeDeliveries} onDownload={() => handleDownload('HOME_DELIVERIES')} loading={exporting === 'HOME_DELIVERIES'} />
+          <ReportRow label={t('pendingAncFollowup')} value={report.maternal.pendingANC} isAlert={report.maternal.pendingANC > 0} onDownload={() => handleDownload('PENDING_ANC')} loading={exporting === 'PENDING_ANC'} />
         </ReportSection>
 
         <ReportSection title={t('childHealthNutrition')}>
           <ReportRow label={t('children05yrs')} value={report.child.samChildren + report.child.mamChildren + report.child.fullyImmunized} onDownload={() => handleDownload('CHILDREN_0_5')} loading={exporting === 'CHILDREN_0_5'} />
           <ReportRow label={t('samChildren')} value={report.child.samChildren} isAlert={report.child.samChildren > 0} onDownload={() => handleDownload('SAM_CHILDREN')} loading={exporting === 'SAM_CHILDREN'} />
           <ReportRow label={t('mamChildren', 'MAM Children')} value={report.child.mamChildren} isAlert={report.child.mamChildren > 0} onDownload={() => handleDownload('MAM_CHILDREN')} loading={exporting === 'MAM_CHILDREN'} />
-          <ReportRow label={t('fullyImmunized')} value={report.child.fullyImmunized} />
+          <ReportRow label={t('fullyImmunized')} value={report.child.fullyImmunized} onDownload={() => handleDownload('FULLY_IMMUNIZED')} loading={exporting === 'FULLY_IMMUNIZED'} />
         </ReportSection>
 
         <ReportSection title={t('vitalEvents')}>
           <ReportRow label={t('totalBirths')} value={report.vital.births} onDownload={() => handleDownload('VITAL_BIRTHS')} loading={exporting === 'VITAL_BIRTHS'} />
           <ReportRow label={t('totalDeaths')} value={report.vital.deaths} onDownload={() => handleDownload('VITAL_DEATHS')} loading={exporting === 'VITAL_DEATHS'} />
-          <ReportRow label={t('infantDeaths')} value={report.vital.infantDeaths} isAlert={report.vital.infantDeaths > 0} />
+          <ReportRow label={t('infantDeaths')} value={report.vital.infantDeaths} isAlert={report.vital.infantDeaths > 0} onDownload={() => handleDownload('INFANT_DEATHS')} loading={exporting === 'INFANT_DEATHS'} />
         </ReportSection>
 
         <ReportSection title={t('familyPlanning')}>
           <ReportRow label={t('eligibleCouples')} value={report.fp.totalEC} onDownload={() => handleDownload('ELIGIBLE_COUPLE')} loading={exporting === 'ELIGIBLE_COUPLE'} />
-          <ReportRow label={t('permanent')} value={report.fp.sterilization} />
-          <ReportRow label={t('temporary')} value={report.fp.spacing} />
-          <ReportRow label={t('noMethodUnmet')} value={report.fp.none} isAlert={report.fp.none > 0} />
+          <ReportRow label={t('permanent')} value={report.fp.sterilization} onDownload={() => handleDownload('FP_PERMANENT')} loading={exporting === 'FP_PERMANENT'} />
+          <ReportRow label={t('temporary')} value={report.fp.spacing} onDownload={() => handleDownload('FP_SPACING')} loading={exporting === 'FP_SPACING'} />
+          <ReportRow label={t('noMethodUnmet')} value={report.fp.none} isAlert={report.fp.none > 0} onDownload={() => handleDownload('FP_NONE')} loading={exporting === 'FP_NONE'} />
           <ReportRow label={t('fpRegisterDownload')} value="" onDownload={() => handleDownload('FP_REGISTER')} loading={exporting === 'FP_REGISTER'} />
         </ReportSection>
 
@@ -188,9 +205,9 @@ const MPRReportScreen = ({ user, onBack }) => {
         </ReportSection>
 
         <ReportSection title={t('diseaseSurveillance', 'Disease Surveillance')}>
-          <ReportRow label={t('tbSuspects', 'TB Suspects Identified')} value={report.disease.tbSuspects} isAlert={report.disease.tbSuspects > 0} />
-          <ReportRow label={t('malariaSuspects', 'Malaria Suspects (Fever)')} value={report.disease.malariaSuspects} isAlert={report.disease.malariaSuspects > 0} />
-          <ReportRow label={t('leprosySuspects', 'Leprosy Suspects (Skin Patches)')} value={report.disease.leprosySuspects} isAlert={report.disease.leprosySuspects > 0} />
+          <ReportRow label={t('tbSuspects', 'TB Suspects Identified')} value={report.disease.tbSuspects} isAlert={report.disease.tbSuspects > 0} onDownload={() => handleDownload('TB_SUSPECTS')} loading={exporting === 'TB_SUSPECTS'} />
+          <ReportRow label={t('malariaSuspects', 'Malaria Suspects (Fever)')} value={report.disease.malariaSuspects} isAlert={report.disease.malariaSuspects > 0} onDownload={() => handleDownload('MALARIA_SUSPECTS')} loading={exporting === 'MALARIA_SUSPECTS'} />
+          <ReportRow label={t('leprosySuspects', 'Leprosy Suspects (Skin Patches)')} value={report.disease.leprosySuspects} isAlert={report.disease.leprosySuspects > 0} onDownload={() => handleDownload('LEPROSY_SUSPECTS')} loading={exporting === 'LEPROSY_SUSPECTS'} />
         </ReportSection>
 
         <ReportSection title={t('specialRegisters')}>

@@ -46,8 +46,8 @@ const FinancialsScreen = ({ user, onBack, onNavigate }) => {
       .map(m => ({
         id: m.id,
         name: `${m.firstName} ${m.lastName}`,
-        type: parseFloat(m.healthData?.hbLevel) < 7 ? 'Severe Anemia' : 'High Risk ANC',
-        status: m.referralStatus || 'Open',
+        type: parseFloat(m.healthData?.hbLevel) < 7 ? t('severeAnemia') : t('highRiskPreg'),
+        status: (m.referralStatus || 'open').toLowerCase(),
         village: m.villageName,
         asha: m.ashaId
       }));
@@ -70,7 +70,7 @@ const FinancialsScreen = ({ user, onBack, onNavigate }) => {
       id: c.id,
       name: c.memberName,
       scheme: c.activityType.replace(/_/g, ' '),
-      status: c.status.charAt(0).toUpperCase() + c.status.slice(1),
+      status: c.status.toLowerCase(),
       amount: c.amount
     }));
     
@@ -136,12 +136,12 @@ const FinancialsScreen = ({ user, onBack, onNavigate }) => {
               <View style={styles.card}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.cardTitle}>{item.name}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: item.status === 'Open' ? COLORS.error : COLORS.success }]}>
-                    <Text style={styles.statusText}>{item.status}</Text>
+                  <View style={[styles.statusBadge, { backgroundColor: item.status === 'open' ? COLORS.error : COLORS.success }]}>
+                    <Text style={styles.statusText}>{t(item.status === 'open' ? 'open' : 'closedStatus')}</Text>
                   </View>
                 </View>
                 <Text style={styles.cardSub}>{item.type} • {item.village}</Text>
-                {item.status === 'Open' && (
+                {item.status === 'open' && (
                   <TouchableOpacity style={styles.closeBtn} onPress={() => handleCloseTicket(item)}>
                     <Text style={styles.closeBtnText}>✓ {t('markResolved', 'Mark Resolved')}</Text>
                   </TouchableOpacity>
@@ -160,8 +160,8 @@ const FinancialsScreen = ({ user, onBack, onNavigate }) => {
                   <Text style={styles.paymentName}>{item.name}</Text>
                   <Text style={styles.paymentScheme}>{item.scheme} • ₹{item.amount}</Text>
                 </View>
-                <Text style={[styles.paymentStatus, { color: item.status === 'Processed' ? COLORS.success : (item.status === 'Rejected' ? COLORS.error : COLORS.primary) }]}>
-                  {item.status}
+                <Text style={[styles.paymentStatus, { color: item.status === 'processed' ? COLORS.success : (item.status === 'rejected' ? COLORS.error : COLORS.primary) }]}>
+                  {t(item.status)}
                 </Text>
               </View>
             )}

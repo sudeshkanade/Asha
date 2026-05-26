@@ -441,8 +441,8 @@ const VitalEventsScreen = ({ user, onBack }) => {
                   style={styles.whatsappBtn}
                   onPress={() => {
                     const msg = e.type === 'Birth' 
-                      ? `नवीन जन्म नोंदणी:\nनाव: ${e.name || e.memberName}\nआईचे नाव: ${e.motherName || 'माहित नाही'}\nतारीख: ${e.date}\nकृपया नोंद घ्यावी.`
-                      : `मृत्यूची नोंद:\nनाव: ${e.name || e.memberName}\nतारीख: ${e.date}\nकारण: ${e.causeOfDeath || 'माहित नाही'}\nकृपया नोंद घ्यावी.`;
+                      ? t('newBirthRegNotify', { name: e.name || e.memberName, motherName: e.motherName || t('unknown'), date: e.date })
+                      : t('newDeathRegNotify', { name: e.name || e.memberName, date: e.date, cause: e.causeOfDeath || t('unknown') });
                     Linking.openURL(`whatsapp://send?text=${encodeURIComponent(msg)}`);
                   }}
                 >

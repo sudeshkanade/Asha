@@ -56,52 +56,52 @@ const AdminDashboard = ({ user, onBack, onNavigate }) => {
             <View style={styles.statGrid}>
               <View style={[styles.statCard, { backgroundColor: COLORS.primary }]}>
                 <Text style={styles.statVal}>{stats.users}</Text>
-                <Text style={styles.statLabel}>Total Workers</Text>
+                <Text style={styles.statLabel}>{t('totalWorkers')}</Text>
               </View>
               <TouchableOpacity 
                 style={[styles.statCard, { backgroundColor: COLORS.error }]}
                 onPress={() => onNavigate('AdminSetup', { initialTab: 'users' })}
               >
                 <Text style={styles.statVal}>{stats.pending}</Text>
-                <Text style={styles.statLabel}>Pending Approvals</Text>
+                <Text style={styles.statLabel}>{t('pendingApprovals')}</Text>
               </TouchableOpacity>
             </View>
 
             <Text style={styles.sectionTitle}>{t('infrastructureManagement', 'Infrastructure Management')}</Text>
             <View style={styles.toolGrid}>
               <ToolItem 
-                title={t('hierarchyMgmt')} 
+                title={t('hierarchyManagement')} 
                 icon="🗺️" 
-                desc="Map PHCs, SCs & Villages" 
+                desc={t('mapPhcScVillages')} 
                 onPress={() => onNavigate('AdminSetup')}
               />
               <ToolItem 
                 title={t('userManagement', 'User Management')} 
                 icon="👥" 
-                desc="Roles, Resets & Deletion" 
+                desc={t('rolesResetsDeletion')} 
                 onPress={() => onNavigate('AdminSetup', { initialTab: 'users' })}
               />
               <ToolItem 
                 title={t('masterData', 'Master Data')} 
                 icon="⚙️" 
-                desc="Medication & Rate Masters" 
+                desc={t('medicationRateMasters')} 
                 onPress={() => onNavigate('RateSettings')}
               />
               <ToolItem 
                 title={t('auditLogs', 'System Audit')} 
                 icon="📜" 
-                desc="Action History & Sync Logs" 
-                onPress={() => Alert.alert("Audit Logs", "Feature coming in Phase 3.")}
+                desc={t('actionHistorySyncLogs')} 
+                onPress={() => Alert.alert(t('auditLogs'), t('featureComingSoon'))}
               />
             </View>
 
             <View style={styles.maintenanceCard}>
-              <Text style={styles.maintenanceTitle}>🔧 {t('maintenance', 'System Maintenance')}</Text>
+              <Text style={styles.maintenanceTitle}>🔧 {t('systemMaintenance')}</Text>
               <TouchableOpacity style={styles.maintenanceBtn} onPress={() => onNavigate('AdminSetup', { initialTab: 'Wipe' })}>
-                <Text style={styles.maintenanceBtnText}>Database Tools & Wipe</Text>
+                <Text style={styles.maintenanceBtnText}>{t('databaseToolsWipe')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.maintenanceBtn, { marginTop: 12, backgroundColor: COLORS.secondary }]} onPress={() => Alert.alert("Export All", "Generating master backup...")}>
-                <Text style={styles.maintenanceBtnText}>Export Full District Backup</Text>
+              <TouchableOpacity style={[styles.maintenanceBtn, { marginTop: 12, backgroundColor: COLORS.secondary }]} onPress={() => Alert.alert(t('exportAll'), t('generatingBackup'))}>
+                <Text style={styles.maintenanceBtnText}>{t('exportFullDistrictBackup')}</Text>
               </TouchableOpacity>
             </View>
           </>

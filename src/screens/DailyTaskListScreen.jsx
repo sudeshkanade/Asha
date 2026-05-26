@@ -177,11 +177,11 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
     const taskType = task.serviceType?.toLowerCase() || '';
     
     if (taskType.includes('vaccination') || taskType.includes('vax')) {
-      message = `नमस्कार ${task.memberName}, उद्या तुमच्या बाळाच्या लसीकरणाची तारीख आहे. कृपया लसीकरण केंद्रावर वेळेवर उपस्थित राहा.`;
+      message = t('immunizationReminder', { name: task.memberName });
     } else if (taskType.includes('anc') || taskType.includes('pregnancy')) {
-      message = `नमस्कार ${task.memberName}, उद्या तुमची गरोदरपणातील तपासणी (ANC) आहे. कृपया आरोग्य केंद्रावर वेळेवर उपस्थित राहा.`;
+      message = t('ancReminder', { name: task.memberName });
     } else {
-      message = `नमस्कार ${task.memberName}, उद्या तुमची वैद्यकीय तपासणीची तारीख आहे. कृपया अंगणवाडीत/आरोग्य केंद्रावर वेळेवर या.`;
+      message = t('checkupReminder', { name: task.memberName });
     }
     
     Linking.openURL(`whatsapp://send?text=${encodeURIComponent(message)}`);

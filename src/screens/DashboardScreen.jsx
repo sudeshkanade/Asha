@@ -46,22 +46,26 @@ const DashboardScreen = ({ user, onNavigate }) => {
   }, []);
 
   const handleAddClosedBuilding = async () => {
-    // RUTHLESS FIX: Prevent Native Crash by avoiding window.prompt
     if (Platform.OS === 'web') {
       const houseNo = window.prompt(t('enterHouseNo') || 'Enter House Number:');
-      if (houseNo) finalizeClosedBuilding(houseNo);
+      if (houseNo) {
+        const buildingType = window.prompt(t('enterBuildingTypePrompt', 'Enter Building Type (e.g., Locked House, Shop, Temple, School):'), t('lockedHouse', 'Locked House'));
+        if (buildingType) {
+          finalizeClosedBuilding(houseNo, buildingType);
+        }
+      }
     } else {
       Alert.alert(t('featureRestricted'), t('bulkAdminWebOnly'));
     }
   };
 
-  const finalizeClosedBuilding = async (houseNo) => {
-
+  const finalizeClosedBuilding = async (houseNo, buildingType) => {
     const closedFamily = {
       id: storage.generateId('closed', user?.id),
       houseNo: houseNo,
-      headName: t('closedBuilding', 'Closed / Locked Building'),
+      headName: `${t('closedBuilding', 'Closed / Locked Building')} (${buildingType})`,
       isClosed: true,
+      buildingType: buildingType,
       ashaId: user.id,
       villageId: user.villageId,
       subCenterId: user.subCenterId,
@@ -92,10 +96,13 @@ const DashboardScreen = ({ user, onNavigate }) => {
       }
 
       // BACKGROUND: Perform deep scan only if necessary or on a throttle
-      const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
-      const vEvents = await storage.getAll(STORAGE_KEYS.VITAL_EVENTS);
-      const vhndSessions = await storage.getAll(STORAGE_KEYS.VHND_SESSIONS);
-      const events = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
+      // OPTIMIZATION: Fetch storage tables in parallel to prevent blocking calls
+      const [allMembers, vEvents, vhndSessions, events] = await Promise.all([
+        storage.getAll(STORAGE_KEYS.MEMBERS),
+        storage.getAll(STORAGE_KEYS.VITAL_EVENTS),
+        storage.getAll(STORAGE_KEYS.VHND_SESSIONS),
+        storage.getAll(STORAGE_KEYS.SYNC_QUEUE)
+      ]);
       
       let members = allMembers;
       if (user?.role === 'ASHA') {
@@ -108,18 +115,23 @@ const DashboardScreen = ({ user, onNavigate }) => {
 
       setSyncCount(events.length);
       
-      // OPTIMIZATION: Throttled Task Generation
-      // If the population is large, we defer task counting to a background slice
-      const pendingCount = members.filter(m => m.healthData?.isHighRisk).length; // Placeholder for real task logic
+      // Calculate actual pending task count from real member profiles using healthLogic
+      const generatedTasks = generateAllTasks(members);
+      const pendingCount = generatedTasks.filter(t => t.status === 'pending').length;
       
       const liveStats = generateMPRStats(members, vEvents, vhndSessions, events);
 
       setPendingTasksCount(pendingCount);
       setStats(prev => ({
-        ...liveStats,
         ...prev,
+        ...liveStats,
+        maternal: {
+          ...prev?.maternal,
+          ...liveStats?.maternal
+        },
         demographics: {
           ...prev?.demographics,
+          ...liveStats?.demographics,
           total: members.length
         }
       }));
@@ -142,17 +154,17 @@ const DashboardScreen = ({ user, onNavigate }) => {
 
       if (pushResult.success || pullResult.success) {
         await loadLiveStats();
-        const msg = `Sync complete! Pushed: ${pushResult.syncedCount || 0}, Pulled: ${pullResult.pulledCount || 0}`;
+        const msg = t('syncCompleteMsg') + (pushResult.syncedCount || 0) + ', ' + t('pulled') + ': ' + (pullResult.pulledCount || 0);
         if (Platform.OS === 'web') window.alert(msg);
         else Alert.alert(t('syncResult'), msg);
       } else {
-        const errorMsg = pushResult.message || pullResult.message || 'Check connection';
-        if (Platform.OS === 'web') window.alert(`Sync failed: ${errorMsg}`);
-        else Alert.alert('Sync Failed', errorMsg);
+        const errorMsg = pushResult.message || pullResult.message || t('checkConnection');
+        if (Platform.OS === 'web') window.alert(t('syncFailed') + ': ' + errorMsg);
+        else Alert.alert(t('syncFailed'), errorMsg);
       }
     } catch (e) {
       console.error(e);
-      if (Platform.OS === 'web') window.alert('Sync error occurred.');
+      if (Platform.OS === 'web') window.alert(t('syncError'));
     } finally {
       setIsSyncing(false);
     }
@@ -169,20 +181,13 @@ const DashboardScreen = ({ user, onNavigate }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>{user?.role === 'ASHA' ? t('asha') : user?.role} {t('login')}</Text>
-          <Text style={styles.headerSubtitle}>
+        <View style={{ flex: 1, marginRight: 8 }}>
+          <Text style={styles.headerTitle} numberOfLines={1}>{user?.role === 'ASHA' ? t('asha') : user?.role} {t('login')}</Text>
+          <Text style={styles.headerSubtitle} numberOfLines={1}>
             {user?.role === 'ASHA' ? `${user.village} (${t('ward')} ${user.ward || t('na')})` : user?.name}
           </Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <TouchableOpacity 
-            style={[styles.syncContainer, { backgroundColor: COLORS.secondary }]} 
-            onPress={() => setFabOpen(!fabOpen)}
-          >
-            <Text style={[styles.syncText, { fontSize: 16 }]}>+</Text>
-          </TouchableOpacity>
-
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <TouchableOpacity 
             style={[styles.syncContainer, { backgroundColor: 'rgba(255,255,255,0.1)' }]} 
             onPress={() => onNavigate('Tasks')}
@@ -216,10 +221,10 @@ const DashboardScreen = ({ user, onNavigate }) => {
               await loadLiveStats();
               await cloudSyncManager.pullFromCloud(user);
               setIsSyncing(false);
-              if (Platform.OS === 'web') window.alert("Page data refreshed!");
+              if (Platform.OS === 'web') window.alert(t('pageRefreshed'));
             }}
           >
-            <Text style={styles.syncText}>↻ {t('refresh', 'Refresh')}</Text>
+            <Text style={styles.syncText}>↻</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.langBtn} onPress={() => i18n.changeLanguage(i18n.language === 'en' ? 'mr' : 'en')}>
@@ -297,6 +302,20 @@ const DashboardScreen = ({ user, onNavigate }) => {
               onPress={() => onNavigate('Tasks')}
             />
           </View>
+          <View style={[styles.statsRow, { marginTop: 12 }]}>
+            <StatCard 
+              label={t('highRiskPreg')} 
+              value={stats.maternal?.highRiskTotal || 0} 
+              color={COLORS.error}
+              onPress={() => onNavigate('MemberList', { filterType: 'HIGH_RISK_ANC' })}
+            />
+            <StatCard 
+              label={t('samChildren')} 
+              value={stats.child?.samChildren || 0} 
+              color={COLORS.error}
+              onPress={() => onNavigate('MemberList', { filterType: 'SAM_CHILDREN' })}
+            />
+          </View>
         </View>
 
         {/* Registration & Population */}
@@ -314,6 +333,41 @@ const DashboardScreen = ({ user, onNavigate }) => {
             <TouchableOpacity style={[styles.shortcutCard, { backgroundColor: '#F0FDF4' }]} onPress={() => onNavigate('FamilyRegistration')}>
               <Text style={styles.shortcutIcon}>➕</Text>
               <Text style={styles.shortcutLabel}>{t('newFamily')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.shortcutCard, { backgroundColor: '#FEF2F2' }]} onPress={handleAddClosedBuilding}>
+              <Text style={styles.shortcutIcon}>🏠</Text>
+              <Text style={styles.shortcutLabel}>{t('addClosedBuilding')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Special Registers & Focus Groups */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>{t('specialRegistersFocusGroups')}</Text>
+          <View style={styles.shortcutGrid}>
+            <TouchableOpacity style={styles.shortcutCard} onPress={() => onNavigate('MemberList', { filterType: 'ELIGIBLE_COUPLE' })}>
+              <Text style={styles.shortcutIcon}>💑</Text>
+              <Text style={styles.shortcutLabel}>{t('eligibleCouples')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.shortcutCard} onPress={() => onNavigate('MemberList', { filterType: 'NEW_ANC' })}>
+              <Text style={styles.shortcutIcon}>🤰</Text>
+              <Text style={styles.shortcutLabel}>{t('activeANC')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.shortcutCard} onPress={() => onNavigate('MemberList', { filterType: 'PNC_CASES' })}>
+              <Text style={styles.shortcutIcon}>🤱</Text>
+              <Text style={styles.shortcutLabel}>{t('pncCases')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.shortcutCard} onPress={() => onNavigate('MemberList', { filterType: 'NCD' })}>
+              <Text style={styles.shortcutIcon}>🩺</Text>
+              <Text style={styles.shortcutLabel}>{t('ncdScreening')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.shortcutCard} onPress={() => onNavigate('MemberList', { filterType: 'PWD' })}>
+              <Text style={styles.shortcutIcon}>♿</Text>
+              <Text style={styles.shortcutLabel}>{t('pwdMembers')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.shortcutCard} onPress={() => onNavigate('MemberList', { filterType: 'BPL_FAMILIES' })}>
+              <Text style={styles.shortcutIcon}>💳</Text>
+              <Text style={styles.shortcutLabel}>{t('bplFamilies')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -563,7 +617,8 @@ const styles = StyleSheet.create({
   },
   statCard: {
     backgroundColor: COLORS.surface,
-    width: '48%',
+    width: '47%',
+    flexGrow: 1,
     padding: 16,
     borderRadius: 16,
     alignItems: 'center',
@@ -767,7 +822,8 @@ const styles = StyleSheet.create({
   },
   shortcutCard: {
     backgroundColor: COLORS.surface,
-    width: '48%',
+    width: '47%',
+    flexGrow: 1,
     padding: 20,
     borderRadius: 16,
     alignItems: 'center',
@@ -776,6 +832,22 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  badgeContainer: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: COLORS.accent,
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badgeText: {
+    color: '#FFF',
+    fontSize: 9,
+    fontWeight: '800',
   },
   shortcutIcon: {
     fontSize: 28,

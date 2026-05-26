@@ -43,23 +43,51 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
     let filtered = scopedMembers;
     if (familyId) {
       filtered = scopedMembers.filter(m => m.familyId === familyId);
-    } else if (filterType === 'high_risk') {
-      filtered = scopedMembers.filter(m => m.healthData?.isHighRisk);
-    } else if (filterType === 'anemia') {
-      filtered = scopedMembers.filter(m => parseFloat(m.healthData?.hbLevel) < 7);
-    } else if (filterType === 'sam') {
-      filtered = scopedMembers.filter(m => parseInt(m.age) <= 5 && m.healthData?.weight && parseFloat(m.healthData.weight) < 10);
-    } else if (filterType === 'eligible_couple') {
-      filtered = scopedMembers.filter(mem => 
-        mem.gender === 'Female' && 
-        parseInt(mem.age) >= 15 && 
-        parseInt(mem.age) <= 49 &&
-        (mem.maritalStatus === 'Married' || mem.relationToHead === 'Wife' || mem.relation === 'Wife' || mem.relationToHead === 'Daughter-in-law' || mem.relation === 'Daughter-in-law')
-      );
+    } else {
+      const type = filterType?.toLowerCase();
+      if (type === 'high_risk' || type === 'high_risk_anc') {
+        filtered = scopedMembers.filter(m => m.healthData?.isHighRisk);
+      } else if (type === 'anemia' || type === 'severe_anemia') {
+        filtered = scopedMembers.filter(m => parseFloat(m.healthData?.hbLevel) < 7);
+      } else if (type === 'sam' || type === 'sam_children') {
+        filtered = scopedMembers.filter(m => parseInt(m.age) <= 5 && m.healthData?.weight && parseFloat(m.healthData.weight) < 10);
+      } else if (type === 'eligible_couple') {
+        filtered = scopedMembers.filter(mem => 
+          mem.gender === 'Female' && 
+          parseInt(mem.age) >= 15 && 
+          parseInt(mem.age) <= 49 &&
+          (mem.maritalStatus === 'Married' || mem.relationToHead === 'Wife' || mem.relation === 'Wife' || mem.relationToHead === 'Daughter-in-law' || mem.relation === 'Daughter-in-law')
+        );
+      } else if (type === 'pnc_cases' || type === 'pnc') {
+        filtered = scopedMembers.filter(m => 
+          m.healthData?.pncStatus === 'Pending' || 
+          m.healthData?.pncStatus === 'active' || 
+          (m.healthData?.lastDeliveryDate && (new Date() - new Date(m.healthData.lastDeliveryDate)) / (1000 * 60 * 60 * 24) <= 42)
+        );
+      } else if (type === 'new_anc') {
+        filtered = scopedMembers.filter(m => 
+          m.healthData?.isPregnant || 
+          m.healthData?.edd || 
+          m.healthData?.ancStatus === 'active' || 
+          m.healthData?.ancStatus === 'registered'
+        );
+      } else if (type === 'pwd') {
+        filtered = scopedMembers.filter(m => m.isPwd);
+      } else if (type === 'bpl_families' || type === 'bpl') {
+        const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
+        const bplFamilyIds = new Set(allFamilies.filter(f => f.isBPL).map(f => f.id));
+        filtered = scopedMembers.filter(m => bplFamilyIds.has(m.familyId));
+      }
     }
 
-    setMembers(filtered);
-    setFilteredMembers(filtered);
+    // OPTIMIZATION: Precompute lowercase search terms to prevent jank during keystrokes
+    const precomputed = filtered.map(m => ({
+      ...m,
+      _searchStr: `${m.firstName || ''} ${m.lastName || ''} ${m.houseNo || ''}`.toLowerCase()
+    }));
+
+    setMembers(precomputed);
+    setFilteredMembers(precomputed);
     setLoading(false);
   };
 
@@ -70,21 +98,36 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
       return;
     }
     const q = query.toLowerCase();
-    const results = members.filter(m => 
-      m.firstName?.toLowerCase().includes(q) || 
-      m.lastName?.toLowerCase().includes(q) ||
-      m.houseNo?.toLowerCase().includes(q)
-    );
+    const results = members.filter(m => m._searchStr.includes(q));
     setFilteredMembers(results);
   };
 
   const getFilterLabel = () => {
-    switch (filterType) {
-      case 'high_risk': return t('highRiskPreg');
-      case 'anemia': return t('severeAnemiaHb');
-      case 'sam': return t('samChildren');
-      case 'eligible_couple': return t('eligibleCouples');
-      default: return t('villageMembers', 'Village Members');
+    const type = filterType?.toLowerCase();
+    switch (type) {
+      case 'high_risk':
+      case 'high_risk_anc':
+        return t('highRiskPreg');
+      case 'anemia':
+      case 'severe_anemia':
+        return t('severeAnemiaHb');
+      case 'sam':
+      case 'sam_children':
+        return t('samChildren');
+      case 'eligible_couple':
+        return t('eligibleCouples');
+      case 'pnc_cases':
+      case 'pnc':
+        return t('pncCases');
+      case 'new_anc':
+        return t('newAnc');
+      case 'pwd':
+        return t('pwdMembers');
+      case 'bpl_families':
+      case 'bpl':
+        return t('bplFamilies');
+      default:
+        return t('villageMembers', 'Village Members');
     }
   };
 
