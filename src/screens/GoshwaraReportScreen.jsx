@@ -329,16 +329,24 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
 
         <View style={styles.downloadGrid}>
           <DownloadBtn type="MASTER" label="Master Population" />
-          <DownloadBtn type="HRP" label="High Risk ANC" />
           <DownloadBtn type="NEW_ANC" label="All ANC Register" />
+          <DownloadBtn type="PENDING_ANC" label="Pending ANC Register" />
+          <DownloadBtn type="HRP" label="High Risk ANC" />
           <DownloadBtn type="ANEMIA" label="Severe Anemia" />
           <DownloadBtn type="SAM" label="SAM Children" />
+          <DownloadBtn type="FULLY_IMMUNIZED" label="Fully Immunized" />
           <DownloadBtn type="NCD_SCREENING" label="NCD Screenings" />
           <DownloadBtn type="PNC_CASES" label="PNC Register" />
           <DownloadBtn type="VITAL_BIRTHS" label="Birth Register" />
           <DownloadBtn type="VITAL_DEATHS" label="Death Register" />
           <DownloadBtn type="VHND_SESSIONS" label="VHND Sessions" />
           <DownloadBtn type="FP_REGISTER" label="FP Register" />
+          <DownloadBtn type="FP_PERMANENT" label="FP Permanent Method" />
+          <DownloadBtn type="FP_SPACING" label="FP Spacing Method" />
+          <DownloadBtn type="FP_NONE" label="No FP Method" />
+          <DownloadBtn type="TB_SUSPECTS" label="TB Suspects" />
+          <DownloadBtn type="MALARIA_SUSPECTS" label="Malaria Suspects" />
+          <DownloadBtn type="LEPROSY_SUSPECTS" label="Leprosy Suspects" />
           <DownloadBtn type="PWD" label="PwD List" />
           <DownloadBtn type="BPL_FAMILIES" label="BPL Families" />
         </View>
