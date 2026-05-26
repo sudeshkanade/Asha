@@ -131,7 +131,9 @@ export const generateAllTasks = (members) => {
 
     // RUTHLESS FIX: Reactive Clinical Trigger Injections
     // If severe vitals are detected, inject an IMMEDIATE Emergency Task
-    if (health.hbLevel > 0 && health.hbLevel < 7) {
+    // BUG-10 FIX: Always parseFloat before numeric comparison — hbLevel is stored as a string from TextInput
+    const hb = parseFloat(health.hbLevel);
+    if (!isNaN(hb) && hb > 0 && hb < 7) {
       generatedTasks.push({
         id: `emergency-hb-${member.id}`,
         member: member,
@@ -146,7 +148,10 @@ export const generateAllTasks = (members) => {
       });
     }
 
-    if (health.bpSystolic >= 160 || health.bpDiastolic >= 100) {
+    // BUG-10 FIX: Same parseFloat guard for BP values
+    const bpSys = parseFloat(health.bpSystolic);
+    const bpDia = parseFloat(health.bpDiastolic);
+    if (!isNaN(bpSys) && !isNaN(bpDia) && (bpSys >= 160 || bpDia >= 100)) {
       generatedTasks.push({
         id: `emergency-bp-${member.id}`,
         member: member,

@@ -54,6 +54,11 @@ export default function App() {
   const [adminSetupData, setAdminSetupData] = useState(null);
 
 
+  // BUG-FIX: Use a ref to always access the latest user inside effects without
+  // re-registering intervals on every user state change (which caused leaks).
+  const userRef = React.useRef(user);
+  React.useEffect(() => { userRef.current = user; }, [user]);
+
   useEffect(() => {
     const APP_VERSION = '1.2.0';
     
@@ -64,6 +69,7 @@ export default function App() {
         if (storedUserStr) {
           restoredUser = JSON.parse(storedUserStr);
           setUser(restoredUser);
+          userRef.current = restoredUser;
           if (restoredUser.role === 'Admin') {
             setCurrentScreen('AdminDashboard');
           } else if (restoredUser.role === 'MO') {
@@ -76,22 +82,22 @@ export default function App() {
         console.warn('Session restore failed:', e);
       }
 
-      // RUTHLESS FIX: Throttled Version Heartbeat (Protect Battery Life)
+      // BUG-03 FIX: Only reload if localVersion already exists (skip first-run to prevent loop)
       try {
         const lastCheck = await AsyncStorage.getItem('LAST_VERSION_CHECK') || 0;
         const now = Date.now();
         
-        // Only check once every 4 hours (14,400,000 ms)
         if (now - parseInt(lastCheck) > 14400000) {
           const response = await fetch('/version.json?t=' + now);
           const serverVersion = await response.json();
           const localVersion = await AsyncStorage.getItem('APP_VERSION');
           
           await AsyncStorage.setItem('LAST_VERSION_CHECK', now.toString());
+          await AsyncStorage.setItem('APP_VERSION', serverVersion.version);
 
+          // BUG-03: Only reload when localVersion existed AND differs (not on first install)
           if (localVersion && serverVersion.version !== localVersion) {
-            console.log('🔄 New version detected. Purging cache and reloading...');
-            await AsyncStorage.setItem('APP_VERSION', serverVersion.version);
+            console.log('🔄 New version detected. Reloading...');
             if (Platform.OS === 'web') window.location.reload(true);
             return;
           }
@@ -102,7 +108,6 @@ export default function App() {
 
       try {
         await storage.init();
-        // RUTHLESS FIX: Forensic Purge on Launch
         await storage.cleanupTombstones();
       } catch (e) {
         console.error('FATAL: Storage init failed', e);
@@ -113,23 +118,9 @@ export default function App() {
 
       try {
         await storage.autoPrune();
-        
-        // 1. Version Check (Cache Buster)
-        const storedVersion = await storage.getRaw('app_version');
-        if (storedVersion && storedVersion !== APP_VERSION) {
-          await storage.saveRaw('app_version', APP_VERSION);
-          if (typeof window !== 'undefined') window.location.reload(true);
-        } else {
-          await storage.saveRaw('app_version', APP_VERSION);
-        }
-
-        // 2. Initial Sync: Pull hierarchy first (no auth needed) then clinical data if user exists.
-        console.log("App: Performing initial cloud pull (user:", restoredUser?.role || 'unauthenticated', ")...");
         await cloudSyncManager.pullFromCloud(restoredUser);
         await cloudSyncManager.startBackgroundSync();
-        // RED TEAM FIX: Prune old logs to prevent storage crashes
         await storage.autoPrune();
-        // RED TEAM FIX: Purge data from old jurisdictions
         await storage.purgeOrphanedData(restoredUser);
       } catch (syncError) {
         console.error("Initial app load sequence failed, proceeding offline:", syncError);
@@ -140,49 +131,48 @@ export default function App() {
 
     initApp().catch(err => console.error("App Init Crash:", err));
 
-    // 3. Security Heartbeat: Ensure user is still approved (checks cloud-synced local data)
+    // Security Heartbeat (reads user from ref to avoid stale closure)
     const securityCheck = async () => {
-      if (!user || user.id === 'admin') return;
+      const currentUser = userRef.current;
+      if (!currentUser || currentUser.id === 'admin') return;
       
       const allUsers = await storage.getAll(STORAGE_KEYS.USERS);
-      const currentUser = allUsers.find(u => u.id === user.id);
+      const dbUser = allUsers.find(u => u.id === currentUser.id);
       
-      if (!currentUser || currentUser.approvalStatus !== 'approved') {
+      if (!dbUser || dbUser.approvalStatus !== 'approved') {
         console.warn("Security: User no longer approved. Forcing logout.");
         setUser(null);
         setCurrentScreen('Login');
       }
     };
 
-    // Run security heartbeat every 30 seconds
     const heartbeatId = setInterval(securityCheck, 30 * 1000);
 
-    // 4. FIX: Periodic cloud pull every 5 minutes while logged in.
-    // This is the primary fix for user/clinical data not refreshing periodically.
-    // The pull uses the authenticated user context for proper jurisdictional filtering.
-    const periodicPullId = user ? setInterval(async () => {
+    // Periodic cloud pull every 5 minutes (reads user from ref — always fresh)
+    const periodicPullId = setInterval(async () => {
+      const currentUser = userRef.current;
+      if (!currentUser) return;
       if (typeof navigator !== 'undefined' && !navigator.onLine) return;
-      console.log('⏱️ App: Periodic cloud pull triggered (user:', user.role, ')...');
       try {
-        await cloudSyncManager.pullFromCloud(user);
+        await cloudSyncManager.pullFromCloud(currentUser);
       } catch (e) {
         console.warn('Periodic pull failed (offline?):', e.message);
       }
-    }, 5 * 60 * 1000) : null; // Pull every 5 minutes
+    }, 5 * 60 * 1000);
 
-    // 5. RUTHLESS FIX: 30-Minute Inactivity Lock (Prevent PII Exposure on Stolen Devices)
-    // FIX: storage.getRaw is async — MUST be awaited. Without await, `lastActive` holds a
-    // Promise object, making `parseInt(lastActive)` = NaN, so the lock NEVER triggered.
+    // BUG-02 FIX: Guard against null user in inactivity handler
     const handleVisibilityChange = async () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        const lastActive = await storage.getRaw('LAST_ACTIVE_TIME'); // FIX: added await
+        // BUG-02: Don't fire session-expired alert when no user is logged in
+        const activeUser = userRef.current;
         const now = Date.now();
+        const lastActive = await storage.getRaw('LAST_ACTIVE_TIME');
         
-        if (lastActive && (now - parseInt(lastActive)) > 30 * 60 * 1000) { // 30 Minutes
-           console.warn("Security: Session expired due to inactivity. Forcing re-authentication.");
-           setUser(null);
-           setCurrentScreen('Login');
-           Alert.alert("Session Expired", "For your security, you have been logged out due to inactivity.");
+        if (activeUser && lastActive && (now - parseInt(lastActive)) > 30 * 60 * 1000) {
+          console.warn("Security: Session expired due to inactivity.");
+          setUser(null);
+          setCurrentScreen('Login');
+          Alert.alert("Session Expired", "For your security, you have been logged out due to inactivity.");
         }
         storage.saveRaw('LAST_ACTIVE_TIME', now.toString());
       }
@@ -194,12 +184,13 @@ export default function App() {
 
     return () => {
       clearInterval(heartbeatId);
-      if (periodicPullId) clearInterval(periodicPullId);
+      clearInterval(periodicPullId);
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
       }
     };
-  }, [user]);
+  // BUG-01 FIX: Run once on mount only. userRef keeps effects fresh without re-registering intervals.
+  }, []);
 
   if (initError) {
     return (

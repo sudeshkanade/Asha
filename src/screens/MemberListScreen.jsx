@@ -50,7 +50,12 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
       } else if (type === 'anemia' || type === 'severe_anemia') {
         filtered = scopedMembers.filter(m => parseFloat(m.healthData?.hbLevel) < 7);
       } else if (type === 'sam' || type === 'sam_children') {
-        filtered = scopedMembers.filter(m => parseInt(m.age) <= 5 && m.healthData?.weight && parseFloat(m.healthData.weight) < 10);
+        // BUG-08 FIX: Standardize SAM to MUAC<11.5 (primary) with malnutritionStatus fallback
+        filtered = scopedMembers.filter(m => {
+          const muac = parseFloat(m.healthData?.muac);
+          if (!isNaN(muac) && muac > 0) return muac < 11.5;
+          return m.healthData?.malnutritionStatus === 'SAM' || m.healthData?.malnutritionStatus === 'high_risk';
+        });
       } else if (type === 'eligible_couple') {
         filtered = scopedMembers.filter(mem => 
           mem.gender === 'Female' && 
@@ -77,6 +82,12 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
         const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
         const bplFamilyIds = new Set(allFamilies.filter(f => f.isBPL).map(f => f.id));
         filtered = scopedMembers.filter(m => bplFamilyIds.has(m.familyId));
+      } else if (type === 'ncd' || type === 'ncd_screening') {
+        // BUG-05 FIX: 'NCD' filter was missing — DashboardScreen navigates with filterType:'NCD'
+        filtered = scopedMembers.filter(m =>
+          parseInt(m.age) >= 30 &&
+          (m.healthData?.bpSystolic || m.healthData?.sugarLevel || m.healthData?.hasNcd)
+        );
       }
     }
 
@@ -126,6 +137,9 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
       case 'bpl_families':
       case 'bpl':
         return t('bplFamilies');
+      case 'ncd':
+      case 'ncd_screening':
+        return t('ncdScreening');
       default:
         return t('villageMembers', 'Village Members');
     }

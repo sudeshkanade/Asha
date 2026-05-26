@@ -100,15 +100,26 @@ export const generateGoshwaraReport = (members, vitalEvents = [], vhndSessions =
     else if (age <= 2) stats.demographics.age_13_24m[genderKey]++;
     else if (age >= 5 && age <= 6) stats.demographics.age_5_6y[genderKey]++;
     else if (age >= 10 && age <= 11) stats.demographics.age_10_11y[genderKey]++;
-    else if (age >= 16 && age <= 17) stats.demographics.age_16_17y[genderKey]++;
+    // BUG-07 FIX: 16-17 band ends at 16, 17-19 starts at 17 — use strict ranges to avoid overlap
+    else if (age >= 16 && age <= 16) stats.demographics.age_16_17y[genderKey]++;
     else if (age >= 17 && age <= 19) stats.demographics.age_17_19y[genderKey]++;
     else if (age >= 40 && age <= 60) stats.demographics.age_40_60y[genderKey]++;
     else if (age > 60) stats.demographics.age_60plus[genderKey]++;
 
-    // Maternal Health — FIX B3: accept multiple ancStatus values
+    // Maternal Health — accept multiple ancStatus values
     if (health.ancStatus === 'active' || health.ancStatus === 'registered' || health.edd || health.isPregnant) {
       stats.maternal.mh01_newANC++;
-      if (health.weeksAtReg <= 12) stats.maternal.mh02_earlyANC++;
+
+      // BUG-06 FIX: Compute early ANC from LMP vs registration date (weeksAtReg is not stored)
+      const lmpDate = health.lmp ? new Date(health.lmp) : null;
+      const regDate = health.ancRegistrationDate ? new Date(health.ancRegistrationDate) : null;
+      if (lmpDate && !isNaN(lmpDate) && regDate && !isNaN(regDate)) {
+        const weeksAtReg = Math.floor((regDate - lmpDate) / (7 * 24 * 60 * 60 * 1000));
+        if (weeksAtReg <= 12) stats.maternal.mh02_earlyANC++;
+      } else if (health.weeksAtReg <= 12) {
+        // Fallback to stored field if available
+        stats.maternal.mh02_earlyANC++;
+      }
       if (health.isHighRisk) {
         stats.maternal.mh05_hrpIdentified++;
         drillDown.mh05_hrpIdentified.push(m);

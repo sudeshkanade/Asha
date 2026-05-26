@@ -187,9 +187,14 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
     Linking.openURL(`whatsapp://send?text=${encodeURIComponent(message)}`);
   };
 
+  // BUG-12 FIX: Do not use external placeholder.com (fails offline). Use a data URI placeholder instead.
   const mockCaptureImage = () => {
-    setCompletionData({ ...completionData, image: 'https://via.placeholder.com/300x200?text=Visit+Evidence' });
+    // In a real app, this would launch the device camera via ImagePicker.
+    // For now, use a data URI so evidence capture works fully offline.
+    const PLACEHOLDER_DATA_URI = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200"><rect width="300" height="200" fill="%23E2E8F0"/><text x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="16" fill="%2364748B">Visit Evidence</text></svg>';
+    setCompletionData({ ...completionData, image: PLACEHOLDER_DATA_URI });
   };
+
 
   const renderTask = ({ item }) => (
     <TouchableOpacity 

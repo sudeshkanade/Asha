@@ -1,5 +1,7 @@
 import * as XLSX from 'xlsx';
 import { storage, STORAGE_KEYS } from '../database/storage';
+// BUG-04 FIX: Static import prevents Vite from excluding this module at runtime
+import { REPORTS_CONFIG, INDICATOR_TARGETS, FP_INDICATORS } from './goshwaraConfig.js';
 
 /**
  * Rural Health Tracker — Comprehensive Export Engine
@@ -203,10 +205,15 @@ export const exportMasterPopulation = async (user, filterType = null) => {
             const memberVaccines = m.vaccines?.map(v => v.name) || [];
             return mandatoryVaccines.every(v => memberVaccines.includes(v));
           }
+          // BUG-09 FIX: Include male vasectomy cases in permanent FP (not just female tubectomy)
           case 'FP_PERMANENT':
-            return m.gender === 'Female' && age >= 15 && age <= 49 &&
-              (m.maritalStatus === 'Married' || m.relation === 'Wife' || m.relationToHead === 'Wife') &&
-              (health.fpMethod === 'permanent' || health.fpMethod === 'tubectomy');
+            return (
+              (m.gender === 'Female' && age >= 15 && age <= 49 &&
+                (m.maritalStatus === 'Married' || m.relation === 'Wife' || m.relationToHead === 'Wife') &&
+                (health.fpMethod === 'permanent' || health.fpMethod === 'tubectomy'))
+              ||
+              (m.gender === 'Male' && health.fpMethod === 'vasectomy')
+            );
           case 'FP_SPACING':
             return m.gender === 'Female' && age >= 15 && age <= 49 &&
               (m.maritalStatus === 'Married' || m.relation === 'Wife' || m.relationToHead === 'Wife') &&
@@ -650,7 +657,7 @@ export const exportIndent = async (user) => {
  */
 export const exportPHCMonthlyWorkbook = async (user, reportData) => {
   try {
-    const { REPORTS_CONFIG, INDICATOR_TARGETS } = await import('./goshwaraConfig.js');
+    // BUG-04 FIX: REPORTS_CONFIG and INDICATOR_TARGETS now come from the static top-level import
     const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
     const allVitalEvents = await storage.getAll(STORAGE_KEYS.VITAL_EVENTS);
     const allVhndSessions = await storage.getAll(STORAGE_KEYS.VHND_SESSIONS);
@@ -776,8 +783,9 @@ const buildMonthlyAggregator = (members, vitalEvents, vhndSessions, stock, user,
  */
 export const exportFamilySurveyReport = async (user) => {
   try {
-    const { FP_INDICATORS } = await import('./goshwaraConfig.js');
+    // BUG-04 FIX: FP_INDICATORS now comes from the static top-level import
     const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+
     const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
 
     const members = applyHierarchyFilter(allMembers, user);
