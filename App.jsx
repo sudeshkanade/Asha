@@ -225,6 +225,37 @@ export default function App() {
     );
   }
 
+  const getHomeScreen = (u) => {
+    if (!u) return 'Login';
+    if (u.role === 'Admin') return 'AdminDashboard';
+    if (u.role === 'MO') return 'MODashboard';
+    return 'Dashboard';
+  };
+
+  const handleNavigate = (screen, data) => {
+    if (screen === 'Login') {
+      // Clear all state on logout
+      setUser(null);
+      setSelectedMember(null);
+      setSelectedFamily(null);
+      setCurrentFilter(null);
+      setFamilyIdFilter(null);
+      setAdminSetupData(null);
+      AsyncStorage.removeItem('LOGGED_IN_USER').catch(err => console.warn(err));
+      setCurrentScreen('Login');
+      return;
+    }
+    if (data?.member) setSelectedMember(data.member);
+    if (data?.family) setSelectedFamily(data.family);
+    if (data?.taskId) setSelectedTaskId(data.taskId);
+    else setSelectedTaskId(null);
+    if (data?.filter) setCurrentFilter(data.filter);
+    if (data?.familyId) setFamilyIdFilter(data.familyId);
+    if (data?.initialTab) setAdminSetupData(data.initialTab);
+    else setAdminSetupData(null);
+    setCurrentScreen(screen);
+  };
+
   const handleLogin = (userData) => {
     setUser(userData);
     AsyncStorage.setItem('LOGGED_IN_USER', JSON.stringify(userData)).catch(err => console.warn(err));
@@ -292,11 +323,9 @@ export default function App() {
     } else {
       setSelectedMember(null);
       setSelectedFamily(null);
-      setCurrentScreen('Dashboard');
+      setCurrentScreen(getHomeScreen(user));
     }
   };
-
-
 
   const renderScreen = () => {
     switch (currentScreen) {
@@ -305,46 +334,18 @@ export default function App() {
       case 'Dashboard':
         return <DashboardScreen 
                  user={user} 
-                 onNavigate={(screen, data) => {
-                   if (screen === 'Login') {
-                     // FIX D2: Clear all state on logout
-                     setUser(null);
-                     setSelectedMember(null);
-                     setSelectedFamily(null);
-                     setCurrentFilter(null);
-                     setFamilyIdFilter(null);
-                     setAdminSetupData(null);
-                     AsyncStorage.removeItem('LOGGED_IN_USER').catch(err => console.warn(err));
-                     setCurrentScreen('Login');
-                     return;
-                   }
-                   if (data?.member) setSelectedMember(data.member);
-                   if (data?.taskId) setSelectedTaskId(data.taskId);
-                   else setSelectedTaskId(null);
-                   if (data?.filter) setCurrentFilter(data.filter);
-                   if (data?.familyId) setFamilyIdFilter(data.familyId);
-                   if (data?.initialTab) setAdminSetupData(data.initialTab);
-                   else setAdminSetupData(null);
-                   setCurrentScreen(screen);
-                 }} 
+                 onNavigate={handleNavigate} 
                />;
       case 'Tasks':
-        return <DailyTaskListScreen user={user} villageName={user?.village} onBack={() => setCurrentScreen('Dashboard')} />;
+        return <DailyTaskListScreen user={user} villageName={user?.village} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
       case 'FamilyFolder':
-        // FIX D1: Extract member data for EC→HealthTracker navigation
-        return <FamilyFolderScreen user={user} onNavigate={(screen, data) => {
-          if (data?.member) setSelectedMember(data.member);
-          if (data?.familyId) setFamilyIdFilter(data.familyId);
-          if (data?.family) setSelectedFamily(data.family);
-          if (data?.taskId) setSelectedTaskId(data.taskId);
-          setCurrentScreen(screen);
-        }} onBack={() => setCurrentScreen('Dashboard')} />;
+        return <FamilyFolderScreen user={user} onNavigate={handleNavigate} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
       case 'FamilyRegistration':
-        return <FamilyRegistrationScreen onSave={handleFamilySave} user={user} onBack={() => setCurrentScreen('Dashboard')} />;
+        return <FamilyRegistrationScreen onSave={handleFamilySave} user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
       case 'MemberRegistration':
-        return <MemberRegistrationScreen key={`reg-${registrationKey}`} familyHead={selectedFamily} existingMember={selectedMember} onSave={handleMemberSave} onBack={() => setCurrentScreen('Dashboard')} />;
+        return <MemberRegistrationScreen key={`reg-${registrationKey}`} familyHead={selectedFamily} existingMember={selectedMember} onSave={handleMemberSave} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
       case 'MPRReport':
-        return <MPRReportScreen user={user} onBack={() => setCurrentScreen('Dashboard')} />;
+        return <MPRReportScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
       case 'MemberList':
         return <MemberListScreen 
                   user={user}
@@ -356,20 +357,13 @@ export default function App() {
                       setCurrentScreen('HealthTracker');
                     }
                   }}
-                  onNavigate={(screen, data) => {
-                    if (data?.familyId) setFamilyIdFilter(data.familyId);
-                    if (data?.family) setSelectedFamily(data.family);
-                    if (data?.member) setSelectedMember(data.member);
-                    if (data?.taskId) setSelectedTaskId(data.taskId);
-                    else setSelectedTaskId(null);
-                    setCurrentScreen(screen);
-                  }}
-                  onBack={() => setCurrentScreen('Dashboard')} 
+                  onNavigate={handleNavigate}
+                  onBack={() => setCurrentScreen(getHomeScreen(user))} 
                 />;
       case 'GoshwaraReport':
-        return <GoshwaraReportScreen user={user} onBack={() => setCurrentScreen('Dashboard')} />;
+        return <GoshwaraReportScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
       case 'AdminSetup':
-        return <AdminSetupScreen user={user} initialTab={adminSetupData} onBack={() => setCurrentScreen('Dashboard')} />;
+        return <AdminSetupScreen user={user} initialTab={adminSetupData} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
       case 'HealthTracker':
         return <HealthTrackerScreen 
                   user={user}
@@ -378,50 +372,37 @@ export default function App() {
                   onSave={(updatedMember) => {
                     setSelectedMember(null);
                     setSelectedTaskId(null);
-                    setCurrentScreen('Dashboard');
+                    setCurrentScreen(getHomeScreen(user));
                   }}
                   onBack={() => {
                     setSelectedTaskId(null);
-                    setCurrentScreen('Dashboard');
+                    setCurrentScreen(getHomeScreen(user));
                   }} 
                 />;
       case 'VitalEvents':
-        return <VitalEventsScreen user={user} onBack={() => setCurrentScreen('Dashboard')} />;
+        return <VitalEventsScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
       case 'VHND':
-        return <VHNDScreen user={user} onBack={() => setCurrentScreen('Dashboard')} />;
+        return <VHNDScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
       case 'Claims':
-        return <ClaimsScreen user={user} onBack={() => setCurrentScreen('Dashboard')} />;
+        return <ClaimsScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
       case 'Team':
-        return <TeamScreen user={user} onBack={() => setCurrentScreen('Dashboard')} />;
+        return <TeamScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
       case 'RateSettings':
-        return <AdminSettingsScreen user={user} onBack={() => setCurrentScreen('Dashboard')} />;
+        return <AdminSettingsScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
       case 'Logistics':
-        return <LogisticsScreen user={user} onBack={() => setCurrentScreen('Dashboard')} />;
+        return <LogisticsScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
       case 'Surveillance':
-        return <SurveillanceScreen user={user} onBack={() => setCurrentScreen('Dashboard')} />;
+        return <SurveillanceScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
       case 'Workplan':
-        return <WorkplanScreen user={user} onBack={() => setCurrentScreen('Dashboard')} onNavigate={(screen, data) => {
-          if (data?.member) setSelectedMember(data.member);
-          setCurrentScreen(screen);
-        }} />;
+        return <WorkplanScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} onNavigate={handleNavigate} />;
       case 'MODashboard':
-        return <MODashboard user={user} onBack={() => setCurrentScreen('Dashboard')} onNavigate={(screen, data) => {
-          if (data?.member) setSelectedMember(data.member);
-          if (data?.filter) setCurrentFilter(data.filter);
-          if (data?.initialTab) setAdminSetupData(data.initialTab);
-          setCurrentScreen(screen);
-        }} />;
+        return <MODashboard user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} onNavigate={handleNavigate} />;
       case 'AdminDashboard':
-        return <AdminDashboard user={user} onBack={() => setCurrentScreen('Dashboard')} onNavigate={(screen, data) => {
-          if (data?.initialTab) setAdminSetupData(data.initialTab);
-          setCurrentScreen(screen);
-        }} />;
+        return <AdminDashboard user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} onNavigate={handleNavigate} />;
       case 'Financials':
-        return <FinancialsScreen user={user} onBack={() => setCurrentScreen('Dashboard')} onNavigate={(screen, data) => {
-          setCurrentScreen(screen);
-        }} />;
+        return <FinancialsScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} onNavigate={handleNavigate} />;
       default:
-        return <DashboardScreen user={user} onNavigate={(screen) => setCurrentScreen(screen)} />;
+        return <DashboardScreen user={user} onNavigate={handleNavigate} />;
     }
   };
 
