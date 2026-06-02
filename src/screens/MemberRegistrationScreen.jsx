@@ -218,7 +218,7 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
                   style={[styles.chip, formData.gender === g && styles.chipActive]}
                   onPress={() => setFormData({ ...formData, gender: g })}
                 >
-                  <Text style={[styles.chipText, formData.gender === g && styles.chipTextActive]}>{g}</Text>
+                  <Text style={[styles.chipText, formData.gender === g && styles.chipTextActive]}>{t(g.toLowerCase())}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -532,19 +532,22 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 44,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   chipActive: {
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
   },
   chipText: {
-    fontSize: 12,
+    fontSize: 13,
     color: COLORS.textSecondary,
   },
   chipTextActive: {

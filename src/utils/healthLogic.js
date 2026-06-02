@@ -1,6 +1,7 @@
 /**
  * Rural Health Comprehensive Medical Logic
  */
+import { getMalnutritionStatus } from './whoGrowthCharts';
 
 /**
  * 1. Maternal Care (ANC & PNC)
@@ -411,18 +412,34 @@ export const generateAllTasks = (members) => {
 
     // 7. Malnutrition Follow-up (SAM/MAM)
     const muac = parseFloat(health.muac);
-    if (age <= 5 && muac > 0 && muac < 12.5) {
+    const weight = parseFloat(health.weight);
+    
+    // Calculate age in months
+    const dobDate = member.dob ? new Date(member.dob) : null;
+    const ageMonths = dobDate && !isNaN(dobDate.getTime())
+      ? (today.getFullYear() - dobDate.getFullYear()) * 12 + today.getMonth() - dobDate.getMonth()
+      : NaN;
+
+    let malStatus = 'Normal';
+    if (!isNaN(weight) && !isNaN(ageMonths) && ageMonths >= 0 && ageMonths <= 60) {
+      malStatus = getMalnutritionStatus(weight, ageMonths, member.gender);
+    }
+    
+    const isSam = (muac > 0 && muac < 11.5) || malStatus === 'SAM';
+    const isMam = (muac >= 11.5 && muac < 12.5) || malStatus === 'MAM';
+
+    if (age <= 5 && (isSam || isMam)) {
       generatedTasks.push({
         id: `sam-${member.id}`,
         member: member,
         memberId: member.id,
         memberName: `${member.firstName} ${member.lastName}`,
-        serviceType: muac < 11.5 ? 'SAM Care' : 'MAM Care',
+        serviceType: isSam ? 'SAM Care' : 'MAM Care',
         houseNo: member.houseNo || 'N/A',
         status: (health.completedTasks || []).includes(`sam-${member.id}`) ? 'completed' : 'pending',
-        details: muac < 11.5 
-          ? 'SAM Detected (MUAC < 11.5cm). Refer to Nutrition Rehabilitation Center (NRC).' 
-          : 'MAM Detected (MUAC < 12.5cm). Provide extra nutrition and weekly monitoring.',
+        details: isSam 
+          ? 'SAM Detected (Weight/MUAC low). Refer to Nutrition Rehabilitation Center (NRC).' 
+          : 'MAM Detected (Weight/MUAC low). Provide extra nutrition and weekly monitoring.',
         priority: 'High',
         dueDate: today
       });
@@ -519,13 +536,10 @@ export const calculateGracePeriod = (dueDate, days = 3) => {
   return d;
 };
 
-export const checkMalnutrition = (weight, height, ageMonths) => {
-  // Simplified Z-score logic for prototype
-  // In reality, this requires WHO growth charts interpolation
-  if (!weight || !height) return 'normal';
-  
-  // Fake simple logic:
-  const isSam = weight < 5 && ageMonths > 6; 
-  if (isSam) return 'high_risk'; // SAM
+export const checkMalnutrition = (weight, height, ageMonths, gender) => {
+  if (!weight) return 'normal';
+  const status = getMalnutritionStatus(weight, ageMonths, gender);
+  if (status === 'SAM') return 'high_risk';
+  if (status === 'MAM') return 'moderate_risk';
   return 'normal';
 };

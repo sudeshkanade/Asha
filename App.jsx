@@ -17,23 +17,24 @@ import DashboardScreen from './src/screens/DashboardScreen';
 import DailyTaskListScreen from './src/screens/DailyTaskListScreen';
 import FamilyRegistrationScreen from './src/screens/FamilyRegistrationScreen';
 import MemberRegistrationScreen from './src/screens/MemberRegistrationScreen';
-import MPRReportScreen from './src/screens/MPRReportScreen';
 import MemberListScreen from './src/screens/MemberListScreen';
-import GoshwaraReportScreen from './src/screens/GoshwaraReportScreen';
-import AdminSetupScreen from './src/screens/AdminSetupScreen';
 import HealthTrackerScreen from './src/screens/HealthTrackerScreen';
 import VitalEventsScreen from './src/screens/VitalEventsScreen';
 import VHNDScreen from './src/screens/VHNDScreen';
 import ClaimsScreen from './src/screens/ClaimsScreen';
 import TeamScreen from './src/screens/TeamScreen';
-import AdminSettingsScreen from './src/screens/AdminSettingsScreen';
 import FamilyFolderScreen from './src/screens/FamilyFolderScreen';
 import LogisticsScreen from './src/screens/LogisticsScreen';
 import SurveillanceScreen from './src/screens/SurveillanceScreen';
 import WorkplanScreen from './src/screens/WorkplanScreen';
-import MODashboard from './src/screens/MODashboard';
-import AdminDashboard from './src/screens/AdminDashboard';
 import FinancialsScreen from './src/screens/FinancialsScreen';
+
+const GoshwaraReportScreen = React.lazy(() => import('./src/screens/GoshwaraReportScreen'));
+const MPRReportScreen = React.lazy(() => import('./src/screens/MPRReportScreen'));
+const AdminSetupScreen = React.lazy(() => import('./src/screens/AdminSetupScreen'));
+const AdminSettingsScreen = React.lazy(() => import('./src/screens/AdminSettingsScreen'));
+const MODashboard = React.lazy(() => import('./src/screens/MODashboard'));
+const AdminDashboard = React.lazy(() => import('./src/screens/AdminDashboard'));
 import { storage, STORAGE_KEYS } from './src/database/storage';
 import { cloudSyncManager } from './src/database/cloudSync';
 import './src/locales/i18n';
@@ -44,6 +45,7 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState('Login');
   const [user, setUser] = useState(null);
   const [selectedFamily, setSelectedFamily] = useState(null);
+  const [navigationHistory, setNavigationHistory] = useState([{ screen: 'Login', data: null }]);
   const [selectedMember, setSelectedMember] = useState(null);
   const [currentFilter, setCurrentFilter] = useState(null);
   const [familyIdFilter, setFamilyIdFilter] = useState(null);
@@ -70,13 +72,9 @@ export default function App() {
           restoredUser = JSON.parse(storedUserStr);
           setUser(restoredUser);
           userRef.current = restoredUser;
-          if (restoredUser.role === 'Admin') {
-            setCurrentScreen('AdminDashboard');
-          } else if (restoredUser.role === 'MO') {
-            setCurrentScreen('MODashboard');
-          } else {
-            setCurrentScreen('Dashboard');
-          }
+          const homeScreen = restoredUser.role === 'Admin' ? 'AdminDashboard' : (restoredUser.role === 'MO' ? 'MODashboard' : 'Dashboard');
+          setNavigationHistory([{ screen: homeScreen, data: null }]);
+          setCurrentScreen(homeScreen);
         }
       } catch (e) {
         console.warn('Session restore failed:', e);
@@ -242,6 +240,7 @@ export default function App() {
       setFamilyIdFilter(null);
       setAdminSetupData(null);
       AsyncStorage.removeItem('LOGGED_IN_USER').catch(err => console.warn(err));
+      setNavigationHistory([{ screen: 'Login', data: null }]);
       setCurrentScreen('Login');
       return;
     }
@@ -249,24 +248,57 @@ export default function App() {
     if (data?.family) setSelectedFamily(data.family);
     if (data?.taskId) setSelectedTaskId(data.taskId);
     else setSelectedTaskId(null);
-    if (data?.filter) setCurrentFilter(data.filter);
+    // BUG-NAV-01 FIX: Accept both 'filter' and 'filterType' keys from callers (DashboardScreen uses filterType)
+    const resolvedFilter = data?.filterType || data?.filter || null;
+    setCurrentFilter(resolvedFilter);
     if (data?.familyId) setFamilyIdFilter(data.familyId);
+    else setFamilyIdFilter(null);
     if (data?.initialTab) setAdminSetupData(data.initialTab);
     else setAdminSetupData(null);
+
+    setNavigationHistory(prev => [...prev, {
+      screen,
+      data: {
+        member: data?.member || null,
+        family: data?.family || null,
+        taskId: data?.taskId || null,
+        filter: resolvedFilter,
+        familyId: data?.familyId || null,
+        initialTab: data?.initialTab || null
+      }
+    }]);
+
     setCurrentScreen(screen);
+  };
+
+  const handleGoBack = () => {
+    if (navigationHistory.length > 1) {
+      const updatedHistory = [...navigationHistory];
+      updatedHistory.pop(); // Remove current screen
+      const previousState = updatedHistory[updatedHistory.length - 1];
+      
+      // Restore contexts from previous state
+      const data = previousState.data;
+      setSelectedMember(data?.member || null);
+      setSelectedFamily(data?.family || null);
+      setSelectedTaskId(data?.taskId || null);
+      setCurrentFilter(data?.filter || null);
+      setFamilyIdFilter(data?.familyId || null); // BUG-STATE-03 FIX: always restore, not conditionally
+      setAdminSetupData(data?.initialTab || null);
+      
+      setNavigationHistory(updatedHistory);
+      setCurrentScreen(previousState.screen);
+    } else {
+      setCurrentScreen(getHomeScreen(user));
+    }
   };
 
   const handleLogin = (userData) => {
     setUser(userData);
     AsyncStorage.setItem('LOGGED_IN_USER', JSON.stringify(userData)).catch(err => console.warn(err));
-    if (userData.role === 'Admin') {
-      setCurrentScreen('AdminDashboard');
-    } else if (userData.role === 'MO') {
-      setCurrentScreen('MODashboard');
-    } else {
-      // ASHA, ANM, MPW, CHO all use the collaborative Dashboard
-      setCurrentScreen('Dashboard');
-    }
+    const homeScreen = userData.role === 'Admin' ? 'AdminDashboard' : (userData.role === 'MO' ? 'MODashboard' : 'Dashboard');
+    setNavigationHistory([{ screen: homeScreen, data: null }]);
+    setCurrentScreen(homeScreen);
   };
 
   const handleFamilySave = async (familyData) => {
@@ -323,7 +355,7 @@ export default function App() {
     } else {
       setSelectedMember(null);
       setSelectedFamily(null);
-      setCurrentScreen(getHomeScreen(user));
+      handleGoBack(); // BUG-NAV-02 FIX: use history pop, not direct home redirect
     }
   };
 
@@ -337,15 +369,15 @@ export default function App() {
                  onNavigate={handleNavigate} 
                />;
       case 'Tasks':
-        return <DailyTaskListScreen user={user} villageName={user?.village} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
+        return <DailyTaskListScreen user={user} villageName={user?.village} onBack={handleGoBack} />;
       case 'FamilyFolder':
-        return <FamilyFolderScreen user={user} onNavigate={handleNavigate} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
+        return <FamilyFolderScreen user={user} onNavigate={handleNavigate} onBack={handleGoBack} />;
       case 'FamilyRegistration':
-        return <FamilyRegistrationScreen onSave={handleFamilySave} user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
+        return <FamilyRegistrationScreen onSave={handleFamilySave} user={user} onBack={handleGoBack} />;
       case 'MemberRegistration':
-        return <MemberRegistrationScreen key={`reg-${registrationKey}`} familyHead={selectedFamily} existingMember={selectedMember} onSave={handleMemberSave} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
+        return <MemberRegistrationScreen key={`reg-${registrationKey}`} familyHead={selectedFamily} existingMember={selectedMember} onSave={handleMemberSave} onBack={handleGoBack} />;
       case 'MPRReport':
-        return <MPRReportScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
+        return <MPRReportScreen user={user} onBack={handleGoBack} />;
       case 'MemberList':
         return <MemberListScreen 
                   user={user}
@@ -353,17 +385,17 @@ export default function App() {
                   familyId={familyIdFilter}
                   onMemberSelect={(member) => {
                     if (member) {
-                      setSelectedMember(member);
-                      setCurrentScreen('HealthTracker');
+                      // BUG-NAV-03 FIX: use handleNavigate to push HealthTracker onto history stack
+                      handleNavigate('HealthTracker', { member });
                     }
                   }}
                   onNavigate={handleNavigate}
-                  onBack={() => setCurrentScreen(getHomeScreen(user))} 
+                  onBack={handleGoBack} 
                 />;
       case 'GoshwaraReport':
-        return <GoshwaraReportScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
+        return <GoshwaraReportScreen user={user} onBack={handleGoBack} />;
       case 'AdminSetup':
-        return <AdminSetupScreen user={user} initialTab={adminSetupData} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
+        return <AdminSetupScreen user={user} initialTab={adminSetupData} onBack={handleGoBack} />;
       case 'HealthTracker':
         return <HealthTrackerScreen 
                   user={user}
@@ -372,35 +404,35 @@ export default function App() {
                   onSave={(updatedMember) => {
                     setSelectedMember(null);
                     setSelectedTaskId(null);
-                    setCurrentScreen(getHomeScreen(user));
+                    handleGoBack();
                   }}
                   onBack={() => {
                     setSelectedTaskId(null);
-                    setCurrentScreen(getHomeScreen(user));
+                    handleGoBack();
                   }} 
                 />;
       case 'VitalEvents':
-        return <VitalEventsScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
+        return <VitalEventsScreen user={user} onBack={handleGoBack} />;
       case 'VHND':
-        return <VHNDScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
+        return <VHNDScreen user={user} onBack={handleGoBack} />;
       case 'Claims':
-        return <ClaimsScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
+        return <ClaimsScreen user={user} onBack={handleGoBack} />;
       case 'Team':
-        return <TeamScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
+        return <TeamScreen user={user} onBack={handleGoBack} />;
       case 'RateSettings':
-        return <AdminSettingsScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
+        return <AdminSettingsScreen user={user} onBack={handleGoBack} />;
       case 'Logistics':
-        return <LogisticsScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
+        return <LogisticsScreen user={user} onBack={handleGoBack} />;
       case 'Surveillance':
-        return <SurveillanceScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} />;
+        return <SurveillanceScreen user={user} onBack={handleGoBack} />;
       case 'Workplan':
-        return <WorkplanScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} onNavigate={handleNavigate} />;
+        return <WorkplanScreen user={user} onBack={handleGoBack} onNavigate={handleNavigate} />;
       case 'MODashboard':
-        return <MODashboard user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} onNavigate={handleNavigate} />;
+        return <MODashboard user={user} onBack={handleGoBack} onNavigate={handleNavigate} />;
       case 'AdminDashboard':
-        return <AdminDashboard user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} onNavigate={handleNavigate} />;
+        return <AdminDashboard user={user} onBack={handleGoBack} onNavigate={handleNavigate} />;
       case 'Financials':
-        return <FinancialsScreen user={user} onBack={() => setCurrentScreen(getHomeScreen(user))} onNavigate={handleNavigate} />;
+        return <FinancialsScreen user={user} onBack={handleGoBack} onNavigate={handleNavigate} />;
       default:
         return <DashboardScreen user={user} onNavigate={handleNavigate} />;
     }
@@ -409,7 +441,13 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <View style={styles.container}>
-        {renderScreen()}
+        <React.Suspense fallback={
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
+            <ActivityIndicator size="large" color="#0EA5E9" />
+          </View>
+        }>
+          {renderScreen()}
+        </React.Suspense>
       </View>
     </SafeAreaProvider>
   );

@@ -7,6 +7,7 @@ import {
   SafeAreaView,
   TouchableOpacity,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
@@ -22,6 +23,16 @@ const DashboardScreen = ({ user, onNavigate }) => {
   const [stats, setStats] = React.useState(null);
   const [exporting, setExporting] = React.useState(false);
   const [hwcRole, setHwcRole] = React.useState(user?.role || 'ANM'); // Internal role toggle
+
+  const [villages, setVillages] = React.useState([]);
+  const [quickFamilyHouseNo, setQuickFamilyHouseNo] = React.useState('');
+  const [quickFamilyVillageId, setQuickFamilyVillageId] = React.useState('');
+  const [quickEventName, setQuickEventName] = React.useState('');
+  const [quickEventType, setQuickEventType] = React.useState('Birth');
+  const [quickEventDate, setQuickEventDate] = React.useState('');
+  const [stockOrs, setStockOrs] = React.useState(100);
+  const [stockIfa, setStockIfa] = React.useState(500);
+  const [stockLoaded, setStockLoaded] = React.useState(false);
 
   const handleMasterExport = async () => {
     setExporting(true);
@@ -41,9 +52,24 @@ const DashboardScreen = ({ user, onNavigate }) => {
 
   React.useEffect(() => {
     loadLiveStats();
+    loadStockLevels(); // BUG-STOCK-01 FIX: hydrate stock widget from persistent storage
     // Auto-sync on launch
     cloudSyncManager.startBackgroundSync();
   }, []);
+
+  // BUG-STOCK-01 FIX: Load persisted stock levels from storage on mount
+  const loadStockLevels = async () => {
+    try {
+      const stockItems = await storage.getAll(STORAGE_KEYS.STOCK);
+      const ors = stockItems.find(s => s.id === 'quick_stock_ors');
+      const ifa = stockItems.find(s => s.id === 'quick_stock_ifa');
+      if (ors) setStockOrs(ors.quantity ?? 100);
+      if (ifa) setStockIfa(ifa.quantity ?? 500);
+      setStockLoaded(true);
+    } catch (e) {
+      setStockLoaded(true); // fall back to defaults silently
+    }
+  };
 
   const handleAddClosedBuilding = async () => {
     if (Platform.OS === 'web') {
@@ -97,12 +123,14 @@ const DashboardScreen = ({ user, onNavigate }) => {
 
       // BACKGROUND: Perform deep scan only if necessary or on a throttle
       // OPTIMIZATION: Fetch storage tables in parallel to prevent blocking calls
-      const [allMembers, vEvents, vhndSessions, events] = await Promise.all([
+      const [allMembers, vEvents, vhndSessions, events, allVillages] = await Promise.all([
         storage.getAll(STORAGE_KEYS.MEMBERS),
         storage.getAll(STORAGE_KEYS.VITAL_EVENTS),
         storage.getAll(STORAGE_KEYS.VHND_SESSIONS),
-        storage.getAll(STORAGE_KEYS.SYNC_QUEUE)
+        storage.getAll(STORAGE_KEYS.SYNC_QUEUE),
+        storage.getAll(STORAGE_KEYS.VILLAGES)
       ]);
+      setVillages(allVillages);
       
       let members = allMembers;
       if (user?.role === 'ASHA') {
@@ -118,6 +146,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
       // Calculate actual pending task count from real member profiles using healthLogic
       const generatedTasks = generateAllTasks(members);
       const pendingCount = generatedTasks.filter(t => t.status === 'pending').length;
+      const criticalCount = generatedTasks.filter(t => t.isEmergency && t.status === 'pending').length;
       
       const liveStats = generateMPRStats(members, vEvents, vhndSessions, events);
 
@@ -125,6 +154,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
       setStats(prev => ({
         ...prev,
         ...liveStats,
+        criticalCount,
         maternal: {
           ...prev?.maternal,
           ...liveStats?.maternal
@@ -139,6 +169,81 @@ const DashboardScreen = ({ user, onNavigate }) => {
     } catch (e) {
       console.error('Dashboard Stats Error:', e);
       setLoading(false);
+    }
+  };
+
+  const handleQuickFamilySave = async () => {
+    if (!quickFamilyHouseNo || !quickFamilyVillageId) {
+      Alert.alert(t('error'), 'House Number and Village are required.');
+      return;
+    }
+    const selectedVillage = villages.find(v => v.id === quickFamilyVillageId);
+    const newFamily = {
+      id: storage.generateId('fam', user?.id || 'sys'),
+      houseNo: quickFamilyHouseNo,
+      headName: 'Family Head (Quick Reg)',
+      ashaId: user?.id || 'sys',
+      villageId: quickFamilyVillageId,
+      villageName: selectedVillage?.name,
+      subCenterId: user?.subCenterId,
+      phcId: user?.phcId,
+      createdAt: new Date().toISOString(),
+      lastUpdatedAt: Date.now()
+    };
+    await storage.save(STORAGE_KEYS.FAMILIES, newFamily);
+    setQuickFamilyHouseNo('');
+    Alert.alert(t('success'), 'Family registered successfully!');
+    await loadLiveStats();
+  };
+
+  const handleQuickEventSave = async () => {
+    if (!quickEventName) {
+      Alert.alert(t('error'), 'Name is required.');
+      return;
+    }
+    const newEvent = {
+      id: storage.generateId('evt', user?.id || 'sys'),
+      type: quickEventType,
+      name: quickEventName,
+      date: quickEventDate || new Date().toISOString().split('T')[0],
+      ashaId: user?.id || 'sys',
+      villageId: user?.villageId,
+      subCenterId: user?.subCenterId,
+      phcId: user?.phcId,
+      createdAt: new Date().toISOString(),
+      lastUpdatedAt: Date.now()
+    };
+    await storage.save(STORAGE_KEYS.VITAL_EVENTS, newEvent);
+    setQuickEventName('');
+    setQuickEventDate('');
+    Alert.alert(t('success'), 'Vital event logged successfully!');
+    await loadLiveStats();
+  };
+
+  // BUG-STOCK-01 FIX: Persist stock changes to STORAGE_KEYS.STOCK
+  const handleQuickStockChange = async (item, amount) => {
+    if (item === 'ors') {
+      const newQty = Math.max(0, stockOrs + amount);
+      setStockOrs(newQty);
+      await storage.save(STORAGE_KEYS.STOCK, {
+        id: 'quick_stock_ors',
+        name: 'ORS Packets',
+        quantity: newQty,
+        ashaId: user?.id,
+        villageId: user?.villageId,
+        lastUpdatedAt: Date.now()
+      });
+    } else {
+      const newQty = Math.max(0, stockIfa + amount);
+      setStockIfa(newQty);
+      await storage.save(STORAGE_KEYS.STOCK, {
+        id: 'quick_stock_ifa',
+        name: 'IFA Tablets',
+        quantity: newQty,
+        ashaId: user?.id,
+        villageId: user?.villageId,
+        lastUpdatedAt: Date.now()
+      });
     }
   };
 
@@ -182,7 +287,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View style={{ flex: 1, marginRight: 8 }}>
-          <Text style={styles.headerTitle} numberOfLines={1}>{user?.role === 'ASHA' ? t('asha') : user?.role} {t('login')}</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{user?.role === 'ASHA' ? t('asha') : user?.role} {t('dashboard', 'Dashboard')}</Text>
           <Text style={styles.headerSubtitle} numberOfLines={1}>
             {user?.role === 'ASHA' ? `${user.village} (${t('ward')} ${user.ward || t('na')})` : user?.name}
           </Text>
@@ -270,6 +375,18 @@ const DashboardScreen = ({ user, onNavigate }) => {
         )}
       </View>
 
+      {stats?.criticalCount > 0 && (
+        <TouchableOpacity
+          style={{ backgroundColor: '#FEF2F2', borderLeftWidth: 4,
+            borderLeftColor: '#EF4444', padding: 12, margin: 12, borderRadius: 8, elevation: 1 }}
+          onPress={() => onNavigate('MemberList', { filterType: 'HIGH_RISK_ANC' })}
+        >
+          <Text style={{ color: '#DC2626', fontWeight: '800', fontSize: 14 }}>
+            🚨 {stats.criticalCount} {stats.criticalCount > 1 ? t('criticalCasesAlert', 'Critical Cases Need Immediate Attention') : t('criticalCaseAlert', 'Critical Case Needs Immediate Attention')}
+          </Text>
+        </TouchableOpacity>
+      )}
+
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Welcome Card */}
         <View style={styles.welcomeCard}>
@@ -316,6 +433,100 @@ const DashboardScreen = ({ user, onNavigate }) => {
               onPress={() => onNavigate('MemberList', { filterType: 'SAM_CHILDREN' })}
             />
           </View>
+        </View>
+
+        {/* Consolidated Control Panel & Restructured Widgets */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>{t('quickActionsControlPanel', 'Consolidated Quick Entry Widgets')}</Text>
+          
+          {/* Quick Family Registration Widget */}
+          <View style={styles.widgetCard}>
+            <Text style={styles.widgetTitle}>📁 {t('quickFamilyReg', 'Quick Family Registration')}</Text>
+            <TextInput
+              style={styles.widgetInput}
+              placeholder={t('houseNo')}
+              placeholderTextColor={COLORS.textSecondary}
+              value={quickFamilyHouseNo}
+              onChangeText={setQuickFamilyHouseNo}
+            />
+            <View style={styles.widgetPickerContainer}>
+              {villages.map(v => (
+                <TouchableOpacity 
+                  key={v.id}
+                  style={[styles.widgetChip, quickFamilyVillageId === v.id && styles.widgetChipActive]}
+                  onPress={() => setQuickFamilyVillageId(v.id)}
+                >
+                  <Text style={[styles.widgetChipText, quickFamilyVillageId === v.id && styles.widgetChipTextActive]}>{v.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity style={styles.widgetBtn} onPress={handleQuickFamilySave}>
+              <Text style={styles.widgetBtnText}>{t('registerFamily', 'Register Family')}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Quick Vital Event Log Widget */}
+          <View style={styles.widgetCard}>
+            <Text style={styles.widgetTitle}>👶 {t('quickVitalEvent', 'Quick Vital Event Log')}</Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+              {['Birth', 'Death'].map(type => (
+                <TouchableOpacity 
+                  key={type}
+                  style={[styles.widgetChip, quickEventType === type && styles.widgetChipActive, { flex: 1, alignItems: 'center' }]}
+                  onPress={() => setQuickEventType(type)}
+                >
+                  <Text style={[styles.widgetChipText, quickEventType === type && styles.widgetChipTextActive]}>{t(type.toLowerCase())}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput
+              style={styles.widgetInput}
+              placeholder={t('fullName')}
+              placeholderTextColor={COLORS.textSecondary}
+              value={quickEventName}
+              onChangeText={setQuickEventName}
+            />
+            <TextInput
+              style={styles.widgetInput}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={COLORS.textSecondary}
+              value={quickEventDate}
+              onChangeText={setQuickEventDate}
+            />
+            <TouchableOpacity style={[styles.widgetBtn, { backgroundColor: COLORS.secondary }]} onPress={handleQuickEventSave}>
+              <Text style={styles.widgetBtnText}>{t('registerEvent', 'Log Event')}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Quick Stock Manager Widget */}
+          <View style={styles.widgetCard}>
+            <Text style={styles.widgetTitle}>📦 {t('quickStockManager', 'Quick Stock Manager')}</Text>
+            
+            <View style={styles.stockItemRow}>
+              <Text style={styles.stockItemLabel}>{t('orsPackets', 'ORS Packets')}: {stockOrs}</Text>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                <TouchableOpacity style={styles.stockBtn} onPress={() => handleQuickStockChange('ors', -10)}>
+                  <Text style={styles.stockBtnText}>-10</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.stockBtn} onPress={() => handleQuickStockChange('ors', 10)}>
+                  <Text style={styles.stockBtnText}>+10</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.stockItemRow}>
+              <Text style={styles.stockItemLabel}>{t('ironTablets', 'Iron IFA Tablets')}: {stockIfa}</Text>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                <TouchableOpacity style={styles.stockBtn} onPress={() => handleQuickStockChange('ifa', -50)}>
+                  <Text style={styles.stockBtnText}>-50</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.stockBtn} onPress={() => handleQuickStockChange('ifa', 50)}>
+                  <Text style={styles.stockBtnText}>+50</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
         </View>
 
         {/* Registration & Population */}
@@ -933,6 +1144,101 @@ const styles = StyleSheet.create({
   },
   roleMiniTextActive: {
     color: '#FFF',
+  },
+  widgetCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: COLORS.cardShadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  widgetTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.primary,
+    marginBottom: 12,
+  },
+  widgetInput: {
+    height: 40,
+    backgroundColor: '#FAFAFA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+  widgetPickerContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 12,
+  },
+  widgetChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: '#FFF',
+  },
+  widgetChipActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  widgetChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+  },
+  widgetChipTextActive: {
+    color: '#FFF',
+  },
+  widgetBtn: {
+    height: 40,
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  widgetBtnText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  stockItemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  stockItemLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  stockBtn: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  stockBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: COLORS.primary,
   },
 });
 

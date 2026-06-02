@@ -75,31 +75,33 @@ const LoginScreen = ({ onLogin }) => {
       return;
     }
 
+    // BUG-LOGIN-01 FIX: Keep loading=true for the entire async flow (no mid-flow toggle)
     setLoading(true);
-    await cloudSyncManager.pullFromCloud();
-    const users = await storage.getAll(STORAGE_KEYS.USERS);
-    const user = users.find(u => u.username === formData.username && u.password === formData.password);
-    
-    setLoading(false);
-    if (user) {
-      if (user.approvalStatus === 'approved') {
-        setLoading(true);
-        try {
-          await storage.purgeOrphanedData(user);
-          await cloudSyncManager.pullFromCloud(user);
-          await cloudSyncManager.startBackgroundSync();
-        } catch (e) {
-          console.error("Login Sync Error:", e);
+    try {
+      await cloudSyncManager.pullFromCloud();
+      const users = await storage.getAll(STORAGE_KEYS.USERS);
+      const user = users.find(u => u.username === formData.username && u.password === formData.password);
+      
+      if (user) {
+        if (user.approvalStatus === 'approved') {
+          try {
+            await storage.purgeOrphanedData(user);
+            await cloudSyncManager.pullFromCloud(user);
+            await cloudSyncManager.startBackgroundSync();
+          } catch (e) {
+            console.error("Login Sync Error:", e);
+          }
+          onLogin(user); // setLoading never flickers — stays true until navigation away
+        } else if (user.approvalStatus === 'rejected') {
+          Alert.alert(t('accessDenied'), t('regRejected'));
+        } else {
+          Alert.alert(t('pendingApproval'), t('regPending'));
         }
-        setLoading(false);
-        onLogin(user);
-      } else if (user.approvalStatus === 'rejected') {
-        Alert.alert(t('accessDenied'), t('regRejected'));
       } else {
-        Alert.alert(t('pendingApproval'), t('regPending'));
+        Alert.alert(t('error'), t('invalidCredentials'));
       }
-    } else {
-      Alert.alert(t('error'), t('invalidCredentials'));
+    } finally {
+      setLoading(false);
     }
   };
 

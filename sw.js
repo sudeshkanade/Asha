@@ -4,10 +4,7 @@ const ASSETS_TO_CACHE = [
   './manifest.json',
   './icon.png',
   './icon.svg',
-  'https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Outfit:wght@600;800&display=swap',
-  'https://unpkg.com/react@18/umd/react.development.js',
-  'https://unpkg.com/react-dom@18/umd/react-dom.development.js',
-  'https://unpkg.com/@babel/standalone/babel.min.js'
+  'https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Outfit:wght@600;800&display=swap'
 ];
 
 // Install: Cache essential clinical assets
@@ -31,8 +28,30 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch: Network-first with timeout falling back to cache
+// Fetch: Cache-first for static assets/fonts, Network-first (with timeout) for dynamic/API requests
 self.addEventListener('fetch', event => {
+  const url = new URL(event.request.url);
+
+  // Cache-first for local static assets (Vite builds) and Google fonts
+  if (url.pathname.includes('/assets/') || url.hostname.includes('fonts.gstatic.com') || url.hostname.includes('fonts.googleapis.com')) {
+    event.respondWith(
+      caches.match(event.request).then(cachedResponse => {
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+        return fetch(event.request).then(networkResponse => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseCopy = networkResponse.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseCopy));
+          }
+          return networkResponse;
+        }).catch(() => caches.match(event.request));
+      })
+    );
+    return;
+  }
+
+  // Network-first with 5-second timeout for other requests (e.g. Firebase APIs, Firestore)
   const timeoutPromise = new Promise((_, reject) =>
     setTimeout(() => reject(new Error('Network timeout')), 5000)
   );

@@ -27,6 +27,8 @@ const FamilyRegistrationScreen = ({ user, onSave, onBack }) => {
     isBPL: false,
     rationCardNo: '',
     ward: user?.ward || '',
+    latitude: '',
+    longitude: '',
   });
 
   useEffect(() => {
@@ -118,6 +120,44 @@ const FamilyRegistrationScreen = ({ user, onSave, onBack }) => {
                 }}
               >
                 <Text style={styles.suggestBtnText}>{t('suggest')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>{t('gpsCoordinates', 'GPS Coordinates')}</Text>
+            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+              <TextInput
+                style={[styles.input, { flex: 1 }]}
+                placeholder="Latitude, Longitude"
+                placeholderTextColor={COLORS.textSecondary}
+                value={formData.latitude && formData.longitude ? `${formData.latitude}, ${formData.longitude}` : ''}
+                editable={false}
+              />
+              <TouchableOpacity 
+                style={[styles.suggestBtn, { backgroundColor: '#F0FDF4', borderColor: '#10B981' }]} 
+                onPress={() => {
+                  if (typeof navigator !== 'undefined' && navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                      (pos) => {
+                        setFormData({
+                          ...formData,
+                          latitude: pos.coords.latitude.toFixed(6),
+                          longitude: pos.coords.longitude.toFixed(6),
+                        });
+                        Alert.alert(t('success', 'Success'), t('gpsCaptured', 'GPS Coordinates captured successfully.'));
+                      },
+                      (err) => {
+                        Alert.alert(t('error'), t('gpsError', 'Failed to retrieve location. Please check browser permissions.'));
+                      },
+                      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+                    );
+                  } else {
+                    Alert.alert(t('error'), t('gpsNotSupported', 'Geolocation is not supported by this device.'));
+                  }
+                }}
+              >
+                <Text style={[styles.suggestBtnText, { color: '#10B981' }]}>📍 {t('capture', 'Capture')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -306,19 +346,22 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 44,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   chipActive: {
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
   },
   chipText: {
-    fontSize: 12,
+    fontSize: 13,
     color: COLORS.textSecondary,
   },
   chipTextActive: {

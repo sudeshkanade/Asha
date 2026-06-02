@@ -48,6 +48,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
       hasCoughTwoWeeks: member?.healthData?.tbScreening?.hasCoughTwoWeeks || false,
       hasFever: member?.healthData?.tbScreening?.hasFever || false,
       hasNightSweats: member?.healthData?.tbScreening?.hasNightSweats || false,
+      hasWeightLoss: member?.healthData?.tbScreening?.hasWeightLoss || false, // BUG-TB-01 FIX: was missing
     },
     hasFeverWithChills: member?.healthData?.hasFeverWithChills || false,
     hasSkinPatches: member?.healthData?.hasSkinPatches || false,
@@ -61,6 +62,40 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
   const showMaternal = member ? shouldShowMaternalFields(member.gender, memberAge) : true;
   const isEC = member?.gender === 'Female' && memberAge >= 15 && memberAge <= 49 && !member?.healthData?.isPregnant;
   const isChild = memberAge < 17;
+
+  const weightVal = parseFloat(tracker.weight) || (member?.healthData?.weight ? parseFloat(member.healthData.weight) : NaN);
+  const heightVal = parseFloat(tracker.height) || (member?.healthData?.height ? parseFloat(member.healthData.height) : NaN);
+  
+  const bmi = !isNaN(weightVal) && !isNaN(heightVal) && heightVal > 0
+    ? (weightVal / Math.pow(heightVal / 100, 2)).toFixed(1)
+    : null;
+
+  const bmiCategory = bmi
+    ? bmi < 18.5 ? { label: t('underweight', 'Underweight'), color: '#F59E0B' }
+    : bmi < 25   ? { label: t('normal', 'Normal'),      color: '#10B981' }
+    : bmi < 30   ? { label: t('overweight', 'Overweight'),  color: '#F59E0B' }
+    :               { label: t('obese', 'Obese'),       color: '#EF4444' }
+    : null;
+
+  const calculateGestationalWeeks = () => {
+    if (!tracker.lmp || tracker.lmp.length !== 10) return null;
+    const parts = tracker.lmp.split('/');
+    if (parts.length !== 3) return null;
+    const lmpDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+    if (isNaN(lmpDate.getTime())) return null;
+    
+    const diffMs = new Date() - lmpDate;
+    const weeks = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+    
+    let trimester = '';
+    if (weeks <= 12) trimester = '1st Trimester';
+    else if (weeks <= 28) trimester = '2nd Trimester';
+    else trimester = '3rd Trimester';
+    
+    return { weeks, trimester };
+  };
+
+  const ga = calculateGestationalWeeks();
 
   const tabs = [];
   if (showMaternal) tabs.push('ANC');
@@ -284,9 +319,16 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
             </View>
             
             {tracker.edd ? (
-              <Text style={{ fontSize: 13, color: COLORS.primary, marginBottom: 16, fontWeight: '600' }}>
-                {t('autoEdd')}: {tracker.edd}
-              </Text>
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ fontSize: 13, color: COLORS.primary, fontWeight: '600', marginBottom: 4 }}>
+                  {t('autoEdd')}: {tracker.edd}
+                </Text>
+                {ga && (
+                  <Text style={{ fontSize: 13, color: COLORS.secondary, fontWeight: '700' }}>
+                    {t('gestationalAge', 'Gestational Age')}: {ga.weeks} {t('weeks', 'weeks')} ({t(ga.trimester.toLowerCase().replace(/ /g, ''), ga.trimester)})
+                  </Text>
+                )}
+              </View>
             ) : null}
 
             <View style={styles.row}>
@@ -334,7 +376,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
 
         {activeTab === 'ANC' && !showMaternal && (
           <View style={styles.card}>
-            <Text style={styles.emptyText}>ANC tracking is available for females aged 15-49.</Text>
+            <Text style={styles.emptyText}>{t('ancFemaleOnlyNotice', 'ANC tracking is available for females aged 15-49.')}</Text>
           </View>
         )}
 
@@ -344,6 +386,22 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
               <Text style={styles.sectionTitle}>{t('growthMonitoring', 'Growth Monitoring')}</Text>
               <RenderInput label={t('weight') + ' (kg)'} value={tracker.weight} onChange={(t) => setTracker({...tracker, weight: t})} placeholder="e.g. 10.5" keyboardType="numeric" />
               <RenderInput label={t('height') + ' (cm)'} value={tracker.height} onChange={(t) => setTracker({...tracker, height: t})} placeholder="e.g. 85" keyboardType="numeric" />
+              
+              {bmi && (
+                <View style={{ 
+                  padding: 12, 
+                  backgroundColor: bmiCategory.color + '20',
+                  borderRadius: 8, 
+                  borderLeftWidth: 4, 
+                  borderLeftColor: bmiCategory.color,
+                  marginBottom: 16
+                }}>
+                  <Text style={{ fontWeight: '700', color: bmiCategory.color }}>
+                    BMI: {bmi} — {bmiCategory.label}
+                  </Text>
+                </View>
+              )}
+              
               <RenderInput label={t('muac') + ' (cm)'} value={tracker.muac} onChange={(t) => setTracker({...tracker, muac: t})} placeholder="e.g. 12.5" keyboardType="numeric" />
               
               <View style={styles.switchRow}>
@@ -364,7 +422,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
                   </View>
                 ))
               ) : (
-                <Text style={styles.emptyText}>No HBNC schedule found.</Text>
+                <Text style={styles.emptyText}>{t('noHbncSchedule', 'No HBNC schedule found.')}</Text>
               )}
             </View>
 
@@ -383,7 +441,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
                   </View>
                 ))
               ) : (
-                <Text style={styles.emptyText}>No immunization schedule found.</Text>
+                <Text style={styles.emptyText}>{t('noImmunizationSchedule', 'No immunization schedule found.')}</Text>
               )}
             </View>
           </>
@@ -534,9 +592,9 @@ const styles = StyleSheet.create({
   saveButton: { height: 52, backgroundColor: COLORS.primary, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
   saveButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
   pickerContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#FFF' },
+  chip: { paddingHorizontal: 16, paddingVertical: 12, minHeight: 44, borderRadius: 22, borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
   chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  chipText: { fontSize: 12, color: COLORS.textSecondary },
+  chipText: { fontSize: 13, color: COLORS.textSecondary },
   chipTextActive: { color: '#FFF', fontWeight: '700' },
 });
 

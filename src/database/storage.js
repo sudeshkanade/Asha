@@ -191,10 +191,11 @@ export const storage = {
       };
 
       if (oldData) {
-        summary.totalMembers--;
-        if (oldData.healthData?.isPregnant) summary.totalPregnant--;
-        if (oldData.healthData?.isHighRisk) summary.totalHighRisk--;
-        if ((parseInt(oldData.age) || 0) < 5) summary.totalChildren--;
+        // BUG-STATE-02 FIX: use Math.max(0,...) to prevent negative counters on concurrent updates
+        summary.totalMembers = Math.max(0, summary.totalMembers - 1);
+        if (oldData.healthData?.isPregnant) summary.totalPregnant = Math.max(0, summary.totalPregnant - 1);
+        if (oldData.healthData?.isHighRisk) summary.totalHighRisk = Math.max(0, summary.totalHighRisk - 1);
+        if ((parseInt(oldData.age) || 0) < 5) summary.totalChildren = Math.max(0, summary.totalChildren - 1);
       }
 
       summary.totalMembers++;

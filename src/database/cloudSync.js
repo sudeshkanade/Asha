@@ -89,11 +89,12 @@ export const cloudSyncManager = {
       for (let i = 0; i < queue.length; i++) {
         const item = queue[i];
         try {
-          // RUTHLESS FIX: Prevent Sync Starvation & Battery Drain
-          // Check if item has a backoff timer (don't retry more than once every 5 mins)
+          // PERF-01 FIX: Only apply backoff to items that have already been attempted
+          // New items (no lastAttemptAt) should always be processed immediately
           const now = Date.now();
           const lastAttempt = item.lastAttemptAt || 0;
-          if (now - lastAttempt < 300000) { // 5 minute backoff
+          const isRetry = item.retryCount > 0;
+          if (isRetry && now - lastAttempt < 300000) { // 5 minute backoff only for retries
             remainingQueue.push(item);
             continue;
           }
@@ -197,13 +198,15 @@ export const cloudSyncManager = {
         }
       }
 
-      // RUTHLESS FIX: Atomic Queue Cleanup
-      // Do NOT overwrite the whole queue with remainingQueue.
-      // Another save might have happened while we were syncing!
-      const latestQueue = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
-      const processedIds = queue.filter(item => !remainingQueue.includes(item)).map(item => item.timestamp);
+      // BUG-SYNC-01 FIX: Use item.id (unique) for dedup instead of timestamp
+      // which could collide when items are created in the same millisecond.
+      const processedItemIds = new Set(
+        queue
+          .filter(item => !remainingQueue.includes(item))
+          .map(item => item.id)
+      );
       
-      const finalQueue = latestQueue.filter(item => !processedIds.includes(item.timestamp));
+      const finalQueue = latestQueue.filter(item => !processedItemIds.has(item.id));
       await storage.saveAll(STORAGE_KEYS.SYNC_QUEUE, finalQueue);
 
       const elapsed = Date.now() - startTime;

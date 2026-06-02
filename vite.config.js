@@ -10,7 +10,7 @@ export default defineConfig({
   plugins: [react()],
   define: {
     global: 'window',
-    __DEV__: JSON.stringify(true),
+    __DEV__: JSON.stringify(process.env.NODE_ENV !== 'production'),
   },
   resolve: {
     alias: {
@@ -18,6 +18,31 @@ export default defineConfig({
       'react-native': 'react-native-web',
     },
     extensions: ['.web.js', '.jsx', '.js', '.json'],
+  },
+  build: {
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+        pure_funcs: ['console.warn'],
+      },
+    },
+    target: 'es2015',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-native-web'],
+          'vendor-firebase': ['firebase/app', 'firebase/firestore'],
+          'vendor-xlsx': ['xlsx'],
+          'screens-heavy': [
+            './src/screens/GoshwaraReportScreen',
+            './src/screens/MPRReportScreen',
+            './src/screens/AdminSetupScreen',
+          ],
+        },
+      },
+    },
   },
   server: {
     port: 3000,
