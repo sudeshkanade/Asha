@@ -39,13 +39,21 @@ const AdminDashboard = ({ user, onBack, onNavigate }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>{t('adminDashboard', 'Admin Panel')}</Text>
           <Text style={styles.headerSubtitle}>{t('districtManagement', 'District Infrastructure & Control')}</Text>
         </View>
-        <TouchableOpacity style={styles.profileBtn} onPress={() => onNavigate('Login')}>
-          <Text style={styles.profileIcon}>🚪</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <TouchableOpacity 
+            style={styles.breakoutBtn} 
+            onPress={() => onNavigate('Dashboard')}
+          >
+            <Text style={styles.breakoutBtnText}>{t('exitToAppDashboard', 'Exit to App Dashboard')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.profileBtn} onPress={() => onNavigate('Login')}>
+            <Text style={styles.profileIcon}>🚪</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView style={{ flex: 1, padding: 16 }}>
@@ -153,6 +161,19 @@ const styles = StyleSheet.create({
   maintenanceTitle: { fontSize: 16, fontWeight: '800', color: COLORS.text, marginBottom: 16 },
   maintenanceBtn: { backgroundColor: '#475569', padding: 16, borderRadius: 12, alignItems: 'center' },
   maintenanceBtnText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  breakoutBtn: {
+    backgroundColor: '#0EA5E9',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#38BDF8',
+  },
+  breakoutBtnText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
 });
 
 export default AdminDashboard;

@@ -25,11 +25,13 @@ const DashboardScreen = ({ user, onNavigate }) => {
   const [hwcRole, setHwcRole] = React.useState(user?.role || 'ANM'); // Internal role toggle
 
   const [villages, setVillages] = React.useState([]);
+  const [activeWidget, setActiveWidget] = React.useState('family'); // family, event, stock
   const [quickFamilyHouseNo, setQuickFamilyHouseNo] = React.useState('');
   const [quickFamilyVillageId, setQuickFamilyVillageId] = React.useState('');
   const [quickEventName, setQuickEventName] = React.useState('');
   const [quickEventType, setQuickEventType] = React.useState('Birth');
   const [quickEventDate, setQuickEventDate] = React.useState('');
+  const [quickEventVillageId, setQuickEventVillageId] = React.useState('');
   const [stockOrs, setStockOrs] = React.useState(100);
   const [stockIfa, setStockIfa] = React.useState(500);
   const [stockLoaded, setStockLoaded] = React.useState(false);
@@ -121,6 +123,27 @@ const DashboardScreen = ({ user, onNavigate }) => {
         });
       }
 
+      // Determine local villages list for ASHA
+      let localVillages = [];
+      if (user?.role === 'ASHA') {
+        const assigned = user.assignedVillages || [];
+        localVillages = assigned.map(v => {
+          if (typeof v === 'string') {
+            return { id: v, name: v === user.villageId ? (user.village || v) : v };
+          } else if (v && typeof v === 'object') {
+            return {
+              id: v.id || v.villageId || v.value || '',
+              name: v.name || v.villageName || v.label || v.id || ''
+            };
+          }
+          return null;
+        }).filter(v => v && v.id);
+
+        if (localVillages.length === 0 && user.villageId) {
+          localVillages.push({ id: user.villageId, name: user.village || 'My Village' });
+        }
+      }
+
       // BACKGROUND: Perform deep scan only if necessary or on a throttle
       // OPTIMIZATION: Fetch storage tables in parallel to prevent blocking calls
       const [allMembers, vEvents, vhndSessions, events, allVillages] = await Promise.all([
@@ -128,13 +151,17 @@ const DashboardScreen = ({ user, onNavigate }) => {
         storage.getAll(STORAGE_KEYS.VITAL_EVENTS),
         storage.getAll(STORAGE_KEYS.VHND_SESSIONS),
         storage.getAll(STORAGE_KEYS.SYNC_QUEUE),
-        storage.getAll(STORAGE_KEYS.VILLAGES)
+        user?.role === 'ASHA' ? Promise.resolve([]) : storage.getAll(STORAGE_KEYS.VILLAGES)
       ]);
-      setVillages(allVillages);
+
+      const finalVillages = user?.role === 'ASHA' ? localVillages : allVillages;
+      setVillages(finalVillages);
+
+      const assignedIds = new Set(finalVillages.map(v => v.id));
       
       let members = allMembers;
       if (user?.role === 'ASHA') {
-        members = allMembers.filter(m => m.ashaId === user.id || m.villageId === user.villageId);
+        members = allMembers.filter(m => !m.villageId || m.ashaId === user.id || assignedIds.has(m.villageId));
       } else if (user?.role === 'ANM') {
         members = allMembers.filter(m => m.subCenterId === user.subCenterId);
       } else if (user?.role === 'MO') {
@@ -177,6 +204,13 @@ const DashboardScreen = ({ user, onNavigate }) => {
       Alert.alert(t('error'), 'House Number and Village are required.');
       return;
     }
+    if (user?.role === 'ASHA') {
+      const assignedIds = new Set(villages.map(v => v.id));
+      if (!assignedIds.has(quickFamilyVillageId)) {
+        Alert.alert(t('error'), 'Selected village is not assigned to you.');
+        return;
+      }
+    }
     const selectedVillage = villages.find(v => v.id === quickFamilyVillageId);
     const newFamily = {
       id: storage.generateId('fam', user?.id || 'sys'),
@@ -192,6 +226,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
     };
     await storage.save(STORAGE_KEYS.FAMILIES, newFamily);
     setQuickFamilyHouseNo('');
+    setQuickFamilyVillageId('');
     Alert.alert(t('success'), 'Family registered successfully!');
     await loadLiveStats();
   };
@@ -201,13 +236,27 @@ const DashboardScreen = ({ user, onNavigate }) => {
       Alert.alert(t('error'), 'Name is required.');
       return;
     }
+    const finalVillageId = user?.role === 'ASHA' ? quickEventVillageId : user?.villageId;
+    if (user?.role === 'ASHA' && !finalVillageId) {
+      Alert.alert(t('error'), 'Please select a village.');
+      return;
+    }
+    if (user?.role === 'ASHA') {
+      const assignedIds = new Set(villages.map(v => v.id));
+      if (!assignedIds.has(finalVillageId)) {
+        Alert.alert(t('error'), 'Selected village is not assigned to you.');
+        return;
+      }
+    }
+    const selectedVillage = villages.find(v => v.id === finalVillageId);
     const newEvent = {
       id: storage.generateId('evt', user?.id || 'sys'),
       type: quickEventType,
       name: quickEventName,
       date: quickEventDate || new Date().toISOString().split('T')[0],
       ashaId: user?.id || 'sys',
-      villageId: user?.villageId,
+      villageId: finalVillageId,
+      villageName: selectedVillage?.name || user?.village,
       subCenterId: user?.subCenterId,
       phcId: user?.phcId,
       createdAt: new Date().toISOString(),
@@ -216,6 +265,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
     await storage.save(STORAGE_KEYS.VITAL_EVENTS, newEvent);
     setQuickEventName('');
     setQuickEventDate('');
+    setQuickEventVillageId('');
     Alert.alert(t('success'), 'Vital event logged successfully!');
     await loadLiveStats();
   };
@@ -436,98 +486,155 @@ const DashboardScreen = ({ user, onNavigate }) => {
         </View>
 
         {/* Consolidated Control Panel & Restructured Widgets */}
-        <View style={styles.section}>
-          <Text style={styles.sectionHeader}>{t('quickActionsControlPanel', 'Consolidated Quick Entry Widgets')}</Text>
-          
-          {/* Quick Family Registration Widget */}
-          <View style={styles.widgetCard}>
-            <Text style={styles.widgetTitle}>📁 {t('quickFamilyReg', 'Quick Family Registration')}</Text>
-            <TextInput
-              style={styles.widgetInput}
-              placeholder={t('houseNo')}
-              placeholderTextColor={COLORS.textSecondary}
-              value={quickFamilyHouseNo}
-              onChangeText={setQuickFamilyHouseNo}
-            />
-            <View style={styles.widgetPickerContainer}>
-              {villages.map(v => (
-                <TouchableOpacity 
-                  key={v.id}
-                  style={[styles.widgetChip, quickFamilyVillageId === v.id && styles.widgetChipActive]}
-                  onPress={() => setQuickFamilyVillageId(v.id)}
-                >
-                  <Text style={[styles.widgetChipText, quickFamilyVillageId === v.id && styles.widgetChipTextActive]}>{v.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TouchableOpacity style={styles.widgetBtn} onPress={handleQuickFamilySave}>
-              <Text style={styles.widgetBtnText}>{t('registerFamily', 'Register Family')}</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Quick Vital Event Log Widget */}
-          <View style={styles.widgetCard}>
-            <Text style={styles.widgetTitle}>👶 {t('quickVitalEvent', 'Quick Vital Event Log')}</Text>
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
-              {['Birth', 'Death'].map(type => (
-                <TouchableOpacity 
-                  key={type}
-                  style={[styles.widgetChip, quickEventType === type && styles.widgetChipActive, { flex: 1, alignItems: 'center' }]}
-                  onPress={() => setQuickEventType(type)}
-                >
-                  <Text style={[styles.widgetChipText, quickEventType === type && styles.widgetChipTextActive]}>{t(type.toLowerCase())}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TextInput
-              style={styles.widgetInput}
-              placeholder={t('fullName')}
-              placeholderTextColor={COLORS.textSecondary}
-              value={quickEventName}
-              onChangeText={setQuickEventName}
-            />
-            <TextInput
-              style={styles.widgetInput}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={COLORS.textSecondary}
-              value={quickEventDate}
-              onChangeText={setQuickEventDate}
-            />
-            <TouchableOpacity style={[styles.widgetBtn, { backgroundColor: COLORS.secondary }]} onPress={handleQuickEventSave}>
-              <Text style={styles.widgetBtnText}>{t('registerEvent', 'Log Event')}</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Quick Stock Manager Widget */}
-          <View style={styles.widgetCard}>
-            <Text style={styles.widgetTitle}>📦 {t('quickStockManager', 'Quick Stock Manager')}</Text>
+        {['ASHA', 'ANM', 'MPW', 'CHO'].includes(user?.role) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionHeader}>{t('quickActionsControlPanel', 'Consolidated Quick Entry Widgets')}</Text>
             
-            <View style={styles.stockItemRow}>
-              <Text style={styles.stockItemLabel}>{t('orsPackets', 'ORS Packets')}: {stockOrs}</Text>
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                <TouchableOpacity style={styles.stockBtn} onPress={() => handleQuickStockChange('ors', -10)}>
-                  <Text style={styles.stockBtnText}>-10</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.stockBtn} onPress={() => handleQuickStockChange('ors', 10)}>
-                  <Text style={styles.stockBtnText}>+10</Text>
-                </TouchableOpacity>
-              </View>
+            {/* Three prominent Quick Action buttons */}
+            <View style={styles.quickActionsGrid}>
+              <TouchableOpacity
+                style={[styles.quickActionBtn, activeWidget === 'family' && styles.quickActionBtnActive]}
+                onPress={() => setActiveWidget('family')}
+              >
+                <Text style={styles.quickActionIcon}>📁</Text>
+                <Text style={[styles.quickActionLabelText, activeWidget === 'family' && styles.quickActionLabelTextActive]}>
+                  {t('quickFamilyReg', 'Family Reg')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.quickActionBtn, activeWidget === 'event' && styles.quickActionBtnActive]}
+                onPress={() => setActiveWidget('event')}
+              >
+                <Text style={styles.quickActionIcon}>👶</Text>
+                <Text style={[styles.quickActionLabelText, activeWidget === 'event' && styles.quickActionLabelTextActive]}>
+                  {t('quickVitalEvent', 'Vital Events')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.quickActionBtn, activeWidget === 'stock' && styles.quickActionBtnActive]}
+                onPress={() => setActiveWidget('stock')}
+              >
+                <Text style={styles.quickActionIcon}>📦</Text>
+                <Text style={[styles.quickActionLabelText, activeWidget === 'stock' && styles.quickActionLabelTextActive]}>
+                  {t('quickStockManager', 'Stock Manager')}
+                </Text>
+              </TouchableOpacity>
             </View>
 
-            <View style={styles.stockItemRow}>
-              <Text style={styles.stockItemLabel}>{t('ironTablets', 'Iron IFA Tablets')}: {stockIfa}</Text>
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                <TouchableOpacity style={styles.stockBtn} onPress={() => handleQuickStockChange('ifa', -50)}>
-                  <Text style={styles.stockBtnText}>-50</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.stockBtn} onPress={() => handleQuickStockChange('ifa', 50)}>
-                  <Text style={styles.stockBtnText}>+50</Text>
+            {/* Active Widget Form */}
+            {activeWidget === 'family' && (
+              <View style={styles.widgetCard}>
+                <Text style={styles.widgetTitle}>📁 {t('quickFamilyReg', 'Quick Family Registration')}</Text>
+                <TextInput
+                  style={styles.widgetInput}
+                  placeholder={t('houseNo')}
+                  placeholderTextColor={COLORS.textSecondary}
+                  value={quickFamilyHouseNo}
+                  onChangeText={setQuickFamilyHouseNo}
+                />
+                <Text style={styles.widgetSubTitle}>{t('selectVillage', 'Select Village')}</Text>
+                <View style={styles.widgetPickerContainer}>
+                  {villages.map(v => (
+                    <TouchableOpacity 
+                      key={v.id}
+                      style={[styles.widgetChip, quickFamilyVillageId === v.id && styles.widgetChipActive]}
+                      onPress={() => setQuickFamilyVillageId(v.id)}
+                    >
+                      <Text style={[styles.widgetChipText, quickFamilyVillageId === v.id && styles.widgetChipTextActive]}>{v.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TouchableOpacity style={styles.widgetBtn} onPress={handleQuickFamilySave}>
+                  <Text style={styles.widgetBtnText}>{t('registerFamily', 'Register Family')}</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            )}
+
+            {activeWidget === 'event' && (
+              <View style={styles.widgetCard}>
+                <Text style={styles.widgetTitle}>👶 {t('quickVitalEvent', 'Quick Vital Event Log')}</Text>
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+                  {['Birth', 'Death'].map(type => (
+                    <TouchableOpacity 
+                      key={type}
+                      style={[styles.widgetChip, quickEventType === type && styles.widgetChipActive, { flex: 1, alignItems: 'center' }]}
+                      onPress={() => setQuickEventType(type)}
+                    >
+                      <Text style={[styles.widgetChipText, quickEventType === type && styles.widgetChipTextActive]}>{t(type.toLowerCase())}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TextInput
+                  style={styles.widgetInput}
+                  placeholder={t('fullName')}
+                  placeholderTextColor={COLORS.textSecondary}
+                  value={quickEventName}
+                  onChangeText={setQuickEventName}
+                />
+                <TextInput
+                  style={styles.widgetInput}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={COLORS.textSecondary}
+                  value={quickEventDate}
+                  onChangeText={setQuickEventDate}
+                />
+                
+                {/* Village Selector for Vital Event Log (Required for ASHA role fix) */}
+                {user?.role === 'ASHA' && (
+                  <View style={{ marginBottom: 10 }}>
+                    <Text style={styles.widgetSubTitle}>{t('selectVillage', 'Select Village')}</Text>
+                    <View style={styles.widgetPickerContainer}>
+                      {villages.map(v => (
+                        <TouchableOpacity 
+                          key={v.id}
+                          style={[styles.widgetChip, quickEventVillageId === v.id && styles.widgetChipActive]}
+                          onPress={() => setQuickEventVillageId(v.id)}
+                        >
+                          <Text style={[styles.widgetChipText, quickEventVillageId === v.id && styles.widgetChipTextActive]}>{v.name}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                <TouchableOpacity style={[styles.widgetBtn, { backgroundColor: COLORS.secondary }]} onPress={handleQuickEventSave}>
+                  <Text style={styles.widgetBtnText}>{t('registerEvent', 'Log Event')}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {activeWidget === 'stock' && (
+              <View style={styles.widgetCard}>
+                <Text style={styles.widgetTitle}>📦 {t('quickStockManager', 'Quick Stock Manager')}</Text>
+                
+                <View style={styles.stockItemRow}>
+                  <Text style={styles.stockItemLabel}>{t('orsPackets', 'ORS Packets')}: {stockOrs}</Text>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <TouchableOpacity style={styles.stockBtn} onPress={() => handleQuickStockChange('ors', -10)}>
+                      <Text style={styles.stockBtnText}>-10</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.stockBtn} onPress={() => handleQuickStockChange('ors', 10)}>
+                      <Text style={styles.stockBtnText}>+10</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.stockItemRow}>
+                  <Text style={styles.stockItemLabel}>{t('ironTablets', 'Iron IFA Tablets')}: {stockIfa}</Text>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <TouchableOpacity style={styles.stockBtn} onPress={() => handleQuickStockChange('ifa', -50)}>
+                      <Text style={styles.stockBtnText}>-50</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.stockBtn} onPress={() => handleQuickStockChange('ifa', 50)}>
+                      <Text style={styles.stockBtnText}>+50</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            )}
+
           </View>
-
-        </View>
+        )}
 
         {/* Registration & Population */}
         <View style={styles.section}>
@@ -1239,6 +1346,45 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: COLORS.primary,
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  quickActionBtn: {
+    flex: 1,
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 14,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    elevation: 1,
+  },
+  quickActionBtnActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: '#F0F9FF',
+  },
+  quickActionIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  quickActionLabelText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
+  quickActionLabelTextActive: {
+    color: COLORS.primary,
+  },
+  widgetSubTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+    marginTop: 8,
+    marginBottom: 6,
   },
 });
 

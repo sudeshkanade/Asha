@@ -272,7 +272,22 @@ export const cloudSyncManager = {
 
             switch (user.role) {
               case 'ASHA':
-                q = query(q, where("villageId", "==", user.villageId || 'FORCE_BLOCK'));
+                if (user.assignedVillages && user.assignedVillages.length > 0) {
+                  const assignedIds = user.assignedVillages.map(v => {
+                    if (typeof v === 'string') return v;
+                    if (v && typeof v === 'object') return v.id || v.villageId;
+                    return null;
+                  }).filter(Boolean);
+                  
+                  if (assignedIds.length > 0) {
+                    const slicedIds = assignedIds.slice(0, 10);
+                    q = query(q, where("villageId", "in", slicedIds));
+                  } else {
+                    q = query(q, where("villageId", "==", user.villageId || 'FORCE_BLOCK'));
+                  }
+                } else {
+                  q = query(q, where("villageId", "==", user.villageId || 'FORCE_BLOCK'));
+                }
                 break;
               case 'ANM':
               case 'MPW':

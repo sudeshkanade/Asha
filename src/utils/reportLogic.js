@@ -6,12 +6,12 @@
  * Members come from MEMBERS storage with standard fields + healthData.
  */
 
-export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], pendingEvents = []) => {
+export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], pendingEvents = [], selectedMonth = null, selectedYear = null) => {
   const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
+  const currentMonth = selectedMonth !== null ? selectedMonth : now.getMonth();
+  const currentYear = selectedYear !== null ? selectedYear : now.getFullYear();
 
-  // Filter helper: Only records from the current calendar month
+  // Filter helper: Only records from the selected calendar month and year
   const isCurrentMonth = (dateStr) => {
     if (!dateStr) return false;
     const ts = typeof dateStr === 'number' ? dateStr : Date.parse(dateStr);
@@ -187,7 +187,7 @@ export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], p
     ncd: ncdStats,
     disease: diseaseStats,
     fp: fpStats,
-    monthName: now.toLocaleString('default', { month: 'long' }),
+    monthName: new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long' }),
     year: currentYear
   };
 };

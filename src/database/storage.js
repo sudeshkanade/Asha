@@ -54,7 +54,100 @@ export const storage = {
   _getAll: async (key) => {
     try {
       const value = await AsyncStorage.getItem(key);
-      return value != null ? JSON.parse(value) : [];
+      const parsed = value != null ? JSON.parse(value) : [];
+      if (!Array.isArray(parsed)) return [];
+
+      if (key === STORAGE_KEYS.MEMBERS) {
+        let villages = [];
+        let subCenters = [];
+        try {
+          const vValue = await AsyncStorage.getItem(STORAGE_KEYS.VILLAGES);
+          villages = vValue ? JSON.parse(vValue) : [];
+          const scValue = await AsyncStorage.getItem(STORAGE_KEYS.SUB_CENTERS);
+          subCenters = scValue ? JSON.parse(scValue) : [];
+        } catch (e) {}
+
+        return parsed.map(m => {
+          let villageId = m.villageId;
+          let subCenterId = m.subCenterId;
+          let phcId = m.phcId;
+
+          if (!villageId && (m.village || m.villageName)) {
+            const vName = (m.village || m.villageName).toLowerCase().trim();
+            const matchedV = villages.find(v => v.name?.toLowerCase().trim() === vName);
+            if (matchedV) {
+              villageId = matchedV.id;
+              subCenterId = subCenterId || matchedV.subCenterId;
+            }
+          }
+
+          if (subCenterId && !phcId) {
+            const matchedSC = subCenters.find(sc => sc.id === subCenterId);
+            if (matchedSC) {
+              phcId = matchedSC.phcId;
+            }
+          }
+
+          const healthData = {
+            isPregnant: m.healthData?.isPregnant ?? (m.isPregnant === 'yes' || m.isPregnant === true || false),
+            isHighRisk: m.healthData?.isHighRisk ?? (m.isHighRisk === 'yes' || m.isHighRisk === true || false),
+            hbLevel: m.healthData?.hbLevel ?? m.hbLevel ?? '',
+            bpSystolic: m.healthData?.bpSystolic ?? m.bpSystolic ?? '',
+            bpDiastolic: m.healthData?.bpDiastolic ?? m.bpDiastolic ?? '',
+            sugarLevel: m.healthData?.sugarLevel ?? m.sugarLevel ?? '',
+            muac: m.healthData?.muac ?? m.muac ?? '',
+            fpMethod: m.healthData?.fpMethod ?? m.fpMethod ?? '',
+            edd: m.healthData?.edd ?? m.edd ?? '',
+            ancStatus: m.healthData?.ancStatus ?? m.ancStatus ?? '',
+            tbScreening: m.healthData?.tbScreening ?? m.tbScreening ?? null,
+            hasFeverWithChills: m.healthData?.hasFeverWithChills ?? m.hasFeverWithChills ?? false,
+            hasSkinPatches: m.healthData?.hasSkinPatches ?? m.hasSkinPatches ?? false,
+            ...(m.healthData || {})
+          };
+
+          return {
+            ...m,
+            firstName: m.firstName || m.fname || '',
+            lastName: m.lastName || m.lname || '',
+            villageId,
+            subCenterId,
+            phcId,
+            healthData
+          };
+        });
+      }
+
+      if (key === STORAGE_KEYS.FAMILIES) {
+        let villages = [];
+        try {
+          const vValue = await AsyncStorage.getItem(STORAGE_KEYS.VILLAGES);
+          villages = vValue ? JSON.parse(vValue) : [];
+        } catch (e) {}
+
+        return parsed.map(f => {
+          let villageId = f.villageId;
+          let subCenterId = f.subCenterId;
+          let phcId = f.phcId;
+
+          if (!villageId && (f.village || f.villageName)) {
+            const vName = (f.village || f.villageName).toLowerCase().trim();
+            const matchedV = villages.find(v => v.name?.toLowerCase().trim() === vName);
+            if (matchedV) {
+              villageId = matchedV.id;
+              subCenterId = subCenterId || matchedV.subCenterId;
+            }
+          }
+
+          return {
+            ...f,
+            villageId,
+            subCenterId,
+            phcId
+          };
+        });
+      }
+
+      return parsed;
     } catch (e) {
       return [];
     }
