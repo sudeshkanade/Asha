@@ -328,10 +328,10 @@ export default function App() {
       // 1. If worker is ASHA, use her IDs
       // 2. If worker is ANM/MO and member already has IDs, keep them
       // 3. Fallback to family IDs
-      ashaId: (user?.role === 'ASHA' ? user.id : selectedMember?.ashaId) || selectedFamily?.ashaId || user?.id,
-      villageId: (user?.role === 'ASHA' ? user.villageId : selectedMember?.villageId) || selectedFamily?.villageId || user?.villageId,
-      subCenterId: (user?.role === 'ANM' ? user.subCenterId : selectedMember?.subCenterId) || selectedFamily?.subCenterId || user?.subCenterId,
-      phcId: selectedMember?.phcId || selectedFamily?.phcId || user?.phcId,
+      ashaId: selectedFamily?.ashaId || (user?.role === 'ASHA' ? user.id : selectedMember?.ashaId) || user?.id,
+      villageId: selectedFamily?.villageId || (user?.role === 'ASHA' ? user.villageId : selectedMember?.villageId) || user?.villageId,
+      subCenterId: selectedFamily?.subCenterId || (user?.role === 'ANM' ? user.subCenterId : selectedMember?.subCenterId) || user?.subCenterId,
+      phcId: selectedFamily?.phcId || selectedMember?.phcId || user?.phcId,
       lastUpdatedAt: new Date().getTime()
     };
     

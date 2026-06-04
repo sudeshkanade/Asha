@@ -47,9 +47,17 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
     setVillages(v);
     
     // 1. Filter Families by Hierarchy
+    const assigned = user?.role === 'ASHA' ? (user.assignedVillages || []) : [];
+    const assignedIds = new Set(assigned.map(v => {
+      if (typeof v === 'string') return v;
+      if (v && typeof v === 'object') return v.id || v.villageId;
+      return null;
+    }).filter(Boolean));
+    if (user?.villageId) assignedIds.add(user.villageId);
+
     let scopedFamilies = f;
     if (user?.role === 'ASHA') {
-      scopedFamilies = f.filter(fam => fam.villageId === user.villageId || !fam.villageId);
+      scopedFamilies = f.filter(fam => assignedIds.has(fam.villageId) || !fam.villageId || fam.ashaId === user.id);
     } else if (user?.role === 'ANM') {
       scopedFamilies = f.filter(fam => fam.subCenterId === user.subCenterId || !fam.subCenterId);
     } else if (user?.role === 'MO') {
@@ -59,7 +67,7 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
     // 2. Filter Members by Hierarchy for EC List
     let scopedMembers = m;
     if (user?.role === 'ASHA') {
-      scopedMembers = m.filter(mem => mem.ashaId === user.id || mem.villageId === user.villageId || !mem.villageId);
+      scopedMembers = m.filter(mem => mem.ashaId === user.id || assignedIds.has(mem.villageId) || !mem.villageId);
     } else if (user?.role === 'ANM') {
       scopedMembers = m.filter(mem => mem.subCenterId === user.subCenterId || !mem.subCenterId);
     } else if (user?.role === 'MO') {
@@ -267,7 +275,16 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
                 <Text style={[styles.villageChipText, !selectedVillageId && styles.activeVillageChipText]}>{t('allVillages')}</Text>
               </TouchableOpacity>
               {villages.filter(v => {
-                if (user?.role === 'ASHA') return v.id === user.villageId;
+                if (user?.role === 'ASHA') {
+                  const assigned = user.assignedVillages || [];
+                  const assignedIds = new Set(assigned.map(av => {
+                    if (typeof av === 'string') return av;
+                    if (av && typeof av === 'object') return av.id || av.villageId;
+                    return null;
+                  }).filter(Boolean));
+                  if (user.villageId) assignedIds.add(user.villageId);
+                  return assignedIds.has(v.id);
+                }
                 if (user?.role === 'ANM') return v.subCenterId === user.subCenterId;
                 if (user?.role === 'MO') return v.phcId === user.phcId;
                 return true;
@@ -322,7 +339,7 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
                   headName: 'Closed / Locked Building',
                   isClosed: true,
                   ashaId: user.id,
-                  villageId: user.villageId,
+                  villageId: selectedVillageId || user.villageId,
                   subCenterId: user.subCenterId,
                   phcId: user.phcId,
                   lastUpdatedAt: Date.now()

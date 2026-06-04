@@ -31,7 +31,14 @@ const WorkplanScreen = ({ user, onBack, onNavigate }) => {
     // Filter members for this user's jurisdiction
     let members = allMembers;
     if (user?.role === 'ASHA') {
-      members = allMembers.filter(m => m.ashaId === user.id || m.villageId === user.villageId);
+      const rawAssigned = user.assignedVillages || [];
+      const assignedIds = new Set(rawAssigned.map(v => {
+        if (typeof v === 'string') return v;
+        if (v && typeof v === 'object') return v.id || v.villageId;
+        return null;
+      }).filter(Boolean));
+      if (user?.villageId) assignedIds.add(user.villageId);
+      members = allMembers.filter(m => m.ashaId === user.id || assignedIds.has(m.villageId) || !m.villageId);
     } else if (['ANM', 'MPW', 'CHO'].includes(user?.role)) {
       members = allMembers.filter(m => m.subCenterId === user.subCenterId);
     }

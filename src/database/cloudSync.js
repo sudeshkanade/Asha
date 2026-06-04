@@ -271,24 +271,34 @@ export const cloudSyncManager = {
             }
 
             switch (user.role) {
-              case 'ASHA':
-                if (user.assignedVillages && user.assignedVillages.length > 0) {
-                  const assignedIds = user.assignedVillages.map(v => {
-                    if (typeof v === 'string') return v;
-                    if (v && typeof v === 'object') return v.id || v.villageId;
-                    return null;
-                  }).filter(Boolean);
-                  
-                  if (assignedIds.length > 0) {
-                    const slicedIds = assignedIds.slice(0, 10);
-                    q = query(q, where("villageId", "in", slicedIds));
-                  } else {
-                    q = query(q, where("villageId", "==", user.villageId || 'FORCE_BLOCK'));
+              case 'ASHA': {
+                // BUG-SYNC-ASHA: Fetch by BOTH villageId (Excel-imported data) AND ashaId
+                // (user-registered data). We run two queries and merge to avoid missing records.
+                const assignedVillageIds = [];
+                const rawAssigned = user.assignedVillages || [];
+                rawAssigned.forEach(v => {
+                  if (typeof v === 'string' && v) assignedVillageIds.push(v);
+                  else if (v && typeof v === 'object') {
+                    const id = v.id || v.villageId;
+                    if (id) assignedVillageIds.push(id);
                   }
+                });
+                if (user.villageId) assignedVillageIds.push(user.villageId);
+                const uniqueVillageIds = [...new Set(assignedVillageIds)].slice(0, 10);
+
+                if (uniqueVillageIds.length > 0) {
+                  // Primary query: by villageId (for admin-imported / Excel data)
+                  q = query(collection(db, col.table), where('villageId', 'in', uniqueVillageIds));
+                  // Secondary query: by ashaId (for ASHA-registered data)
+                  const qByAsha = query(collection(db, col.table), where('ashaId', '==', user.id));
+                  // Merge both queries into the shadow buffer below
+                  col._extraQuery = qByAsha;
                 } else {
-                  q = query(q, where("villageId", "==", user.villageId || 'FORCE_BLOCK'));
+                  // Fallback: only pull by ashaId
+                  q = query(collection(db, col.table), where('ashaId', '==', user.id || 'FORCE_BLOCK'));
                 }
                 break;
+              }
               case 'ANM':
               case 'MPW':
               case 'CHO':
@@ -310,12 +320,31 @@ export const cloudSyncManager = {
           const querySnapshot = await getDocs(q);
           const cloudData = [];
           const deletedInCloud = [];
+          const seenIds = new Set();
 
           querySnapshot.forEach((docSnap) => {
             const data = docSnap.data();
+            seenIds.add(docSnap.id);
             if (data.deleted === true) deletedInCloud.push(docSnap.id);
             else cloudData.push({ id: docSnap.id, ...data });
           });
+
+          // BUG-SYNC-ASHA: Execute secondary ashaId query and merge (dedup by id)
+          if (col._extraQuery) {
+            try {
+              const extraSnapshot = await getDocs(col._extraQuery);
+              extraSnapshot.forEach((docSnap) => {
+                if (seenIds.has(docSnap.id)) return; // already included
+                const data = docSnap.data();
+                seenIds.add(docSnap.id);
+                if (data.deleted === true) deletedInCloud.push(docSnap.id);
+                else cloudData.push({ id: docSnap.id, ...data });
+              });
+            } catch (extraErr) {
+              console.warn(`⚠️ ShadowPull [${col.table}] ashaId query failed:`, extraErr.message);
+            }
+            delete col._extraQuery; // clean up
+          }
 
           shadowBuffer[col.key] = cloudData;
           deletedBuffer[col.key] = deletedInCloud;

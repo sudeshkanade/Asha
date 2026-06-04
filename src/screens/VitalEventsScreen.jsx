@@ -51,7 +51,15 @@ const VitalEventsScreen = ({ user, onBack }) => {
     // Hierarchy filtering
     let filtered = allMembers.filter(m => m.status !== 'Deceased');
     if (user?.role === 'ASHA') {
-      filtered = filtered.filter(m => m.ashaId === user.id || m.villageId === user.villageId);
+      const assigned = user.assignedVillages || [];
+      const assignedIds = new Set(assigned.map(v => {
+        if (typeof v === 'string') return v;
+        if (v && typeof v === 'object') return v.id || v.villageId;
+        return null;
+      }).filter(Boolean));
+      if (user.villageId) assignedIds.add(user.villageId);
+
+      filtered = filtered.filter(m => m.ashaId === user.id || assignedIds.has(m.villageId));
     } else if (user?.role === 'ANM') {
       filtered = filtered.filter(m => m.subCenterId === user.subCenterId);
     } else if (user?.role === 'MO') {
@@ -69,11 +77,19 @@ const VitalEventsScreen = ({ user, onBack }) => {
     let scopedEvents = allVitalEvents;
     if (user?.role === 'ASHA') {
       const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+      const assigned = user.assignedVillages || [];
+      const assignedIds = new Set(assigned.map(v => {
+        if (typeof v === 'string') return v;
+        if (v && typeof v === 'object') return v.id || v.villageId;
+        return null;
+      }).filter(Boolean));
+      if (user.villageId) assignedIds.add(user.villageId);
+
       const myMemberIds = new Set(
-        allMembers.filter(m => m.ashaId === user.id || m.villageId === user.villageId).map(m => m.id)
+        allMembers.filter(m => m.ashaId === user.id || assignedIds.has(m.villageId)).map(m => m.id)
       );
       scopedEvents = allVitalEvents.filter(e =>
-        e.villageId === user.villageId || myMemberIds.has(e.memberId) || myMemberIds.has(e.motherId)
+        assignedIds.has(e.villageId) || myMemberIds.has(e.memberId) || myMemberIds.has(e.motherId)
       );
     } else if (user?.role === 'ANM') {
       scopedEvents = allVitalEvents.filter(e => e.subCenterId === user.subCenterId);

@@ -36,15 +36,46 @@ const FamilyRegistrationScreen = ({ user, onSave, onBack }) => {
   }, []);
 
   const loadVillages = async () => {
-    const v = await storage.getAll(STORAGE_KEYS.VILLAGES);
-    // FIX A4: Scope village picker by user's hierarchy
-    let scopedVillages = v;
-    if (user?.role === 'ANM' && user?.subCenterId) {
-      scopedVillages = v.filter(vil => vil.subCenterId === user.subCenterId);
-    } else if (user?.role === 'MO' && user?.phcId) {
-      scopedVillages = v.filter(vil => vil.phcId === user.phcId);
+    let scopedVillages = [];
+    if (user?.role === 'ASHA') {
+      const assigned = user.assignedVillages || [];
+      scopedVillages = assigned.map(v => {
+        if (typeof v === 'string') {
+          return { id: v, name: v === user.villageId ? (user.village || v) : v };
+        } else if (v && typeof v === 'object') {
+          return {
+            id: v.id || v.villageId || v.value || '',
+            name: v.name || v.villageName || v.label || v.id || ''
+          };
+        }
+        return null;
+      }).filter(v => v && v.id);
+
+      if (scopedVillages.length === 0 && user.villageId) {
+        scopedVillages.push({ id: user.villageId, name: user.village || 'My Village' });
+      }
+    } else {
+      const v = await storage.getAll(STORAGE_KEYS.VILLAGES);
+      scopedVillages = v;
+      if (user?.role === 'ANM' && user?.subCenterId) {
+        scopedVillages = v.filter(vil => vil.subCenterId === user.subCenterId);
+      } else if (user?.role === 'MO' && user?.phcId) {
+        scopedVillages = v.filter(vil => vil.phcId === user.phcId);
+      }
     }
     setVillages(scopedVillages);
+
+    if (user?.role === 'ASHA' && scopedVillages.length > 0) {
+      const exists = scopedVillages.some(v => v.id === formData.villageId);
+      if (!exists) {
+        setFormData(prev => ({
+          ...prev,
+          villageId: scopedVillages[0].id,
+          villageName: scopedVillages[0].name,
+          ward: scopedVillages[0].ward || prev.ward
+        }));
+      }
+    }
   };
 
   const handleSave = () => {
@@ -80,7 +111,7 @@ const FamilyRegistrationScreen = ({ user, onSave, onBack }) => {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>{t('identityLocation')}</Text>
           
-          {user?.role !== 'ASHA' && (
+          {(user?.role !== 'ASHA' || villages.length > 0) && (
             <View style={styles.inputGroup}>
               <Text style={styles.label}>{t('selectVillage')}</Text>
               <View style={styles.pickerContainer}>

@@ -33,7 +33,15 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
     // Hierarchy filtering
     let scopedMembers = allMembers;
     if (user?.role === 'ASHA') {
-      scopedMembers = allMembers.filter(m => m.ashaId === user.id || m.villageId === user.villageId || !m.villageId);
+      const assigned = user.assignedVillages || [];
+      const assignedIds = new Set(assigned.map(v => {
+        if (typeof v === 'string') return v;
+        if (v && typeof v === 'object') return v.id || v.villageId;
+        return null;
+      }).filter(Boolean));
+      if (user.villageId) assignedIds.add(user.villageId);
+
+      scopedMembers = allMembers.filter(m => !m.villageId || m.ashaId === user.id || assignedIds.has(m.villageId));
     } else if (user?.role === 'ANM') {
       scopedMembers = allMembers.filter(m => m.subCenterId === user.subCenterId || !m.subCenterId);
     } else if (user?.role === 'MO') {

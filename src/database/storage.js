@@ -340,12 +340,31 @@ export const storage = {
   purgeOrphanedData: async (user) => {
     if (!user || user.role === 'Admin') return;
     const collectionsToCheck = [STORAGE_KEYS.MEMBERS, STORAGE_KEYS.FAMILIES, STORAGE_KEYS.VITAL_EVENTS];
+    
+    let assignedIds = new Set();
+    if (user.role === 'ASHA') {
+      const assigned = user.assignedVillages || [];
+      assigned.forEach(v => {
+        if (typeof v === 'string') assignedIds.add(v);
+        else if (v && typeof v === 'object') assignedIds.add(v.id || v.villageId);
+      });
+      if (user.villageId) assignedIds.add(user.villageId);
+    }
+
     for (const key of collectionsToCheck) {
       const data = await storage.getAll(key);
       const filtered = data.filter(item => {
-        return (user.role === 'ASHA' && item.villageId === user.villageId) ||
-               (['ANM', 'MPW', 'CHO'].includes(user.role) && item.subCenterId === user.subCenterId) ||
-               (user.role === 'MO' && item.phcId === user.phcId);
+        // Safety: never purge records with no hierarchy ID (pending sync or local-only)
+        const hasNoId = !item.villageId && !item.subCenterId && !item.phcId;
+        if (hasNoId) return true;
+
+        return (user.role === 'ASHA' && (assignedIds.has(item.villageId) || item.ashaId === user.id || !item.villageId)) ||
+               (['ANM', 'MPW', 'CHO'].includes(user.role) && (
+                 item.subCenterId === user.subCenterId ||
+                 // BUG-PURGE-01: Preserve ASHA-registered records (have ashaId but may lack subCenterId)
+                 !!item.ashaId
+               )) ||
+               (user.role === 'MO' && (item.phcId === user.phcId || !!item.ashaId));
       });
 
       if (filtered.length < data.length) {

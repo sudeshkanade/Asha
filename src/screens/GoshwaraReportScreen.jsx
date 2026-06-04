@@ -44,10 +44,18 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
     let vitalEvents = allVitalEvents;
     let vhndSessions = allVhndSessions;
     if (user?.role === 'ASHA') {
-      members = allMembers.filter(m => m.ashaId === user.id || m.villageId === user.villageId);
+      const assigned = user.assignedVillages || [];
+      const assignedIds = new Set(assigned.map(v => {
+        if (typeof v === 'string') return v;
+        if (v && typeof v === 'object') return v.id || v.villageId;
+        return null;
+      }).filter(Boolean));
+      if (user.villageId) assignedIds.add(user.villageId);
+
+      members = allMembers.filter(m => m.ashaId === user.id || assignedIds.has(m.villageId));
       events = allEvents.filter(e => e.payload?.ashaId === user.id);
-      vitalEvents = allVitalEvents.filter(e => e.ashaId === user.id || e.villageId === user.villageId);
-      vhndSessions = allVhndSessions.filter(s => s.ashaId === user.id || s.villageId === user.villageId);
+      vitalEvents = allVitalEvents.filter(e => e.ashaId === user.id || assignedIds.has(e.villageId));
+      vhndSessions = allVhndSessions.filter(s => s.ashaId === user.id || assignedIds.has(s.villageId));
     } else if (user?.role === 'ANM') {
       members = allMembers.filter(m => m.subCenterId === user.subCenterId);
       events = allEvents.filter(e => e.payload?.subCenterId === user.subCenterId);
