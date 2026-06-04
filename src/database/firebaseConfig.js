@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 
 // Replace with your Firebase project configuration
 // Keep these details secure in production (e.g. env variables)
@@ -14,13 +15,15 @@ const firebaseConfig = {
 
 let app;
 let db;
+let auth;
 
 try {
   app = initializeApp(firebaseConfig);
   db = getFirestore(app);
+  auth = getAuth(app);
   console.log("Firebase initialized successfully.");
 } catch (error) {
   console.warn("Firebase initialization failed:", error.message);
 }
 
-export { app, db };
+export { app, db, auth };

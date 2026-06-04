@@ -10,11 +10,13 @@ import {
   ScrollView,
   ActivityIndicator,
   Platform,
+  Modal,
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
-import { db } from '../database/firebaseConfig';
+import { db, auth } from '../database/firebaseConfig';
 import { collection, doc, setDoc, getDocs, query, where, serverTimestamp, deleteDoc, writeBatch } from 'firebase/firestore';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { useTranslation } from 'react-i18next';
 import { cloudSyncManager } from '../database/cloudSync';
 
@@ -31,6 +33,7 @@ const LoginScreen = ({ onLogin }) => {
   
   const [formData, setFormData] = useState({
     username: '',
+    email: '',
     password: '',
     name: '',
     role: 'ASHA',
@@ -40,12 +43,26 @@ const LoginScreen = ({ onLogin }) => {
     ward: '',
   });
 
+  const [showMigrationModal, setShowMigrationModal] = useState(false);
+  const [migrationEmail, setMigrationEmail] = useState('');
+  const [userToMigrate, setUserToMigrate] = useState(null);
+
   useEffect(() => {
     loadHierarchy();
-    // Initial pull to get existing accounts for login
-    cloudSyncManager.pullFromCloud().then(() => {
-       // Refresh local users list if needed
+    // Clear forms on toggle
+    setFormData({
+      username: '',
+      email: '',
+      password: '',
+      name: '',
+      role: 'ASHA',
+      phcId: '',
+      subCenterId: '',
+      villageId: '',
+      ward: '',
     });
+    setShowMigrationModal(false);
+    setUserToMigrate(null);
   }, [isRegister]);
 
   const loadHierarchy = async () => {
@@ -75,46 +92,182 @@ const LoginScreen = ({ onLogin }) => {
       return;
     }
 
-    // BUG-LOGIN-01 FIX: Keep loading=true for the entire async flow (no mid-flow toggle)
     setLoading(true);
     try {
       await cloudSyncManager.pullFromCloud();
-      const users = await storage.getAll(STORAGE_KEYS.USERS);
-      const user = users.find(u => u.username === formData.username && u.password === formData.password);
       
-      if (user) {
-        if (user.approvalStatus === 'approved') {
-          try {
-            await storage.purgeOrphanedData(user);
-            await cloudSyncManager.pullFromCloud(user);
-            await cloudSyncManager.startBackgroundSync();
-          } catch (e) {
-            console.error("Login Sync Error:", e);
+      const input = formData.username.trim();
+      const password = formData.password;
+
+      if (input.includes('@')) {
+        // --- EMAIL LOGIN (Firebase Auth) ---
+        try {
+          const userCredential = await signInWithEmailAndPassword(auth, input, password);
+          const uid = userCredential.user.uid;
+
+          // Fetch the user document from Firestore (locally first, fallback to remote query)
+          const usersList = await storage.getAll(STORAGE_KEYS.USERS);
+          let user = usersList.find(u => u.uid === uid || u.email === input);
+
+          if (!user) {
+            // fallback: query firestore directly
+            const q = query(collection(db, 'users'), where('uid', '==', uid));
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+              user = { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() };
+              await storage.save(STORAGE_KEYS.USERS, user);
+            }
           }
-          onLogin(user); // setLoading never flickers — stays true until navigation away
-        } else if (user.approvalStatus === 'rejected') {
-          Alert.alert(t('accessDenied'), t('regRejected'));
-        } else {
-          Alert.alert(t('pendingApproval'), t('regPending'));
+
+          if (user) {
+            if (user.approvalStatus === 'approved') {
+              try {
+                await storage.purgeOrphanedData(user);
+                await cloudSyncManager.pullFromCloud(user);
+                await cloudSyncManager.startBackgroundSync();
+              } catch (e) {
+                console.error("Login Sync Error:", e);
+              }
+              onLogin(user);
+            } else if (user.approvalStatus === 'rejected') {
+              Alert.alert(t('accessDenied'), t('regRejected'));
+              await auth.signOut();
+            } else {
+              Alert.alert(t('pendingApproval'), t('regPending'));
+              await auth.signOut();
+            }
+          } else {
+            Alert.alert(t('error'), t('noUserRecord', 'User record not found in database. Contact admin.'));
+            await auth.signOut();
+          }
+        } catch (authError) {
+          console.error("Auth Login Error:", authError);
+          let errorMsg = t('invalidCredentials');
+          if (authError.code === 'auth/user-not-found') {
+            errorMsg = t('userNotFound', 'User account not found.');
+          } else if (authError.code === 'auth/wrong-password') {
+            errorMsg = t('wrongPassword', 'Incorrect password.');
+          } else if (authError.code === 'auth/invalid-email') {
+            errorMsg = t('invalidEmail', 'Invalid email address format.');
+          }
+          Alert.alert(t('error'), errorMsg);
         }
       } else {
-        Alert.alert(t('error'), t('invalidCredentials'));
+        // --- USERNAME LOGIN (Legacy / Migration) ---
+        const usersList = await storage.getAll(STORAGE_KEYS.USERS);
+        const user = usersList.find(u => u.username?.toLowerCase() === input.toLowerCase() && u.password === password);
+
+        if (user) {
+          if (user.authMigrated || user.email) {
+            Alert.alert(
+              t('migrationCompleted', 'Account Upgraded'),
+              t('useEmailToLogin', `Your account has been secured and upgraded to use email. Please log in using your email address: ${user.email}`)
+            );
+          } else {
+            setUserToMigrate(user);
+            setMigrationEmail(user.mobile ? `${user.mobile}@gmail.com` : '');
+            setShowMigrationModal(true);
+          }
+        } else {
+          Alert.alert(t('error'), t('invalidCredentials'));
+        }
       }
+    } catch (e) {
+      console.error("Login Error:", e);
+      Alert.alert(t('error'), e.message || t('loginFailed', 'Login failed. Please check connection.'));
     } finally {
       setLoading(false);
     }
   };
 
+  const handleMigrateUser = async () => {
+    if (!migrationEmail || !migrationEmail.includes('@')) {
+      Alert.alert(t('error'), t('invalidEmail', 'Please enter a valid email address.'));
+      return;
+    }
+
+    setLoading(true);
+    setShowMigrationModal(false);
+
+    try {
+      const email = migrationEmail.trim();
+      const password = userToMigrate.password;
+
+      // 1. Create account in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const uid = userCredential.user.uid;
+
+      // 2. Update Firestore record
+      await storage.update(STORAGE_KEYS.USERS, (usersList) => {
+        const idx = usersList.findIndex(u => u.id === userToMigrate.id);
+        if (idx >= 0) {
+          usersList[idx].email = email;
+          usersList[idx].uid = uid;
+          usersList[idx].authMigrated = true;
+          delete usersList[idx].password;
+          usersList[idx].lastUpdatedAt = Date.now();
+        }
+        return usersList;
+      });
+
+      const updatedUser = (await storage.getAll(STORAGE_KEYS.USERS)).find(u => u.id === userToMigrate.id);
+
+      if (updatedUser) {
+        await storage.addToSyncQueue(STORAGE_KEYS.USERS, updatedUser);
+        await cloudSyncManager.startBackgroundSync();
+      }
+
+      Alert.alert(
+        t('success'),
+        t('migrationSuccess', 'Your account has been secured successfully! In the future, please log in with your email.')
+      );
+
+      if (updatedUser.approvalStatus === 'approved') {
+        try {
+          await storage.purgeOrphanedData(updatedUser);
+          await cloudSyncManager.pullFromCloud(updatedUser);
+          await cloudSyncManager.startBackgroundSync();
+        } catch (e) {
+          console.error("Post-migration Sync Error:", e);
+        }
+        onLogin(updatedUser);
+      } else if (updatedUser.approvalStatus === 'rejected') {
+        Alert.alert(t('accessDenied'), t('regRejected'));
+        await auth.signOut();
+      } else {
+        Alert.alert(t('pendingApproval'), t('regPending'));
+        await auth.signOut();
+      }
+    } catch (err) {
+      console.error("Migration Error:", err);
+      let errorMsg = err.message || t('migrationFailed', 'Migration failed.');
+      if (err.code === 'auth/email-already-in-use') {
+        errorMsg = t('emailInUse', 'This email address is already in use. Please use a different email.');
+      } else if (err.code === 'auth/weak-password') {
+        errorMsg = t('weakPassword', 'Your password is too weak. Please contact admin to reset your password.');
+      }
+      Alert.alert(t('error'), errorMsg);
+      setShowMigrationModal(true);
+    } finally {
+      setLoading(false);
+      setUserToMigrate(null);
+    }
+  };
+
   const handleRegister = async () => {
-    if (!formData.username || !formData.password || !formData.name) {
+    if (!formData.email || !formData.password || !formData.name) {
       Alert.alert(t('error'), t('fieldsRequired'));
+      return;
+    }
+
+    if (!formData.email.includes('@')) {
+      Alert.alert(t('error'), t('invalidEmail', 'Please enter a valid email address.'));
       return;
     }
 
     setLoading(true);
 
     try {
-      // Role-based validation
       if (formData.role === 'ASHA' && (!formData.villageId || !formData.phcId)) {
         Alert.alert(t('error'), t('ashaRequired'));
         return;
@@ -130,28 +283,39 @@ const LoginScreen = ({ onLogin }) => {
         return;
       }
 
+      const usersList = await storage.getAll(STORAGE_KEYS.USERS);
+      if (usersList.find(u => u.email?.toLowerCase() === formData.email.toLowerCase())) {
+        Alert.alert(t('error'), t('emailExists', 'This email address is already registered.'));
+        return;
+      }
+
+      const userCredential = await createUserWithEmailAndPassword(auth, formData.email.trim(), formData.password);
+      const uid = userCredential.user.uid;
+
       const selectedVillage = villages.find(v => v.id === formData.villageId);
       const selectedSC = subCenters.find(sc => sc.id === formData.subCenterId);
       const selectedPHC = phcs.find(p => p.id === formData.phcId);
       
       const newUser = {
-        ...formData,
-        id: storage.generateId('user', 'new'),
+        id: uid,
+        uid: uid,
+        email: formData.email.trim(),
+        username: formData.email.trim(),
+        name: formData.name,
+        role: formData.role,
         approvalStatus: 'pending', 
-        village: selectedVillage?.name,
-        villageName: selectedVillage?.name,
-        subCenterName: selectedSC?.name,
-        phcName: selectedPHC?.name,
-        phcId: formData.phcId?.toString(),
-        subCenterId: formData.subCenterId?.toString(),
-        villageId: formData.villageId?.toString(),
+        village: selectedVillage?.name || '',
+        villageName: selectedVillage?.name || '',
+        subCenterName: selectedSC?.name || '',
+        phcName: selectedPHC?.name || '',
+        phcId: formData.phcId?.toString() || '',
+        subCenterId: formData.subCenterId?.toString() || '',
+        villageId: formData.villageId?.toString() || '',
+        ward: formData.ward || '',
+        requestedAt: new Date().toISOString(),
+        lastUpdatedAt: Date.now(),
+        authMigrated: true
       };
-
-      const users = await storage.getAll(STORAGE_KEYS.USERS);
-      if (users.find(u => u.username === newUser.username)) {
-        Alert.alert(t('error'), t('usernameExists'));
-        return;
-      }
 
       await storage.save(STORAGE_KEYS.USERS, newUser);
       const syncResult = await cloudSyncManager.startBackgroundSync();
@@ -167,7 +331,13 @@ const LoginScreen = ({ onLogin }) => {
       setIsRegister(false);
     } catch (err) {
       console.error('Registration Error:', err);
-      Alert.alert(t('error'), t('registrationFailed', 'Registration failed. Please check your connection.'));
+      let errorMsg = err.message || t('registrationFailed', 'Registration failed. Please check your connection.');
+      if (err.code === 'auth/email-already-in-use') {
+        errorMsg = t('emailInUse', 'This email address is already in use. Please use a different email.');
+      } else if (err.code === 'auth/weak-password') {
+        errorMsg = t('weakPassword', 'Your password is too weak. Please use a stronger password.');
+      }
+      Alert.alert(t('error'), errorMsg);
     } finally {
       setLoading(false);
     }
@@ -296,13 +466,24 @@ const LoginScreen = ({ onLogin }) => {
         </View>
 
         <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder={t('username')}
-            value={formData.username}
-            onChangeText={(t) => setFormData({...formData, username: t})}
-            autoCapitalize="none"
-          />
+          {isRegister ? (
+            <TextInput
+              style={styles.input}
+              placeholder={t('email', 'Email')}
+              value={formData.email}
+              onChangeText={(t) => setFormData({...formData, email: t})}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          ) : (
+            <TextInput
+              style={styles.input}
+              placeholder={t('emailOrUsername', 'Email or Username')}
+              value={formData.username}
+              onChangeText={(t) => setFormData({...formData, username: t})}
+              autoCapitalize="none"
+            />
+          )}
           <TextInput
             style={styles.input}
             placeholder={t('password')}
@@ -449,6 +630,53 @@ const LoginScreen = ({ onLogin }) => {
           <RNText style={styles.footerSubText}>{t('systemVersion')}</RNText>
         </TouchableOpacity>
       </ScrollView>
+
+      <Modal
+        visible={showMigrationModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowMigrationModal(false);
+          setUserToMigrate(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <RNText style={styles.modalTitle}>🔒 {t('secureAccount', 'Secure Your Account')}</RNText>
+            <RNText style={styles.modalDescription}>
+              {t('migrationExplanation', 'We are upgrading our security system. Please enter your email address to upgrade your account. In the future, you will log in using this email address.')}
+            </RNText>
+            
+            <TextInput
+              style={styles.input}
+              placeholder={t('email', 'Email')}
+              value={migrationEmail}
+              onChangeText={setMigrationEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoFocus
+            />
+
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity 
+                style={[styles.modalBtn, { backgroundColor: '#64748B' }]} 
+                onPress={() => {
+                  setShowMigrationModal(false);
+                  setUserToMigrate(null);
+                }}
+              >
+                <RNText style={styles.modalBtnText}>{t('cancel')}</RNText>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalBtn, { backgroundColor: COLORS.primary }]} 
+                onPress={handleMigrateUser}
+              >
+                <RNText style={styles.modalBtnText}>{t('upgrade', 'Upgrade')}</RNText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -490,7 +718,57 @@ const styles = StyleSheet.create({
   resetBtn: { backgroundColor: '#EF4444', padding: 15, borderRadius: 10, alignItems: 'center' },
   resetBtnText: { color: '#FFF', fontWeight: '700', fontSize: 13 },
   closeHiddenBtn: { marginTop: 10, padding: 10, alignItems: 'center' },
-  closeHiddenBtnText: { color: '#64748B', fontSize: 11, fontWeight: '600' }
+  closeHiddenBtnText: { color: '#64748B', fontSize: 11, fontWeight: '600' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: '#FFF',
+    borderRadius: 24,
+    padding: 24,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: '#64748B',
+    lineHeight: 20,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalBtnRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 10,
+  },
+  modalBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalBtnText: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
 });
 
 export default LoginScreen;

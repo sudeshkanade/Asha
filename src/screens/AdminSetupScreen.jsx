@@ -15,6 +15,8 @@ import { useTranslation } from 'react-i18next';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { cloudSyncManager } from '../database/cloudSync';
+import { auth } from '../database/firebaseConfig';
+import { sendPasswordResetEmail } from 'firebase/auth';
 
 const AdminSetupScreen = ({ user, initialTab, onBack }) => {
   const { t } = useTranslation();
@@ -377,36 +379,69 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
 
   const handleResetPassword = async (userId, userName) => {
     const defaultPassword = 'User@123';
-    const confirmReset = async () => {
-      try {
-        await storage.update(STORAGE_KEYS.USERS, (usersList) => {
-          const idx = usersList.findIndex(u => u.id === userId);
-          if (idx >= 0) {
-            usersList[idx].password = defaultPassword;
-            usersList[idx].lastUpdatedAt = Date.now();
-          }
-          return usersList;
-        });
-        
-        const updatedUser = (await storage.getAll(STORAGE_KEYS.USERS)).find(u => u.id === userId);
-        if (updatedUser) await storage.addToSyncQueue(STORAGE_KEYS.USERS, updatedUser);
-        
-        await cloudSyncManager.startBackgroundSync();
-        Alert.alert(t('success'), `${t('passwordResetSuccess', 'Password reset to')} ${defaultPassword}`);
-        await loadData();
-      } catch (e) {
-        Alert.alert(t('error'), t('passwordResetFailed', 'Failed to reset password'));
-      }
-    };
+    const usersList = await storage.getAll(STORAGE_KEYS.USERS);
+    const targetUser = usersList.find(u => u.id === userId);
 
-    const message = `${t('confirmResetPassword', 'Are you sure you want to reset the password for')} ${userName}? ${t('newPasswordWillBe', 'The new password will be:')} ${defaultPassword}`;
-    if (Platform.OS === 'web' || typeof window !== 'undefined') {
-      if (window.confirm(message)) confirmReset();
+    if (!targetUser) {
+      Alert.alert(t('error'), t('userNotFound', 'User not found.'));
+      return;
+    }
+
+    if (targetUser.email) {
+      const confirmReset = async () => {
+        try {
+          setLoading(true);
+          await sendPasswordResetEmail(auth, targetUser.email);
+          Alert.alert(t('success'), `${t('passwordResetSent', 'Password reset email sent to')} ${targetUser.email}`);
+        } catch (e) {
+          console.error("Firebase Password Reset Error:", e);
+          Alert.alert(t('error'), e.message || t('passwordResetFailed', 'Failed to send password reset email.'));
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const message = `${t('confirmSendResetEmail', 'Send a password reset email link to')} ${userName} (${targetUser.email})?`;
+      if (Platform.OS === 'web' || typeof window !== 'undefined') {
+        if (window.confirm(message)) confirmReset();
+      } else {
+        Alert.alert(t('resetPassword', 'Reset Password'), message, [
+          { text: t('cancel'), style: 'cancel' },
+          { text: t('send', 'Send Link'), style: 'destructive', onPress: confirmReset }
+        ]);
+      }
     } else {
-      Alert.alert(t('resetPassword', 'Reset Password'), message, [
-        { text: t('cancel'), style: 'cancel' },
-        { text: t('reset', 'Reset'), style: 'destructive', onPress: confirmReset }
-      ]);
+      const confirmReset = async () => {
+        try {
+          await storage.update(STORAGE_KEYS.USERS, (list) => {
+            const idx = list.findIndex(u => u.id === userId);
+            if (idx >= 0) {
+              list[idx].password = defaultPassword;
+              list[idx].lastUpdatedAt = Date.now();
+            }
+            return list;
+          });
+          
+          const updatedUser = (await storage.getAll(STORAGE_KEYS.USERS)).find(u => u.id === userId);
+          if (updatedUser) await storage.addToSyncQueue(STORAGE_KEYS.USERS, updatedUser);
+          
+          await cloudSyncManager.startBackgroundSync();
+          Alert.alert(t('success'), `${t('passwordResetSuccess', 'Legacy password reset to')} ${defaultPassword}`);
+          await loadData();
+        } catch (e) {
+          Alert.alert(t('error'), t('passwordResetFailed', 'Failed to reset password'));
+        }
+      };
+
+      const message = `${t('confirmResetPassword', 'Are you sure you want to reset the password for')} ${userName}? ${t('newPasswordWillBe', 'The new password will be:')} ${defaultPassword}`;
+      if (Platform.OS === 'web' || typeof window !== 'undefined') {
+        if (window.confirm(message)) confirmReset();
+      } else {
+        Alert.alert(t('resetPassword', 'Reset Password'), message, [
+          { text: t('cancel'), style: 'cancel' },
+          { text: t('reset', 'Reset'), style: 'destructive', onPress: confirmReset }
+        ]);
+      }
     }
   };
 
@@ -741,7 +776,11 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
                 <View key={u.id} style={[styles.listItem, { borderLeftColor: u.approvalStatus === 'rejected' ? COLORS.error : (u.approvalStatus === 'approved' ? COLORS.success : '#EAB308') }]}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.listText}>{u.name} ({u.role})</Text>
-                    <Text style={styles.listSubText}>{t('username')}: {u.username}</Text>
+                    {u.email ? (
+                      <Text style={styles.listSubText}>{t('email', 'Email')}: {u.email}</Text>
+                    ) : (
+                      <Text style={styles.listSubText}>{t('username')}: {u.username}</Text>
+                    )}
                     <Text style={styles.listSubText}>{t('village')}: {u.villageName || t('na')}</Text>
                     <Text style={styles.listSubText}>{t('status')}: <Text style={{fontWeight:'700', color: u.approvalStatus === 'rejected' ? COLORS.error : (u.approvalStatus === 'approved' ? COLORS.success : '#EAB308')}}>{t(u.approvalStatus || 'pending').toUpperCase()}</Text></Text>
                   </View>
