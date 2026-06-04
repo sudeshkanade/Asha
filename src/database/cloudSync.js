@@ -206,6 +206,7 @@ export const cloudSyncManager = {
           .map(item => item.id)
       );
       
+      const latestQueue = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
       const finalQueue = latestQueue.filter(item => !processedItemIds.has(item.id));
       await storage.saveAll(STORAGE_KEYS.SYNC_QUEUE, finalQueue);
 
