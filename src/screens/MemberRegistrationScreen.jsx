@@ -298,8 +298,8 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
               style={styles.input}
               placeholder={t('mobilePlaceholder')}
               placeholderTextColor={COLORS.textSecondary}
-              value={formData.mobile}
-              onChangeText={(text) => setFormData({ ...formData, mobile: text })}
+              value={formData.phone}
+              onChangeText={(text) => setFormData({ ...formData, phone: text })}
               keyboardType="phone-pad"
               maxLength={10}
             />

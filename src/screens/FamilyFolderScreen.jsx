@@ -16,6 +16,7 @@ import {
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { useTranslation } from 'react-i18next';
+import ClosedBuildingModal from '../components/ClosedBuildingModal';
 
 const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
   const { t } = useTranslation();
@@ -28,11 +29,23 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Families'); // Families or EC
   const [selectedVillageId, setSelectedVillageId] = useState(null);
+  const [showClosedModal, setShowClosedModal] = useState(false);
 
   const [villages, setVillages] = useState([]);
 
   const memoizedFilteredFamilies = useMemo(() => {
-    return filteredFamilies.filter(f => !selectedVillageId || f.villageId === selectedVillageId);
+    let result = filteredFamilies.filter(f => !selectedVillageId || f.villageId === selectedVillageId);
+    
+    result.sort((a, b) => {
+      if (a.villageId !== b.villageId) {
+        return (a.villageId || '').localeCompare(b.villageId || '');
+      }
+      const aHouse = a.houseNo || '';
+      const bHouse = b.houseNo || '';
+      return aHouse.localeCompare(bHouse, undefined, { numeric: true, sensitivity: 'base' });
+    });
+    
+    return result;
   }, [filteredFamilies, selectedVillageId]);
 
   useEffect(() => {
@@ -328,30 +341,7 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
       <View style={styles.fabContainer} pointerEvents="box-none">
         <TouchableOpacity 
           style={[styles.fab, { backgroundColor: COLORS.accent }]} 
-          onPress={async () => {
-            // FIX: window.prompt crashes on native — guard by platform
-            if (typeof window !== 'undefined' && window.prompt) {
-              const houseNo = window.prompt(t('enterHouseNo'));
-              if (houseNo) {
-                storage.save(STORAGE_KEYS.FAMILIES, {
-                  id: storage.generateId('closed', user?.id),
-                  houseNo: houseNo,
-                  headName: 'Closed / Locked Building',
-                  isClosed: true,
-                  ashaId: user.id,
-                  villageId: selectedVillageId || user.villageId,
-                  subCenterId: user.subCenterId,
-                  phcId: user.phcId,
-                  lastUpdatedAt: Date.now()
-                }).then(() => {
-                  Alert.alert(t('success'), t('closedBuildingAdded'));
-                  loadData();
-                });
-              }
-            } else {
-              Alert.alert('Feature', 'Use the web portal to mark closed buildings.');
-            }
-          }}
+          onPress={() => setShowClosedModal(true)}
         >
           <Text style={styles.fabText}>🏠 {t('closed')}</Text>
         </TouchableOpacity>
@@ -368,6 +358,39 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
           <Text style={styles.fabText}>👤 {t('add')}</Text>
         </TouchableOpacity>
       </View>
+
+      <ClosedBuildingModal
+        visible={showClosedModal}
+        villages={villages.filter(v => {
+          if (user?.role === 'ASHA') {
+            const assigned = user.assignedVillages || [];
+            const assignedIds = new Set(assigned.map(av => typeof av === 'object' ? (av.id || av.villageId) : av).filter(Boolean));
+            if (user.villageId) assignedIds.add(user.villageId);
+            return assignedIds.has(v.id);
+          }
+          if (user?.role === 'ANM') return v.subCenterId === user.subCenterId;
+          if (user?.role === 'MO') return v.phcId === user.phcId;
+          return true;
+        })}
+        defaultVillageId={selectedVillageId || user.villageId}
+        onClose={() => setShowClosedModal(false)}
+        onSave={async ({ houseNo, buildingType, villageId }) => {
+          await storage.save(STORAGE_KEYS.FAMILIES, {
+            id: storage.generateId('closed', user?.id),
+            houseNo: houseNo,
+            headName: `${t('closedBuilding', 'Closed / Locked Building')} (${buildingType})`,
+            isClosed: true,
+            buildingType: buildingType,
+            ashaId: user.id,
+            villageId: villageId || user.villageId,
+            subCenterId: user.subCenterId,
+            phcId: user.phcId,
+            lastUpdatedAt: Date.now()
+          });
+          Alert.alert(t('success'), t('closedBuildingAdded'));
+          loadData();
+        }}
+      />
     </SafeAreaView>
   );
 };

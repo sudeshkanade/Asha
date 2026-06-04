@@ -17,6 +17,7 @@ import { generateAllTasks } from '../utils/healthLogic';
 import { useTranslation } from 'react-i18next';
 import { cloudSyncManager } from '../database/cloudSync';
 import { Alert, Platform } from 'react-native';
+import ClosedBuildingModal from '../components/ClosedBuildingModal';
 
 const DashboardScreen = ({ user, onNavigate }) => {
   const { t, i18n } = useTranslation();
@@ -35,6 +36,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
   const [stockOrs, setStockOrs] = React.useState(100);
   const [stockIfa, setStockIfa] = React.useState(500);
   const [stockLoaded, setStockLoaded] = React.useState(false);
+  const [showClosedModal, setShowClosedModal] = React.useState(false);
 
   const handleMasterExport = async () => {
     setExporting(true);
@@ -73,21 +75,11 @@ const DashboardScreen = ({ user, onNavigate }) => {
     }
   };
 
-  const handleAddClosedBuilding = async () => {
-    if (Platform.OS === 'web') {
-      const houseNo = window.prompt(t('enterHouseNo') || 'Enter House Number:');
-      if (houseNo) {
-        const buildingType = window.prompt(t('enterBuildingTypePrompt', 'Enter Building Type (e.g., Locked House, Shop, Temple, School):'), t('lockedHouse', 'Locked House'));
-        if (buildingType) {
-          finalizeClosedBuilding(houseNo, buildingType);
-        }
-      }
-    } else {
-      Alert.alert(t('featureRestricted'), t('bulkAdminWebOnly'));
-    }
+  const handleAddClosedBuilding = () => {
+    setShowClosedModal(true);
   };
 
-  const finalizeClosedBuilding = async (houseNo, buildingType) => {
+  const finalizeClosedBuilding = async ({ houseNo, buildingType, villageId }) => {
     const closedFamily = {
       id: storage.generateId('closed', user?.id),
       houseNo: houseNo,
@@ -95,7 +87,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
       isClosed: true,
       buildingType: buildingType,
       ashaId: user.id,
-      villageId: user.villageId,
+      villageId: villageId || user.villageId,
       subCenterId: user.subCenterId,
       phcId: user.phcId,
       createdAt: new Date().toISOString(),
@@ -154,7 +146,12 @@ const DashboardScreen = ({ user, onNavigate }) => {
         user?.role === 'ASHA' ? Promise.resolve([]) : storage.getAll(STORAGE_KEYS.VILLAGES)
       ]);
 
-      const finalVillages = user?.role === 'ASHA' ? localVillages : allVillages;
+      let finalVillages = user?.role === 'ASHA' ? localVillages : allVillages;
+      if (user?.role === 'ANM') {
+        finalVillages = allVillages.filter(v => v.subCenterId === user.subCenterId);
+      } else if (user?.role === 'MO') {
+        finalVillages = allVillages.filter(v => v.phcId === user.phcId);
+      }
       setVillages(finalVillages);
 
       const assignedIds = new Set(finalVillages.map(v => v.id));
@@ -785,6 +782,14 @@ const DashboardScreen = ({ user, onNavigate }) => {
       >
         <Text style={styles.fabIcon}>{fabOpen ? '×' : '+'}</Text>
       </TouchableOpacity>
+
+      <ClosedBuildingModal
+        visible={showClosedModal}
+        villages={villages}
+        defaultVillageId={villages.length > 0 ? villages[0].id : null}
+        onClose={() => setShowClosedModal(false)}
+        onSave={finalizeClosedBuilding}
+      />
     </SafeAreaView>
   );
 };
