@@ -29,10 +29,17 @@ const FinancialsScreen = ({ user, onBack, onNavigate }) => {
     setLoading(true);
     const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
     
-    // FIX: Scope members to user's jurisdiction (consistent with every other screen)
+    // DATA-CLEAN-P1E: Use assignedVillages set + ashaId (consistent with all other screens)
     let members = allMembers;
     if (user?.role === 'ASHA') {
-      members = allMembers.filter(m => m.ashaId === user.id || m.villageId === user.villageId);
+      const rawAssigned = user.assignedVillages || [];
+      const assignedIds = new Set(rawAssigned.map(v => {
+        if (typeof v === 'string') return v;
+        if (v && typeof v === 'object') return v.id || v.villageId;
+        return null;
+      }).filter(Boolean));
+      if (user?.villageId) assignedIds.add(user.villageId);
+      members = allMembers.filter(m => m.ashaId === user.id || assignedIds.has(m.villageId) || !m.villageId);
     } else if (user?.role === 'ANM') {
       members = allMembers.filter(m => m.subCenterId === user.subCenterId);
     } else if (user?.role === 'MO') {

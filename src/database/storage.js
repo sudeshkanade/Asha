@@ -105,10 +105,23 @@ export const storage = {
             ...(m.healthData || {})
           };
 
+          // DATA-CLEAN-P2A: Normalize dob to YYYY-MM-DD (ISO) for consistent age/schedule calculations.
+          // Excel imports often provide DD/MM/YYYY; JS `new Date("15/06/1990")` returns Invalid Date.
+          let dob = m.dob;
+          if (dob) {
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(String(dob))) {
+              const [d, mo, y] = String(dob).split('/');
+              dob = `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
+            } else if (typeof dob === 'number') {
+              dob = new Date(dob).toISOString().split('T')[0];
+            }
+          }
+
           return {
             ...m,
             firstName: m.firstName || m.fname || '',
             lastName: m.lastName || m.lname || '',
+            dob,
             villageId,
             subCenterId,
             phcId,

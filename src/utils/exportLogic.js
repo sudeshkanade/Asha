@@ -44,7 +44,17 @@ const sanitizeValue = (val) => {
 // ===================== HELPER: Hierarchy filter =====================
 const applyHierarchyFilter = (members, user) => {
   if (!user) return members;
-  if (user.role === 'ASHA') return members.filter(m => m.villageId === user.villageId);
+  if (user.role === 'ASHA') {
+    // DATA-CLEAN-P1A: Use full assignedVillages set + ashaId (not single villageId)
+    const rawAssigned = user.assignedVillages || [];
+    const assignedIds = new Set(rawAssigned.map(v => {
+      if (typeof v === 'string') return v;
+      if (v && typeof v === 'object') return v.id || v.villageId;
+      return null;
+    }).filter(Boolean));
+    if (user.villageId) assignedIds.add(user.villageId);
+    return members.filter(m => m.ashaId === user.id || assignedIds.has(m.villageId) || !m.villageId);
+  }
   if (user.role === 'ANM') return members.filter(m => m.subCenterId === user.subCenterId);
   if (user.role === 'MO') return members.filter(m => m.phcId === user.phcId);
   return members; // Admin sees all
@@ -80,7 +90,7 @@ const baseColumns = (m, family, user, allUsers = []) => {
     'Education': m.education || 'N/A',
     'Aadhaar': m.aadhaar || 'N/A',
     'ABHA ID': m.abhaId || 'N/A',
-    'Mobile': m.mobile || 'N/A',
+    'Mobile': m.phone || m.mobile || 'N/A',  // DATA-CLEAN-P2B: phone (saved by UI) or mobile (Excel import)
     'Caste/Category': family.religionCaste || m.caste || 'N/A',
     'BPL': family.isBPL ? 'Yes' : 'No',
     'PwD': m.isPwd ? 'Yes' : 'No',
@@ -310,22 +320,11 @@ export const exportMasterPopulation = async (user, filterType = null) => {
 
 export const exportVitalEvents = async (user, eventType = 'Birth', placeFilter = null, infantOnly = false) => {
   try {
-    const events = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
-    const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+    // DATA-CLEAN-P1C: Read ONLY from persistent VITAL_EVENTS. The sync queue approach caused events
+    // to disappear after sync and appear twice while pending. VITAL_EVENTS is always the source of truth.
     const persistentVitalEvents = await storage.getAll(STORAGE_KEYS.VITAL_EVENTS);
 
-    // Combine persistent events and queue events (prevent duplicates by ID)
-    const queueVitalEvents = events
-      .filter(e => e.tableName === 'vital_events' || e.tableName === '@rural_health_vital_events')
-      .map(e => e.payload || e)
-      .filter(p => p.type === eventType);
-
-    const combined = [...persistentVitalEvents.filter(e => e.type === eventType)];
-    queueVitalEvents.forEach(qe => {
-      if (!combined.some(pe => pe.id === qe.id)) {
-        combined.push(qe);
-      }
-    });
+    const combined = persistentVitalEvents.filter(e => e.type === eventType);
 
     // Apply place filter for births/deliveries
     let filteredEvents = combined;
@@ -345,7 +344,16 @@ export const exportVitalEvents = async (user, eventType = 'Birth', placeFilter =
 
     // Hierarchy filter combined list
     if (user?.role === 'ASHA') {
-      filteredEvents = filteredEvents.filter(e => e.ashaId === user.id || e.villageId === user.villageId);
+      const rawAssigned = user.assignedVillages || [];
+      const assignedIds = new Set(rawAssigned.map(v => {
+        if (typeof v === 'string') return v;
+        if (v && typeof v === 'object') return v.id || v.villageId;
+        return null;
+      }).filter(Boolean));
+      if (user.villageId) assignedIds.add(user.villageId);
+      filteredEvents = filteredEvents.filter(e =>
+        e.ashaId === user.id || assignedIds.has(e.villageId) || !e.villageId
+      );
     } else if (user?.role === 'ANM') {
       filteredEvents = filteredEvents.filter(e => e.subCenterId === user.subCenterId);
     } else if (user?.role === 'MO') {
@@ -603,7 +611,7 @@ export const exportFormS = async (user) => {
     const rows = logs.map((l, i) => ({
       'Sr.No.': i + 1,
       'Week Ending': new Date(l.timestamp).toLocaleDateString(),
-      'Village': sanitizeValue(l.villageId),
+      'Village': sanitizeValue(l.villageName || l.villageId),  // DATA-CLEAN-P2C: show name not raw ID
       'Fever Cases': l.feverCount,
       'Diarrhea Cases': l.diarrheaCount,
       'Pneumonia': 0,

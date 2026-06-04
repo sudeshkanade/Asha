@@ -130,6 +130,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
         motherId: mother.id,
         birthWeight: formData.birthWeight,
         deliveryType: formData.deliveryType,
+        hospitalName: formData.hospitalName || '',  // DATA-CLEAN-P1D: was missing from birth event
         isSBA: formData.place === 'Home' ? formData.isSBA : undefined,
         // FIX: Add hierarchy fields so ANM/MO can filter events by their jurisdiction
         villageId: mother.villageId,
@@ -216,6 +217,8 @@ const VitalEventsScreen = ({ user, onBack }) => {
           name: member.firstName + ' ' + member.lastName,
           ageAtDeath: member.age || formData.ageAtDeath || 'N/A',
           causeOfDeath: formData.causeOfDeath,
+          // DATA-CLEAN-P1B: Add ashaId so death events are returned by ASHA cloud pull ashaId query
+          ashaId: member.ashaId,
           // Carry hierarchy fields so the events are filterable by role
           villageId: member.villageId,
           subCenterId: member.subCenterId,
