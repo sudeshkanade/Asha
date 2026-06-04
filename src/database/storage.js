@@ -224,13 +224,19 @@ export const storage = {
         
         let normalizedData = { ...data };
         if (key === STORAGE_KEYS.MEMBERS) {
+          // P3-A: Strip legacy fname/lname aliases so records don't accumulate duplicate fields
+          const { fname, lname, ...rest } = normalizedData;
           normalizedData = {
-            ...normalizedData,
-            firstName: normalizedData.firstName || normalizedData.fname || '',
-            lastName: normalizedData.lastName || normalizedData.lname || '',
+            ...rest,
+            firstName: rest.firstName || fname || '',
+            lastName: rest.lastName || lname || '',
+            // P3-B: Keep relation and relationToHead in sync so both exist for all report filters
+            relationToHead: rest.relation || rest.relationToHead || '',
+            // P3-C: Embed timestamp in healthData so field-level merge comparisons are meaningful
             healthData: {
-              ...(normalizedData.healthData || {}),
-              isPregnant: normalizedData.healthData?.isPregnant ?? (normalizedData.isPregnant === 'yes' || normalizedData.isPregnant === true),
+              ...(rest.healthData || {}),
+              isPregnant: rest.healthData?.isPregnant ?? (rest.isPregnant === 'yes' || rest.isPregnant === true),
+              lastUpdatedAt: timestamp,
             }
           };
         }
@@ -317,8 +323,38 @@ export const storage = {
 
   saveAll: async (key, items) => {
     return storage.withLock(async () => {
-      return await storage._saveAll(key, items);
+      // P3-D: Filter tombstoned IDs for clinical collections to prevent cloud resurrection of deleted records
+      const clinicalKeys = [STORAGE_KEYS.MEMBERS, STORAGE_KEYS.FAMILIES, STORAGE_KEYS.VITAL_EVENTS];
+      let cleanedItems = items;
+      if (Array.isArray(items) && clinicalKeys.includes(key)) {
+        const tombstones = await storage._getAll(STORAGE_KEYS.DELETED_IDS);
+        if (tombstones.length > 0) {
+          const tombstoneSet = new Set(tombstones.map(String));
+          cleanedItems = items.filter(item => !item.id || !tombstoneSet.has(String(item.id)));
+        }
+      }
+      return await storage._saveAll(key, cleanedItems);
     });
+  },
+
+  /**
+   * P2-D: Recompute PHC_SUMMARY from scratch by counting actual members.
+   * Call this after cloud sync merges to fix counter drift.
+   */
+  recomputeSummary: async () => {
+    try {
+      const members = await storage._getAll(STORAGE_KEYS.MEMBERS);
+      const summary = {
+        totalMembers: members.length,
+        totalPregnant: members.filter(m => m.healthData?.isPregnant).length,
+        totalHighRisk: members.filter(m => m.healthData?.isHighRisk).length,
+        totalChildren: members.filter(m => (parseInt(m.age) || 0) < 5).length,
+      };
+      await AsyncStorage.setItem('PHC_SUMMARY', JSON.stringify(summary));
+      console.log('✅ PHC_SUMMARY recomputed:', summary);
+    } catch (e) {
+      console.error('❌ recomputeSummary Error:', e);
+    }
   },
 
   autoPrune: async () => {
@@ -380,9 +416,10 @@ export const storage = {
                (user.role === 'MO' && (item.phcId === user.phcId || !!item.ashaId));
       });
 
-      if (filtered.length < data.length) {
-        await storage.saveAll(key, filtered);
-      }
+      // P2-E: Always write back normalized data, not only when records are deleted.
+      // This persists resolved subCenterId/phcId for Excel-imported records that had
+      // those fields missing in raw storage but resolved via village lookup in _getAll.
+      await storage.saveAll(key, filtered);
     }
   },
 

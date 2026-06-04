@@ -397,6 +397,9 @@ export const cloudSyncManager = {
           totalPulled += cloudData.length;
         }
 
+        // P2-D: Call storage.recomputeSummary() after merge completes
+        await storage.recomputeSummary();
+
         const elapsed = Date.now() - startTime;
         console.log(`✅ CloudSync: Shadow Pull merged in ${elapsed}ms — pulled:${totalPulled} removed:${totalDeleted}`);
         return { success: true, pulledCount: totalPulled, deletedCount: totalDeleted };

@@ -162,6 +162,7 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
 
     const finalData = {
       ...rest,
+      relationToHead: rest.relation,
       dob: finalDob,
       healthData: {
         ...existingMember?.healthData,
