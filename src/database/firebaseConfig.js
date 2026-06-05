@@ -5,7 +5,7 @@ import { getAuth } from 'firebase/auth';
 // Replace with your Firebase project configuration
 // Keep these details secure in production (e.g. env variables)
 const firebaseConfig = {
-  apiKey: "AIzaSyAT15t8ljdADONxxKAy8Ufq1Zw0tOUfckE",
+  apiKey: "AIzaSyAT15tB1jdADDNxxKAy8Ufq1Zw0tOUfckE",
   authDomain: "asha---rural-health-tracker.firebaseapp.com",
   projectId: "asha---rural-health-tracker",
   storageBucket: "asha---rural-health-tracker.firebasestorage.app",
