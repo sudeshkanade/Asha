@@ -46,6 +46,7 @@ const LoginScreen = ({ onLogin }) => {
   const [showMigrationModal, setShowMigrationModal] = useState(false);
   const [migrationEmail, setMigrationEmail] = useState('');
   const [userToMigrate, setUserToMigrate] = useState(null);
+  const [inlineError, setInlineError] = useState('');
 
   useEffect(() => {
     loadHierarchy();
@@ -63,6 +64,7 @@ const LoginScreen = ({ onLogin }) => {
     });
     setShowMigrationModal(false);
     setUserToMigrate(null);
+    setInlineError('');
   }, [isRegister]);
 
   const loadHierarchy = async () => {
@@ -81,6 +83,7 @@ const LoginScreen = ({ onLogin }) => {
   };
 
   const handleLogin = async () => {
+    setInlineError('');
     // Secret shortcut for cleanup: Type 'admin_wipe' in username to reset device
     if (formData.username.toLowerCase() === 'admin_wipe') {
       handleFactoryReset();
@@ -133,10 +136,12 @@ const LoginScreen = ({ onLogin }) => {
               Alert.alert(t('accessDenied'), t('regRejected'));
               await auth.signOut();
             } else {
+              setInlineError(t('regPending'));
               Alert.alert(t('pendingApproval'), t('regPending'));
               await auth.signOut();
             }
           } else {
+            setInlineError(t('noUserRecord', 'User record not found in database. Contact admin.'));
             Alert.alert(t('error'), t('noUserRecord', 'User record not found in database. Contact admin.'));
             await auth.signOut();
           }
@@ -150,6 +155,7 @@ const LoginScreen = ({ onLogin }) => {
           } else if (authError.code === 'auth/invalid-email') {
             errorMsg = t('invalidEmail', 'Invalid email address format.');
           }
+          setInlineError(errorMsg);
           Alert.alert(t('error'), errorMsg);
         }
       } else {
@@ -169,19 +175,24 @@ const LoginScreen = ({ onLogin }) => {
             setShowMigrationModal(true);
           }
         } else {
+          setInlineError(t('invalidCredentials'));
           Alert.alert(t('error'), t('invalidCredentials'));
         }
       }
     } catch (e) {
       console.error("Login Error:", e);
-      Alert.alert(t('error'), e.message || t('loginFailed', 'Login failed. Please check connection.'));
+      const msg = e.message || t('loginFailed', 'Login failed. Please check connection.');
+      setInlineError(msg);
+      Alert.alert(t('error'), msg);
     } finally {
       setLoading(false);
     }
   };
 
   const handleMigrateUser = async () => {
+    setInlineError('');
     if (!migrationEmail || !migrationEmail.includes('@')) {
+      setInlineError(t('invalidEmail', 'Please enter a valid email address.'));
       Alert.alert(t('error'), t('invalidEmail', 'Please enter a valid email address.'));
       return;
     }
@@ -245,12 +256,20 @@ const LoginScreen = ({ onLogin }) => {
         } catch (e) {
           console.error("Post-migration Sync Error:", e);
         }
+        setShowMigrationModal(false);
+        setUserToMigrate(null);
         onLogin(updatedUser);
       } else if (updatedUser.approvalStatus === 'rejected') {
+        setInlineError(t('regRejected'));
         Alert.alert(t('accessDenied'), t('regRejected'));
+        setShowMigrationModal(false);
+        setUserToMigrate(null);
         await auth.signOut();
       } else {
+        setInlineError(t('regPending'));
         Alert.alert(t('pendingApproval'), t('regPending'));
+        setShowMigrationModal(false);
+        setUserToMigrate(null);
         await auth.signOut();
       }
     } catch (err) {
@@ -261,11 +280,10 @@ const LoginScreen = ({ onLogin }) => {
       } else if (err.code === 'auth/weak-password') {
         errorMsg = t('weakPassword', 'Your password is too weak. Please contact admin to reset your password.');
       }
+      setInlineError(errorMsg);
       Alert.alert(t('error'), errorMsg);
-      setShowMigrationModal(true);
     } finally {
       setLoading(false);
-      setUserToMigrate(null);
     }
   };
 
@@ -486,7 +504,7 @@ const LoginScreen = ({ onLogin }) => {
               style={styles.input}
               placeholder={t('email', 'Email')}
               value={formData.email}
-              onChangeText={(t) => setFormData({...formData, email: t})}
+              onChangeText={(t) => {setFormData({...formData, email: t}); setInlineError(null);}}
               autoCapitalize="none"
               keyboardType="email-address"
             />
@@ -495,7 +513,7 @@ const LoginScreen = ({ onLogin }) => {
               style={styles.input}
               placeholder={t('emailOrUsername', 'Email or Username')}
               value={formData.username}
-              onChangeText={(t) => setFormData({...formData, username: t})}
+              onChangeText={(t) => {setFormData({...formData, username: t}); setInlineError(null);}}
               autoCapitalize="none"
             />
           )}
@@ -503,7 +521,7 @@ const LoginScreen = ({ onLogin }) => {
             style={styles.input}
             placeholder={t('password')}
             value={formData.password}
-            onChangeText={(t) => setFormData({...formData, password: t})}
+            onChangeText={(t) => {setFormData({...formData, password: t}); setInlineError(null);}}
             secureTextEntry
           />
 
@@ -586,6 +604,8 @@ const LoginScreen = ({ onLogin }) => {
               )}
             </>
           )}
+
+          {inlineError ? <RNText style={{color: 'red', textAlign: 'center', marginBottom: 15, fontWeight: 'bold'}}>{inlineError}</RNText> : null}
 
           <TouchableOpacity 
             style={[styles.mainBtn, loading && { opacity: 0.7 }]} 
