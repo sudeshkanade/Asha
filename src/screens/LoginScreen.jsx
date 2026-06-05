@@ -192,10 +192,24 @@ const LoginScreen = ({ onLogin }) => {
     try {
       const email = migrationEmail.trim();
       const password = userToMigrate.password;
+      let uid;
 
-      // 1. Create account in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const uid = userCredential.user.uid;
+      // 1. Create account in Firebase Auth (or recover if auth exists but local DB wiped)
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        uid = userCredential.user.uid;
+      } catch (authErr) {
+        if (authErr.code === 'auth/email-already-in-use') {
+          try {
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            uid = userCredential.user.uid;
+          } catch (signInErr) {
+            throw authErr; // If sign-in fails, surface the original already-in-use error
+          }
+        } else {
+          throw authErr;
+        }
+      }
 
       // 2. Update Firestore record
       await storage.update(STORAGE_KEYS.USERS, (usersList) => {
