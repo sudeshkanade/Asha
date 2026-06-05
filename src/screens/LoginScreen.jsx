@@ -204,6 +204,7 @@ const LoginScreen = ({ onLogin }) => {
           usersList[idx].email = email;
           usersList[idx].uid = uid;
           usersList[idx].authMigrated = true;
+          usersList[idx].syncStatus = 'pending';
           delete usersList[idx].password;
           usersList[idx].lastUpdatedAt = Date.now();
         }

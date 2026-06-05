@@ -354,6 +354,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
           if (users[idx].approvalStatus === newStatus) return null;
           
           users[idx].approvalStatus = newStatus;
+          users[idx].syncStatus = 'pending';
           users[idx].lastUpdatedAt = Date.now();
           users[idx].approvalTimestamp = new Date().toISOString();
         }
@@ -417,6 +418,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
             const idx = list.findIndex(u => u.id === userId);
             if (idx >= 0) {
               list[idx].password = defaultPassword;
+              list[idx].syncStatus = 'pending';
               list[idx].lastUpdatedAt = Date.now();
             }
             return list;
