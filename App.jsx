@@ -302,14 +302,21 @@ export default function App() {
   };
 
   const handleFamilySave = async (familyData) => {
+    const isEdit = !!selectedFamily;
     const finalFamily = {
+      ...selectedFamily,
       ...familyData,
-      ashaId: familyData.ashaId || user?.id,
-      id: familyData.id || storage.generateId('fam', user?.id || 'sys'),
+      ashaId: familyData.ashaId || selectedFamily?.ashaId || user?.id,
+      id: familyData.id || selectedFamily?.id || storage.generateId('fam', user?.id || 'sys'),
     };
     await storage.save(STORAGE_KEYS.FAMILIES, finalFamily);
-    setSelectedFamily(finalFamily);
-    setCurrentScreen('MemberRegistration');
+    if (isEdit) {
+      setSelectedFamily(null);
+      handleGoBack();
+    } else {
+      setSelectedFamily(finalFamily);
+      setCurrentScreen('MemberRegistration');
+    }
   };
 
   const handleMemberSave = async (memberData, addAnother = false) => {
@@ -373,7 +380,7 @@ export default function App() {
       case 'FamilyFolder':
         return <FamilyFolderScreen user={user} onNavigate={handleNavigate} onBack={handleGoBack} />;
       case 'FamilyRegistration':
-        return <FamilyRegistrationScreen onSave={handleFamilySave} user={user} onBack={handleGoBack} />;
+        return <FamilyRegistrationScreen onSave={handleFamilySave} user={user} onBack={handleGoBack} existingFamily={selectedFamily} />;
       case 'MemberRegistration':
         return <MemberRegistrationScreen key={`reg-${registrationKey}`} familyHead={selectedFamily} existingMember={selectedMember} onSave={handleMemberSave} onBack={handleGoBack} />;
       case 'MPRReport':

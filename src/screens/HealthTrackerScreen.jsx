@@ -54,6 +54,38 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
     hasSkinPatches: member?.healthData?.hasSkinPatches || false,
     hasDiarrhea: member?.healthData?.hasDiarrhea || false,
     onTbTreatment: member?.healthData?.onTbTreatment || false,
+    // ANC/PNC Diagnostics & Medication
+    bloodGroup: member?.healthData?.bloodGroup || 'unknown',
+    hivScreening: member?.healthData?.hivScreening || 'not_done',
+    vdrlScreening: member?.healthData?.vdrlScreening || 'not_done',
+    tshScreening: member?.healthData?.tshScreening || 'not_done',
+    urineRoutine: member?.healthData?.urineRoutine || 'not_done',
+    ifaQuantity: member?.healthData?.ifaQuantity || '0',
+    calciumQuantity: member?.healthData?.calciumQuantity || '0',
+    usgDate: member?.healthData?.usgDate || '',
+    usgAnomalies: member?.healthData?.usgAnomalies || 'none',
+    motherPncSigns: member?.healthData?.motherPncSigns || 'none',
+    babyPncSigns: member?.healthData?.babyPncSigns || 'none',
+    // Child Milestones & Vitamin A / Deworming
+    childMilestones: member?.healthData?.childMilestones || 'none',
+    exclusiveBreastfeeding: member?.healthData?.exclusiveBreastfeeding ?? true,
+    vitaminADose: member?.healthData?.vitaminADose || 'none',
+    dewormingDone: member?.healthData?.dewormingDone ?? false,
+    // Cancer Screening, CBAC & NCD Compliance / Infection Lab Results
+    cancerOral: member?.healthData?.cancerOral || 'normal',
+    cancerBreast: member?.healthData?.cancerBreast || 'normal',
+    cancerCervical: member?.healthData?.cancerCervical || 'normal',
+    cbacScore: member?.healthData?.cbacScore || '0',
+    ncdMedicationCompliance: member?.healthData?.ncdMedicationCompliance ?? true,
+    tbLabResult: member?.healthData?.tbLabResult || 'not_screened',
+    malariaLabResult: member?.healthData?.malariaLabResult || 'not_screened',
+    // FP Spacing History & Injectable Date
+    fpContraceptiveHistory: member?.healthData?.fpContraceptiveHistory || 'none',
+    nextInjectableDate: member?.healthData?.nextInjectableDate || '',
+    tdVaccine: member?.healthData?.tdVaccine || 'None',
+    gestationalComplication: member?.healthData?.gestationalComplication || 'None',
+    hasAefi: member?.healthData?.hasAefi || false,
+    aefiDetails: member?.healthData?.aefiDetails || '',
   });
 
   const hbncSchedule = member?.dob ? calculateChildSchedule(member.dob).hbnc : [];
@@ -362,6 +394,197 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
             </View>
 
             <View style={styles.divider} />
+            <Text style={styles.sectionTitle}>{t('ancDiagnosticPanel', 'Antenatal Diagnostics Panel')}</Text>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('bloodGroup', 'Blood Group')}</Text>
+              <View style={styles.pickerContainer}>
+                {['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-', 'Unknown'].map((bg) => (
+                  <TouchableOpacity
+                    key={bg}
+                    style={[styles.chip, tracker.bloodGroup === bg && styles.chipActive]}
+                    onPress={() => setTracker({ ...tracker, bloodGroup: bg })}
+                  >
+                    <Text style={[styles.chipText, tracker.bloodGroup === bg && styles.chipTextActive]}>{bg}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('hivScreening', 'HIV Screening')}</Text>
+              <View style={styles.pickerContainer}>
+                {['Non-Reactive', 'Reactive', 'Not Done'].map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[styles.chip, tracker.hivScreening === opt && styles.chipActive]}
+                    onPress={() => setTracker({ ...tracker, hivScreening: opt })}
+                  >
+                    <Text style={[styles.chipText, tracker.hivScreening === opt && styles.chipTextActive]}>{opt}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('vdrlScreening', 'Syphilis (VDRL) Screening')}</Text>
+              <View style={styles.pickerContainer}>
+                {['Non-Reactive', 'Reactive', 'Not Done'].map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[styles.chip, tracker.vdrlScreening === opt && styles.chipActive]}
+                    onPress={() => setTracker({ ...tracker, vdrlScreening: opt })}
+                  >
+                    <Text style={[styles.chipText, tracker.vdrlScreening === opt && styles.chipTextActive]}>{opt}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('tshScreening', 'Thyroid (TSH) Screening')}</Text>
+              <View style={styles.pickerContainer}>
+                {['Normal', 'High', 'Low', 'Not Done'].map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[styles.chip, tracker.tshScreening === opt && styles.chipActive]}
+                    onPress={() => setTracker({ ...tracker, tshScreening: opt })}
+                  >
+                    <Text style={[styles.chipText, tracker.tshScreening === opt && styles.chipTextActive]}>{opt}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('urineRoutine', 'Urine Test (Routine)')}</Text>
+              <View style={styles.pickerContainer}>
+                {['Normal', 'Albumin Present', 'Sugar Present', 'Albumin & Sugar', 'Not Done'].map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[styles.chip, tracker.urineRoutine === opt && styles.chipActive]}
+                    onPress={() => setTracker({ ...tracker, urineRoutine: opt })}
+                  >
+                    <Text style={[styles.chipText, tracker.urineRoutine === opt && styles.chipTextActive]}>{opt}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+            <Text style={styles.sectionTitle}>{t('ancMedicines', 'Medicines & Distribution')}</Text>
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, { flex: 1, minWidth: 140 }]}>
+                <Text style={styles.label}>{t('ifaQuantity', 'IFA Tablets Distributed')}</Text>
+                <TextInput style={styles.input} value={tracker.ifaQuantity}
+                  onChangeText={(t) => setTracker({ ...tracker, ifaQuantity: t })}
+                  placeholder="e.g. 30" keyboardType="numeric" />
+              </View>
+              <View style={[styles.inputGroup, { flex: 1, minWidth: 140 }]}>
+                <Text style={styles.label}>{t('calciumQuantity', 'Calcium Tablets Distributed')}</Text>
+                <TextInput style={styles.input} value={tracker.calciumQuantity}
+                  onChangeText={(t) => setTracker({ ...tracker, calciumQuantity: t })}
+                  placeholder="e.g. 60" keyboardType="numeric" />
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+            <Text style={styles.sectionTitle}>{t('ancImmunization', 'Maternal Immunization (Td)')}</Text>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('tdVaccineStatus', 'Td Vaccine Status')}</Text>
+              <View style={styles.pickerContainer}>
+                {['None', 'Td 1', 'Td 2', 'Td Booster'].map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[styles.chip, tracker.tdVaccine === opt && styles.chipActive]}
+                    onPress={() => setTracker({ ...tracker, tdVaccine: opt })}
+                  >
+                    <Text style={[styles.chipText, tracker.tdVaccine === opt && styles.chipTextActive]}>{opt}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+            <Text style={styles.sectionTitle}>{t('ancUsgTracking', 'Ultrasound (USG) Scan')}</Text>
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, { flex: 1, minWidth: 140 }]}>
+                <Text style={styles.label}>{t('usgDate', 'Scan Date (YYYY-MM-DD)')}</Text>
+                <TextInput style={styles.input} value={tracker.usgDate}
+                  onChangeText={(t) => setTracker({ ...tracker, usgDate: t })}
+                  placeholder="YYYY-MM-DD" />
+              </View>
+              <View style={[styles.inputGroup, { flex: 1, minWidth: 140 }]}>
+                <Text style={styles.label}>{t('usgAnomalies', 'Fetal Anomalies')}</Text>
+                <View style={styles.pickerContainer}>
+                  {['None', 'Anomalies Found'].map((opt) => (
+                    <TouchableOpacity
+                      key={opt}
+                      style={[styles.chip, tracker.usgAnomalies === opt && styles.chipActive]}
+                      onPress={() => setTracker({ ...tracker, usgAnomalies: opt })}
+                    >
+                      <Text style={[styles.chipText, tracker.usgAnomalies === opt && styles.chipTextActive]}>{opt}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </View>
+
+            {(member?.healthData?.pncStatus === 'Pending' || member?.healthData?.pncStatus === 'active') && (
+              <>
+                <View style={styles.divider} />
+                <Text style={styles.sectionTitle}>{t('pncWarningSigns', 'Postnatal Warning Signs')}</Text>
+                
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>{t('motherPncSigns', 'Mother PNC Warning Signs')}</Text>
+                  <View style={styles.pickerContainer}>
+                    {['None', 'Bleeding', 'Fever', 'Breast Discharge', 'Foul Discharge'].map((opt) => (
+                      <TouchableOpacity
+                        key={opt}
+                        style={[styles.chip, tracker.motherPncSigns === opt && styles.chipActive]}
+                        onPress={() => setTracker({ ...tracker, motherPncSigns: opt })}
+                      >
+                        <Text style={[styles.chipText, tracker.motherPncSigns === opt && styles.chipTextActive]}>{opt}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>{t('babyPncSigns', 'Baby PNC Warning Signs')}</Text>
+                  <View style={styles.pickerContainer}>
+                    {['None', 'Convulsions', 'Fast Breathing', 'Jaundice', 'Cold Body', 'Fever'].map((opt) => (
+                      <TouchableOpacity
+                        key={opt}
+                        style={[styles.chip, tracker.babyPncSigns === opt && styles.chipActive]}
+                        onPress={() => setTracker({ ...tracker, babyPncSigns: opt })}
+                      >
+                        <Text style={[styles.chipText, tracker.babyPncSigns === opt && styles.chipTextActive]}>{opt}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </>
+            )}
+
+            <View style={styles.divider} />
+            <Text style={styles.sectionTitle}>{t('gestationalComplications', 'Gestational Complications')}</Text>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('gestationalOutcome', 'Gestational Outcome / Complication')}</Text>
+              <View style={styles.pickerContainer}>
+                {['None', 'Abortion', 'Stillbirth', 'PPH', 'Eclampsia', 'Sepsis'].map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[styles.chip, tracker.gestationalComplication === opt && styles.chipActive]}
+                    onPress={() => setTracker({ ...tracker, gestationalComplication: opt })}
+                  >
+                    <Text style={[styles.chipText, tracker.gestationalComplication === opt && styles.chipTextActive]}>{opt}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.divider} />
             <Text style={styles.sectionTitle}>{t('riskStatus')}</Text>
             {ANC_RISK_FACTORS.map((factor, i) => (
               <TouchableOpacity key={i} style={styles.riskRow} onPress={() => toggleRiskFactor(factor)}>
@@ -411,6 +634,52 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
             </View>
 
             <View style={styles.card}>
+              <Text style={styles.sectionTitle}>{t('childDevelopmentMilestones', 'Development & Vitamin A / Deworming')}</Text>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>{t('childMilestones', 'Child Milestones')}</Text>
+                <View style={styles.pickerContainer}>
+                  {['None', 'Neck Support', 'Rolling Over', 'Crawling', 'Sitting', 'Standing'].map((ms) => (
+                    <TouchableOpacity
+                      key={ms}
+                      style={[styles.chip, tracker.childMilestones === ms && styles.chipActive]}
+                      onPress={() => setTracker({ ...tracker, childMilestones: ms })}
+                    >
+                      <Text style={[styles.chipText, tracker.childMilestones === ms && styles.chipTextActive]}>{ms}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.switchRow}>
+                <Text style={styles.switchLabel}>{t('exclusiveBreastfeeding', 'Exclusive Breastfeeding (up to 6m)?')}</Text>
+                <Switch value={tracker.exclusiveBreastfeeding} onValueChange={(v) => setTracker({...tracker, exclusiveBreastfeeding: v})} trackColor={{ true: COLORS.primary, false: '#D1DBCE' }} />
+              </View>
+
+              <View style={styles.divider} />
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>{t('vitaminADose', 'Vitamin A Dose Course')}</Text>
+                <View style={styles.pickerContainer}>
+                  {['None', 'Dose 1', 'Dose 2', 'Dose 3', 'Dose 4', 'Dose 5', 'Dose 6', 'Dose 7', 'Dose 8', 'Dose 9'].map((dose) => (
+                    <TouchableOpacity
+                      key={dose}
+                      style={[styles.chip, tracker.vitaminADose === dose && styles.chipActive]}
+                      onPress={() => setTracker({ ...tracker, vitaminADose: dose })}
+                    >
+                      <Text style={[styles.chipText, tracker.vitaminADose === dose && styles.chipTextActive]}>{dose}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.switchRow}>
+                <Text style={styles.switchLabel}>{t('dewormingDone', 'Albendazole (Deworming) Given?')}</Text>
+                <Switch value={tracker.dewormingDone} onValueChange={(v) => setTracker({...tracker, dewormingDone: v})} trackColor={{ true: COLORS.primary, false: '#D1DBCE' }} />
+              </View>
+            </View>
+
+            <View style={styles.card}>
               <Text style={styles.sectionTitle}>{t('visitSchedule')}</Text>
               {hbncSchedule.length > 0 ? (
                 hbncSchedule.map((visit, i) => (
@@ -442,6 +711,17 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
                 ))
               ) : (
                 <Text style={styles.emptyText}>{t('noImmunizationSchedule', 'No immunization schedule found.')}</Text>
+              )}
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>{t('aefiTracking', 'AEFI (Adverse Events)')}</Text>
+              <View style={styles.switchRow}>
+                <Text style={styles.switchLabel}>{t('hasAefi', 'Reported AEFI post-vaccination?')}</Text>
+                <Switch value={tracker.hasAefi} onValueChange={(v) => setTracker({...tracker, hasAefi: v})} trackColor={{ true: COLORS.primary, false: '#D1DBCE' }} />
+              </View>
+              {tracker.hasAefi && (
+                 <RenderInput label={t('aefiDetails', 'AEFI Details (e.g. High fever, swelling)')} value={tracker.aefiDetails} onChange={(t) => setTracker({...tracker, aefiDetails: t})} placeholder="Describe symptoms" />
               )}
             </View>
           </>
@@ -483,6 +763,51 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
             <RenderInput label={t('weight')} value={tracker.weight} onChange={(t) => setTracker({...tracker, weight: t})} placeholder="60" keyboardType="numeric" />
             
             <View style={styles.divider} />
+            <Text style={styles.sectionTitle}>{t('cancerScreening', 'Cancer Screening')}</Text>
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, { flex: 1, minWidth: 100 }]}>
+                <Text style={styles.label}>{t('cancerOral', 'Oral Cancer')}</Text>
+                <View style={styles.pickerContainer}>
+                  {['normal', 'abnormal', 'referred'].map((opt) => (
+                    <TouchableOpacity key={opt} style={[styles.chip, tracker.cancerOral === opt && styles.chipActive]} onPress={() => setTracker({ ...tracker, cancerOral: opt })}>
+                      <Text style={[styles.chipText, tracker.cancerOral === opt && styles.chipTextActive]}>{t(opt)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              {member.gender === 'Female' && (
+                <>
+                  <View style={[styles.inputGroup, { flex: 1, minWidth: 100 }]}>
+                    <Text style={styles.label}>{t('cancerBreast', 'Breast Cancer')}</Text>
+                    <View style={styles.pickerContainer}>
+                      {['normal', 'abnormal', 'referred'].map((opt) => (
+                        <TouchableOpacity key={opt} style={[styles.chip, tracker.cancerBreast === opt && styles.chipActive]} onPress={() => setTracker({ ...tracker, cancerBreast: opt })}>
+                          <Text style={[styles.chipText, tracker.cancerBreast === opt && styles.chipTextActive]}>{t(opt)}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                  <View style={[styles.inputGroup, { flex: 1, minWidth: 100 }]}>
+                    <Text style={styles.label}>{t('cancerCervical', 'Cervical Cancer (VIA)')}</Text>
+                    <View style={styles.pickerContainer}>
+                      {['normal', 'abnormal', 'referred'].map((opt) => (
+                        <TouchableOpacity key={opt} style={[styles.chip, tracker.cancerCervical === opt && styles.chipActive]} onPress={() => setTracker({ ...tracker, cancerCervical: opt })}>
+                          <Text style={[styles.chipText, tracker.cancerCervical === opt && styles.chipTextActive]}>{t(opt)}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                </>
+              )}
+            </View>
+
+            <View style={styles.divider} />
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('cbacScore', 'CBAC Risk Score (0-10+)')}</Text>
+              <TextInput style={styles.input} value={tracker.cbacScore} onChangeText={(t) => setTracker({ ...tracker, cbacScore: t })} placeholder="Score >4 needs screening" keyboardType="numeric" />
+            </View>
+
+            <View style={styles.divider} />
             <Text style={styles.sectionTitle}>{t('substanceUse')}</Text>
             <View style={styles.switchRow}>
               <Text style={styles.switchLabel}>{t('usesTobacco')}</Text>
@@ -507,12 +832,32 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
               <Text style={styles.switchLabel}>{t('weightLoss', 'Weight Loss')}</Text>
               <Switch value={tracker.tbScreening.hasWeightLoss} onValueChange={(v) => setTracker({...tracker, tbScreening: {...tracker.tbScreening, hasWeightLoss: v}})} trackColor={{ true: COLORS.primary, false: '#D1DBCE' }} />
             </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('tbLabResult', 'TB Lab Result (Sputum/CBNAAT)')}</Text>
+              <View style={styles.pickerContainer}>
+                {['not_screened', 'negative', 'positive'].map((opt) => (
+                  <TouchableOpacity key={opt} style={[styles.chip, tracker.tbLabResult === opt && styles.chipActive]} onPress={() => setTracker({ ...tracker, tbLabResult: opt })}>
+                    <Text style={[styles.chipText, tracker.tbLabResult === opt && styles.chipTextActive]}>{t(opt.replace('_', ''))}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
 
             <View style={styles.divider} />
             <Text style={styles.sectionTitle}>{t('malariaScreening', 'Malaria Screening')}</Text>
             <View style={styles.switchRow}>
               <Text style={styles.switchLabel}>{t('feverWithChills', 'Fever with Chills')}</Text>
               <Switch value={tracker.hasFeverWithChills} onValueChange={(v) => setTracker({...tracker, hasFeverWithChills: v})} trackColor={{ true: COLORS.primary, false: '#D1DBCE' }} />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>{t('malariaLabResult', 'Malaria Lab Result (RDT/Microscopy)')}</Text>
+              <View style={styles.pickerContainer}>
+                {['not_screened', 'negative', 'positive_pf', 'positive_pv'].map((opt) => (
+                  <TouchableOpacity key={opt} style={[styles.chip, tracker.malariaLabResult === opt && styles.chipActive]} onPress={() => setTracker({ ...tracker, malariaLabResult: opt })}>
+                    <Text style={[styles.chipText, tracker.malariaLabResult === opt && styles.chipTextActive]}>{t(opt.replace('_', ''))}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
 
             <View style={styles.divider} />
@@ -543,6 +888,23 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
                 </TouchableOpacity>
               ))}
             </View>
+            <View style={styles.divider} />
+            <Text style={styles.label}>{t('fpContraceptiveHistory', 'Parity / Previous Children')}</Text>
+            <View style={styles.pickerContainer}>
+              {['0', '1', '2', '3+'].map((opt) => (
+                <TouchableOpacity key={opt} style={[styles.chip, tracker.fpContraceptiveHistory === opt && styles.chipActive]} onPress={() => setTracker({ ...tracker, fpContraceptiveHistory: opt })}>
+                  <Text style={[styles.chipText, tracker.fpContraceptiveHistory === opt && styles.chipTextActive]}>{opt}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {tracker.fpMethod === 'injectable' && (
+              <>
+                <View style={styles.divider} />
+                <Text style={styles.label}>{t('nextInjectableDate', 'Next Injectable Date (Antara)')}</Text>
+                <TextInput style={styles.input} value={tracker.nextInjectableDate} onChangeText={(t) => setTracker({ ...tracker, nextInjectableDate: t })} placeholder="YYYY-MM-DD" />
+              </>
+            )}
           </View>
         )}
 

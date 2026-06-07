@@ -186,6 +186,12 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
         </View>
         <View style={styles.actions}>
           <TouchableOpacity 
+            style={styles.editBtn} 
+            onPress={() => onNavigate('FamilyRegistration', { family: item })}
+          >
+            <Text style={styles.editBtnText}>✏️</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
             style={styles.viewBtn} 
             onPress={() => onNavigate('MemberList', { filter: null, familyId: item.id })}
           >

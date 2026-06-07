@@ -272,16 +272,28 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
           <Text style={styles.headerSubtitle}>{filteredMembers.length} {t('myMembers')}</Text>
         </View>
         {familyId && (
-          <TouchableOpacity 
-            style={styles.addMemberBtn} 
-            onPress={async () => {
-              const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
-              const currentFamily = allFamilies.find(f => f.id === familyId);
-              onNavigate('MemberRegistration', { family: currentFamily });
-            }}
-          >
-            <Text style={styles.addMemberBtnText}>+ {t('addMember', 'Add Member')}</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            <TouchableOpacity 
+              style={[styles.addMemberBtn, { backgroundColor: '#F0F9FF', borderColor: COLORS.primary, borderWidth: 1 }]} 
+              onPress={async () => {
+                const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
+                const currentFamily = allFamilies.find(f => f.id === familyId);
+                onNavigate('FamilyRegistration', { family: currentFamily });
+              }}
+            >
+              <Text style={[styles.addMemberBtnText, { color: COLORS.primary }]}>✏️ {t('editFamily', 'Edit Family')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.addMemberBtn} 
+              onPress={async () => {
+                const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
+                const currentFamily = allFamilies.find(f => f.id === familyId);
+                onNavigate('MemberRegistration', { family: currentFamily });
+              }}
+            >
+              <Text style={styles.addMemberBtnText}>+ {t('addMember', 'Add Member')}</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
 

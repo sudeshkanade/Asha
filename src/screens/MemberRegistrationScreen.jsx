@@ -22,7 +22,7 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
     firstName: existingMember?.firstName || '',
     middleName: existingMember?.middleName || '',
     lastName: existingMember?.lastName || '',
-    relation: existingMember?.relation || 'Other',
+    relation: existingMember?.relation || existingMember?.relationToHead || 'Other',
     dob: existingMember?.dob || '',
     age: existingMember?.age || '',
     gender: existingMember?.gender || 'Female',

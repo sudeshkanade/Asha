@@ -16,20 +16,21 @@ import { storage, STORAGE_KEYS } from '../database/storage';
 import { Alert } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-const FamilyRegistrationScreen = ({ user, onSave, onBack }) => {
+const FamilyRegistrationScreen = ({ user, onSave, onBack, existingFamily }) => {
   const { t } = useTranslation();
   const [villages, setVillages] = useState([]);
   const [formData, setFormData] = useState({
-    villageId: user?.villageId || '',
-    villageName: user?.village || '',
-    houseNo: '',
-    religionCaste: '',
-    isBPL: false,
-    rationCardNo: '',
-    ward: user?.ward || '',
-    latitude: '',
-    longitude: '',
+    villageId: existingFamily?.villageId || user?.villageId || '',
+    villageName: existingFamily?.villageName || user?.village || '',
+    houseNo: existingFamily?.houseNo || '',
+    religionCaste: existingFamily?.religionCaste || '',
+    isBPL: existingFamily?.isBPL || false,
+    rationCardNo: existingFamily?.rationCardNo || '',
+    ward: existingFamily?.ward || user?.ward || '',
+    latitude: existingFamily?.latitude || '',
+    longitude: existingFamily?.longitude || '',
   });
+  const isEdit = !!existingFamily;
 
   useEffect(() => {
     loadVillages();
@@ -101,7 +102,7 @@ const FamilyRegistrationScreen = ({ user, onSave, onBack }) => {
           <Text style={styles.backBtnText}>←</Text>
         </TouchableOpacity>
         <View>
-          <Text style={styles.headerTitle}>{t('familyRegistration')}</Text>
+          <Text style={styles.headerTitle}>{isEdit ? t('editFamilyDetails', 'Edit Family Details') : t('familyRegistration')}</Text>
           <Text style={styles.headerSubtitle}>{user?.village || t('selectiveAssignment')}</Text>
         </View>
       </View>
@@ -162,8 +163,15 @@ const FamilyRegistrationScreen = ({ user, onSave, onBack }) => {
                 style={[styles.input, { flex: 1 }]}
                 placeholder="Latitude, Longitude"
                 placeholderTextColor={COLORS.textSecondary}
-                value={formData.latitude && formData.longitude ? `${formData.latitude}, ${formData.longitude}` : ''}
-                editable={false}
+                value={formData.latitude || formData.longitude ? `${formData.latitude || ''}, ${formData.longitude || ''}` : ''}
+                onChangeText={(text) => {
+                  const parts = text.split(',');
+                  setFormData({
+                    ...formData,
+                    latitude: parts[0] ? parts[0].trim() : '',
+                    longitude: parts[1] ? parts[1].trim() : '',
+                  });
+                }}
               />
               <TouchableOpacity 
                 style={[styles.suggestBtn, { backgroundColor: '#F0FDF4', borderColor: '#10B981' }]} 
@@ -241,7 +249,7 @@ const FamilyRegistrationScreen = ({ user, onSave, onBack }) => {
         </View>
 
         <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveButtonText}>{t('registerFamilyAddMembers')}</Text>
+          <Text style={styles.saveButtonText}>{isEdit ? t('updateFamily', 'Update Family') : t('registerFamilyAddMembers')}</Text>
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.cancelButton} onPress={onBack}>
