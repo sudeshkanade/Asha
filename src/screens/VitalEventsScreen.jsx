@@ -105,9 +105,75 @@ const VitalEventsScreen = ({ user, onBack }) => {
   );
 
   const handleSave = async () => {
+    const showError = (msg) => {
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert(t('error'), msg);
+    };
+
+    const parseYyyyMmDd = (str) => {
+      const parts = str.split('-');
+      if (parts.length !== 3) return null;
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      const date = new Date(y, m, d);
+      if (date.getFullYear() !== y || date.getMonth() !== m || date.getDate() !== d) {
+        return null;
+      }
+      return date;
+    };
+
+    if (!formData.date) {
+      showError(t('dateRequired', 'Event date is required.'));
+      return;
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(formData.date)) {
+      showError(t('invalidDateFormat', 'Event date must be in YYYY-MM-DD format.'));
+      return;
+    }
+
+    const eventDate = parseYyyyMmDd(formData.date);
+    if (!eventDate) {
+      showError(t('invalidEventDate', 'Invalid event date. Please verify year, month, and day.'));
+      return;
+    }
+
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    if (eventDate > today) {
+      showError(t('eventDateInFuture', 'Event date cannot be in the future.'));
+      return;
+    }
+
+    const diffMs = today - eventDate;
+    const diffDays = diffMs / (24 * 60 * 60 * 1000);
+    if (diffDays > 365) {
+      showError(t('eventDateTooOld', 'Event date cannot be more than 1 year ago.'));
+      return;
+    }
+
     if (eventType === 'Birth') {
-      if (!formData.name || !selectedMemberId) {
-        Alert.alert(t('error'), t('childAndMotherRequired', 'Child Name and Mother selection are required.'));
+      if (!formData.name || !formData.name.trim()) {
+        showError(t('childNameRequired', 'Child name is required.'));
+        return;
+      }
+
+      if (!selectedMemberId) {
+        showError(t('motherRequired', 'Mother selection is required.'));
+        return;
+      }
+
+      if (formData.birthWeight) {
+        const wt = parseFloat(formData.birthWeight);
+        if (isNaN(wt) || wt < 0.5 || wt > 8.0) {
+          showError(t('invalidBirthWeight', 'Birth weight must be a valid decimal between 0.5 and 8.0 kg.'));
+          return;
+        }
+      }
+
+      if ((formData.place === 'Hospital' || formData.place === 'Private') && (!formData.hospitalName || !formData.hospitalName.trim())) {
+        showError(t('hospitalNameRequired', 'Hospital Name is required for institutional deliveries.'));
         return;
       }
       
@@ -115,7 +181,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
       const mother = allMembers.find(m => m.id === selectedMemberId);
       
       if (!mother) {
-        Alert.alert(t('error'), t('motherNotFound', 'Mother not found in register.'));
+        showError(t('motherNotFound', 'Mother not found in register.'));
         return;
       }
 
@@ -194,8 +260,19 @@ const VitalEventsScreen = ({ user, onBack }) => {
       Alert.alert(t('success'), `${t('birth')} ${t('success')}`);
     } else {
       if (!selectedMemberId) {
-        Alert.alert(t('error'), t('selectMember', 'Please select a member.'));
+        showError(t('selectMember', 'Please select a member.'));
         return;
+      }
+      if (!formData.causeOfDeath) {
+        showError(t('causeOfDeathRequired', 'Cause of death is required.'));
+        return;
+      }
+      if (formData.ageAtDeath) {
+        const age = parseInt(formData.ageAtDeath, 10);
+        if (isNaN(age) || age < 0 || age > 125) {
+          showError(t('invalidAgeAtDeath', 'Age at death must be a valid integer between 0 and 125.'));
+          return;
+        }
       }
       const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
       const memberIndex = allMembers.findIndex(m => m.id === selectedMemberId);

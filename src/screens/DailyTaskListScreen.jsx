@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
-import { calculateMaternalSchedule, calculateChildSchedule, calculateVaccinationSchedule } from '../utils/healthLogic';
+import { calculateMaternalSchedule, calculateChildSchedule, calculateVaccinationSchedule, calculateAge } from '../utils/healthLogic';
 import { useTranslation } from 'react-i18next';
 import { generateAllTasks } from '../utils/healthLogic';
 
@@ -24,7 +24,14 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
   const { t } = useTranslation();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [expandedCategory, setExpandedCategory] = useState(null);
+  const [familiesMap, setFamiliesMap] = useState({});
+  const [expandedHouseholds, setExpandedHouseholds] = useState({});
+  
+  // New filters and search states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState('pending'); // 'pending', 'completed', 'all'
+  const [filterPriority, setFilterPriority] = useState('all'); // 'all', 'high'
+  const [filterTime, setFilterTime] = useState('all'); // 'all', 'today_overdue', 'this_week'
 
   React.useEffect(() => {
     loadTasksFromStorage();
@@ -33,6 +40,14 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
   const loadTasksFromStorage = async () => {
     setLoading(true);
     const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+    const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
+    
+    // Create families map for quick lookup
+    const fMap = {};
+    allFamilies.forEach(f => {
+      fMap[f.id] = f;
+    });
+    setFamiliesMap(fMap);
     
     // Hierarchy filtering - only show tasks for user's scope
     let members = allMembers;
@@ -53,6 +68,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
 
     const generatedTasks = generateAllTasks(members);
 
+    // Initial sort
     const sortedTasks = generatedTasks.sort((a, b) => {
       if (a.priority === 'High' && b.priority !== 'High') return -1;
       if (a.priority !== 'High' && b.priority === 'High') return 1;
@@ -179,6 +195,84 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
     }
   };
 
+  // Batch completion of all pending tasks for a member
+  const handleCompleteAllForMember = async (memberId, memberTasks) => {
+    const pendingTasks = memberTasks.filter(t => t.status !== 'completed');
+    if (pendingTasks.length === 0) return;
+
+    const performComplete = async () => {
+      try {
+        setLoading(true);
+        const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+        const memberIndex = allMembers.findIndex(m => m.id === memberId);
+        
+        if (memberIndex >= 0) {
+          const member = allMembers[memberIndex];
+          const healthData = member.healthData || {};
+          const completedTasks = healthData.completedTasks || [];
+          
+          pendingTasks.forEach(task => {
+            if (!completedTasks.includes(task.id)) {
+              completedTasks.push(task.id);
+            }
+          });
+          
+          member.healthData = { ...healthData, completedTasks };
+          await storage.save(STORAGE_KEYS.MEMBERS, member);
+          
+          // Queue sync tasks for all completed items
+          for (const task of pendingTasks) {
+            await storage.addToSyncQueue('task_completions', {
+              taskId: task.id,
+              memberId: member.id,
+              completedAt: new Date().toISOString(),
+              reasoning: 'Batch completed via household list',
+              image: null
+            });
+          }
+        }
+        
+        // Update local UI state
+        const taskIdsToComplete = new Set(pendingTasks.map(t => t.id));
+        setTasks(prevTasks => prevTasks.map(task => {
+          if (taskIdsToComplete.has(task.id)) {
+            return {
+              ...task,
+              status: 'completed',
+              visitSummary: 'Batch completed via household list',
+              visitImage: null,
+            };
+          }
+          return task;
+        }));
+        
+        if (Platform.OS === 'web') window.alert(t('allTasksCompleted', 'All pending visits marked complete.'));
+        else Alert.alert(t('success'), t('allTasksCompleted', 'All pending visits marked complete.'));
+      } catch (e) {
+        console.error(e);
+        if (Platform.OS === 'web') window.alert(t('taskSaveFailed'));
+        else Alert.alert(t('error'), t('taskSaveFailed'));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(`${t('completeAllConfirm', 'Are you sure you want to mark all pending visits complete for')} ${pendingTasks[0].memberName}?`)) {
+        await performComplete();
+      }
+    } else {
+      Alert.alert(
+        t('confirm', 'Confirm'),
+        `${t('completeAllConfirm', 'Are you sure you want to mark all pending visits complete for')} ${pendingTasks[0].memberName}?`,
+        [
+          { text: t('cancel'), style: 'cancel' },
+          { text: t('done'), onPress: performComplete }
+        ]
+      );
+    }
+  };
+
   const handleWhatsApp = (task) => {
     let message = '';
     const taskType = task.serviceType?.toLowerCase() || '';
@@ -194,103 +288,235 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
     Linking.openURL(`whatsapp://send?text=${encodeURIComponent(message)}`);
   };
 
-  // BUG-12 FIX: Do not use external placeholder.com (fails offline). Use a data URI placeholder instead.
   const mockCaptureImage = () => {
-    // In a real app, this would launch the device camera via ImagePicker.
-    // For now, use a data URI so evidence capture works fully offline.
     const PLACEHOLDER_DATA_URI = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200"><rect width="300" height="200" fill="%23E2E8F0"/><text x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="16" fill="%2364748B">Visit Evidence</text></svg>';
     setCompletionData({ ...completionData, image: PLACEHOLDER_DATA_URI });
   };
 
+  const toggleHouseholdExpanded = (key) => {
+    setExpandedHouseholds(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
 
-  const renderTask = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.taskCard}
-      onPress={() => setSelectedTask(item)}
-      activeOpacity={0.7}
-    >
-      <View style={[styles.statusIndicator, { backgroundColor: item.status === 'completed' ? COLORS.success : (item.priority === 'High' ? COLORS.error : COLORS.primary) }]} />
-      <View style={styles.taskInfo}>
-        <View style={styles.taskHeader}>
-          <Text style={styles.memberName}>{item.memberName}</Text>
-          <Text style={styles.houseLabel}>{t('houseNo')}: {item.houseNo}</Text>
-        </View>
-        <Text style={styles.serviceType}>{item.serviceType}</Text>
-        <View style={styles.statusBadge}>
-          <Text style={[styles.statusText, { color: item.status === 'completed' ? COLORS.success : COLORS.accent }]}>
-            ● {item.status.toUpperCase()}
+  // 1. FILTERING FLAT TASK LIST
+  const filteredTasks = tasks.filter(task => {
+    // A. Status Filter
+    if (filterStatus === 'pending' && task.status === 'completed') return false;
+    if (filterStatus === 'completed' && task.status !== 'completed') return false;
+
+    // B. Priority Filter
+    if (filterPriority === 'high' && task.priority !== 'High') return false;
+
+    // C. Time Filter
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const dueDate = new Date(task.dueDate);
+    dueDate.setHours(0,0,0,0);
+
+    if (filterTime === 'today_overdue') {
+      if (dueDate > today) return false;
+    } else if (filterTime === 'this_week') {
+      const nextWeek = new Date(today);
+      nextWeek.setDate(today.getDate() + 7);
+      if (dueDate > nextWeek) return false;
+    }
+
+    // D. Search Query Filter (member name, house number, or service type)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const nameMatch = task.memberName?.toLowerCase().includes(query);
+      const houseMatch = task.houseNo?.toLowerCase().includes(query);
+      const serviceMatch = task.serviceType?.toLowerCase().includes(query);
+      if (!nameMatch && !houseMatch && !serviceMatch) return false;
+    }
+
+    return true;
+  });
+
+  // 2. HIERARCHICAL GROUPING: Household -> Member -> Tasks
+  const groupedByHousehold = {};
+  filteredTasks.forEach(task => {
+    const member = task.member || {};
+    const familyId = member.familyId || 'unknown';
+    const houseNo = task.houseNo || member.houseNo || 'N/A';
+
+    const family = familiesMap[familyId] || {};
+    const headName = family.headName ? `${t('folder', 'Family Head')}: ${family.headName}` : `${t('house', 'House')} ${houseNo}`;
+    const villageName = member.villageName || family.villageName || villageName || 'N/A';
+
+    const key = familyId !== 'unknown' ? familyId : `house-${houseNo}`;
+
+    if (!groupedByHousehold[key]) {
+      groupedByHousehold[key] = {
+        key,
+        familyId,
+        headName,
+        houseNo,
+        villageName,
+        hasHighRisk: false,
+        pendingCount: 0,
+        members: {}
+      };
+    }
+
+    const hh = groupedByHousehold[key];
+    if (task.priority === 'High') {
+      hh.hasHighRisk = true;
+    }
+    if (task.status !== 'completed') {
+      hh.pendingCount += 1;
+    }
+
+    const memberId = task.memberId;
+    if (!hh.members[memberId]) {
+      hh.members[memberId] = {
+        memberId,
+        memberName: task.memberName,
+        age: member.age || (member.dob ? calculateAge(member.dob) : null),
+        gender: member.gender,
+        tasks: []
+      };
+    }
+    hh.members[memberId].tasks.push(task);
+  });
+
+  // Convert map to sorted array
+  const householdList = Object.values(groupedByHousehold).sort((a, b) => {
+    // High risk households first
+    if (a.hasHighRisk && !b.hasHighRisk) return -1;
+    if (!a.hasHighRisk && b.hasHighRisk) return 1;
+    // Pending tasks count descending
+    if (a.pendingCount !== b.pendingCount) {
+      return b.pendingCount - a.pendingCount;
+    }
+    // House Number alphabetical/numeric
+    return a.houseNo.localeCompare(b.houseNo, undefined, { numeric: true, sensitivity: 'base' });
+  });
+
+  // Helper renderers
+  const renderSubTask = (task) => {
+    const isCompleted = task.status === 'completed';
+    const isHigh = task.priority === 'High';
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const dueDate = new Date(task.dueDate);
+    const isOverdue = !isCompleted && dueDate < today;
+
+    let borderLeftColor = COLORS.primary;
+    if (isCompleted) borderLeftColor = COLORS.success;
+    else if (isHigh) borderLeftColor = COLORS.error;
+
+    return (
+      <TouchableOpacity 
+        key={task.id} 
+        style={[styles.subTaskCard, { borderLeftColor }]}
+        onPress={() => setSelectedTask(task)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.subTaskInfo}>
+          <View style={styles.subTaskHeader}>
+            <Text style={styles.subTaskService}>{task.serviceType}</Text>
+            <Text style={[styles.subTaskDueDate, isOverdue && styles.subTaskDueDateOverdue]}>
+              📅 {dueDate.toLocaleDateString()}
+            </Text>
+          </View>
+          <Text style={styles.subTaskDetails} numberOfLines={2}>
+            {task.details}
           </Text>
-          {item.status !== 'completed' && (
-            <TouchableOpacity onPress={() => handleWhatsApp(item)} style={styles.whatsappBtn}>
-              <Text style={styles.whatsappIcon}>💬</Text>
+          
+          <View style={styles.subTaskFooter}>
+            <View style={styles.statusBadge}>
+              <Text style={[styles.statusText, { color: isCompleted ? COLORS.success : COLORS.accent }]}>
+                ● {task.status.toUpperCase()}
+              </Text>
+              {!isCompleted && (
+                <TouchableOpacity onPress={() => handleWhatsApp(task)} style={styles.whatsappBtn}>
+                  <Text style={styles.whatsappIcon}>💬</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <TouchableOpacity 
+              style={[styles.actionButton, isCompleted && styles.actionButtonDone]}
+              onPress={() => handleStatusChange(task)}
+              onLongPress={() => {
+                if (!isCompleted) submitCompletion(task, true);
+              }}
+            >
+              <Text style={styles.actionButtonText}>
+                {isCompleted ? t('reset') : t('done')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderMember = (member) => {
+    const pendingMemberTasks = member.tasks.filter(t => t.status !== 'completed');
+    const hasPending = pendingMemberTasks.length > 0;
+
+    return (
+      <View key={member.memberId} style={styles.memberBox}>
+        <View style={styles.memberHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.memberTitle}>{member.memberName}</Text>
+            <Text style={styles.memberSub}>
+              {member.gender ? t(member.gender?.toLowerCase()) : ''} 
+              {member.age !== null && member.age !== undefined ? ` • ${member.age} ${t('years', 'Yrs')}` : ''}
+            </Text>
+          </View>
+          {hasPending && (
+            <TouchableOpacity 
+              style={styles.completeAllBtn}
+              onPress={() => handleCompleteAllForMember(member.memberId, member.tasks)}
+            >
+              <Text style={styles.completeAllBtnText}>✓ {t('completeAll', 'Complete All')}</Text>
             </TouchableOpacity>
           )}
         </View>
+        <View style={{ marginTop: 8 }}>
+          {member.tasks.map(renderSubTask)}
+        </View>
       </View>
-      <TouchableOpacity 
-        style={[styles.actionButton, item.status === 'completed' && styles.actionButtonDone]}
-        onPress={() => handleStatusChange(item)}
-        onLongPress={() => {
-          if (item.status !== 'completed') submitCompletion(item, true);
-        }}
-      >
-        <Text style={styles.actionButtonText}>{item.status === 'completed' ? t('reset') : t('done')}</Text>
-      </TouchableOpacity>
-    </TouchableOpacity>
-  );
+    );
+  };
 
-  const taskGroups = (() => {
-    const groups = {
-      'Vaccination': { icon: '💉', color: '#4F46E5', tasks: [] },
-      'Emergency Referrals': { icon: '🚨', color: COLORS.error, tasks: [] },
-      'Maternal Care': { icon: '🤱', color: '#EC4899', tasks: [] },
-      'Child Health': { icon: '👶', color: '#10B981', tasks: [] },
-      'Disease Control': { icon: '🦠', color: '#F59E0B', tasks: [] },
-      'Family Planning': { icon: '👨‍👩‍👧‍👦', color: '#8B5CF6', tasks: [] },
-      'General / Other': { icon: '📝', color: '#64748B', tasks: [] },
-    };
-
-    tasks.forEach(t => {
-      const type = t.serviceType?.toLowerCase() || '';
-      if (type.includes('emergency') || type.includes('referral')) groups['Emergency Referrals'].tasks.push(t);
-      else if (type.includes('vaccination') || type.includes('immun')) groups['Vaccination'].tasks.push(t);
-      else if (type.includes('anc') || type.includes('maternal') || type.includes('pnc')) groups['Maternal Care'].tasks.push(t);
-      else if (type.includes('sam') || type.includes('mam') || type.includes('child') || type.includes('diarrhea')) groups['Child Health'].tasks.push(t);
-      else if (type.includes('tb') || type.includes('malaria') || type.includes('leprosy') || type.includes('ncd')) groups['Disease Control'].tasks.push(t);
-      else if (type.includes('fp') || type.includes('eligible') || type.includes('vital')) groups['Family Planning'].tasks.push(t);
-      else groups['General / Other'].tasks.push(t);
-    });
-
-    return Object.entries(groups).filter(([_, g]) => g.tasks.length > 0);
-  })();
-
-  const renderGroupTile = ([name, group]) => {
-    const pendingCount = group.tasks.filter(t => t.status !== 'completed').length;
-    if (pendingCount === 0 && expandedCategory !== name) return null;
-
+  const renderHousehold = (hh) => {
+    const isExpanded = !!expandedHouseholds[hh.key];
     return (
-      <View key={name} style={styles.groupContainer}>
+      <View key={hh.key} style={styles.householdCard}>
         <TouchableOpacity 
-          style={[styles.groupTile, { borderLeftColor: group.color }]}
-          onPress={() => setExpandedCategory(expandedCategory === name ? null : name)}
+          style={[styles.householdHeader, hh.hasHighRisk && styles.householdHeaderHighRisk]}
+          onPress={() => toggleHouseholdExpanded(hh.key)}
+          activeOpacity={0.8}
         >
-          <View style={[styles.groupIconBox, { backgroundColor: group.color + '20' }]}>
-            <Text style={styles.groupIconText}>{group.icon}</Text>
+          <View style={[styles.householdIconBox, { backgroundColor: hh.hasHighRisk ? '#FEE2E2' : '#EEF2FF' }]}>
+            <Text style={styles.householdIconText}>{hh.hasHighRisk ? '🚨' : '🏠'}</Text>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.groupName}>{t(name)}</Text>
-            <Text style={styles.groupSubText}>{pendingCount} {t('pending')}</Text>
+          
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+              <Text style={styles.householdTitle}>{t('houseNo', 'House')}: {hh.houseNo}</Text>
+              {hh.hasHighRisk && (
+                <View style={styles.highRiskBadge}>
+                  <Text style={styles.highRiskBadgeText}>{t('highRisk', 'High Risk')}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.householdHead}>{hh.headName}</Text>
+            <Text style={styles.householdSubText}>{hh.villageName} • {hh.pendingCount} {t('pending', 'Pending')}</Text>
           </View>
-          <Text style={styles.expandIcon}>{expandedCategory === name ? '▼' : '▶'}</Text>
+          
+          <Text style={styles.expandIcon}>{isExpanded ? '▼' : '▶'}</Text>
         </TouchableOpacity>
 
-        {expandedCategory === name && (
-          <View style={styles.expandedTasks}>
-            {group.tasks.map(t => (
-              <View key={t.id}>
-                {renderTask({ item: t })}
-              </View>
-            ))}
+        {isExpanded && (
+          <View style={styles.householdBody}>
+            {Object.values(hh.members).map(renderMember)}
           </View>
         )}
       </View>
@@ -309,6 +535,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
         </View>
       </View>
 
+      {/* Global workload counters based on total loaded tasks */}
       <View style={styles.summaryRow}>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryValue}>{tasks.length}</Text>
@@ -316,7 +543,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
         </View>
         <View style={styles.summaryItem}>
           <Text style={[styles.summaryValue, { color: COLORS.error }]}>
-            {tasks.filter(t => t.priority === 'High').length}
+            {tasks.filter(t => t.priority === 'High' && t.status !== 'completed').length}
           </Text>
           <Text style={styles.summaryLabel}>{t('highRisk')}</Text>
         </View>
@@ -328,13 +555,100 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.listContent}>
-        {taskGroups.length > 0 ? (
-          taskGroups.map(renderGroupTile)
-        ) : (
-          <Text style={styles.emptyText}>{t('noTasksToday')}</Text>
-        )}
-      </ScrollView>
+      {/* Filters UI */}
+      <View style={styles.filtersSection}>
+        <View style={styles.searchBarContainer}>
+          <TextInput
+            style={styles.searchBar}
+            placeholder={t('searchHouseName', 'Search by House No, Member Name...')}
+            placeholderTextColor={COLORS.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
+        
+        {/* Status Chips */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipsRow}>
+          <TouchableOpacity 
+            style={[styles.filterChip, filterStatus === 'pending' && styles.activeFilterChip]} 
+            onPress={() => setFilterStatus('pending')}
+          >
+            <Text style={[styles.filterChipText, filterStatus === 'pending' && styles.activeFilterChipText]}>
+              {t('pending', 'Pending')} ({tasks.filter(t => t.status !== 'completed').length})
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.filterChip, filterStatus === 'completed' && styles.activeFilterChip]} 
+            onPress={() => setFilterStatus('completed')}
+          >
+            <Text style={[styles.filterChipText, filterStatus === 'completed' && styles.activeFilterChipText]}>
+              {t('success', 'Completed')} ({tasks.filter(t => t.status === 'completed').length})
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.filterChip, filterStatus === 'all' && styles.activeFilterChip]} 
+            onPress={() => setFilterStatus('all')}
+          >
+            <Text style={[styles.filterChipText, filterStatus === 'all' && styles.activeFilterChipText]}>
+              {t('all', 'All')} ({tasks.length})
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+
+        {/* Priority & Time filters row */}
+        <View style={styles.secondaryFiltersRow}>
+          {/* Priority Toggle */}
+          <TouchableOpacity 
+            style={[styles.smallFilterChip, filterPriority === 'high' && styles.activeRedFilterChip]}
+            onPress={() => setFilterPriority(prev => prev === 'high' ? 'all' : 'high')}
+          >
+            <Text style={[styles.smallFilterChipText, filterPriority === 'high' && styles.activeRedFilterChipText]}>
+              🚨 {t('highRisk', 'High Risk')}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Time Limit Chips */}
+          <TouchableOpacity 
+            style={[styles.smallFilterChip, filterTime === 'all' && styles.activeFilterChip]}
+            onPress={() => setFilterTime('all')}
+          >
+            <Text style={[styles.smallFilterChipText, filterTime === 'all' && styles.activeFilterChipText]}>
+              {t('all', 'All Time')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.smallFilterChip, filterTime === 'today_overdue' && styles.activeFilterChip]}
+            onPress={() => setFilterTime('today_overdue')}
+          >
+            <Text style={[styles.smallFilterChipText, filterTime === 'today_overdue' && styles.activeFilterChipText]}>
+              ⌛ {t('due', 'Due/Overdue')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.smallFilterChip, filterTime === 'this_week' && styles.activeFilterChip]}
+            onPress={() => setFilterTime('this_week')}
+          >
+            <Text style={[styles.smallFilterChipText, filterTime === 'this_week' && styles.activeFilterChipText]}>
+              📅 {t('thisWeek', 'This Week')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Main Household Group List */}
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.listContent}>
+          {householdList.length > 0 ? (
+            householdList.map(renderHousehold)
+          ) : (
+            <Text style={styles.emptyText}>{t('noTasksToday', 'No matching tasks found.')}</Text>
+          )}
+        </ScrollView>
+      )}
 
       {/* Task Details Modal */}
       <Modal
@@ -520,75 +834,259 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontWeight: '600',
   },
-  listContent: {
-    padding: 16,
-  },
-  taskCard: {
+  filtersSection: {
     backgroundColor: COLORS.surface,
-    borderRadius: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    gap: 8,
+  },
+  searchBarContainer: {
+    paddingHorizontal: 16,
+  },
+  searchBar: {
+    height: 40,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: COLORS.text,
+  },
+  filterChipsRow: {
+    paddingHorizontal: 16,
+    gap: 8,
+    height: 36,
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  activeFilterChip: {
+    backgroundColor: COLORS.primary,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+  },
+  activeFilterChipText: {
+    color: '#FFF',
+  },
+  secondaryFiltersRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    gap: 8,
+    alignItems: 'center',
+  },
+  smallFilterChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: '#F3F4F6',
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  activeRedFilterChip: {
+    backgroundColor: '#FEE2E2',
+  },
+  smallFilterChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+  },
+  activeRedFilterChipText: {
+    color: COLORS.error,
+  },
+  listContent: {
     padding: 16,
-    marginBottom: 12,
+    paddingBottom: 40,
+  },
+  householdCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    marginBottom: 16,
     shadowColor: COLORS.cardShadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
+    overflow: 'hidden',
   },
-  statusIndicator: {
-    width: 6,
-    height: '100%',
-    borderRadius: 3,
-    marginRight: 16,
+  householdHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: COLORS.surface,
+    borderLeftWidth: 5,
+    borderLeftColor: COLORS.primary,
   },
-  taskInfo: {
+  householdHeaderHighRisk: {
+    borderLeftColor: COLORS.error,
+  },
+  householdIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  householdIconText: {
+    fontSize: 22,
+  },
+  householdTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  highRiskBadge: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  highRiskBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: COLORS.error,
+  },
+  householdHead: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  householdSubText: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  expandIcon: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    marginLeft: 10,
+  },
+  householdBody: {
+    backgroundColor: '#F8FAFC',
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  memberBox: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    marginTop: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  memberHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 8,
+  },
+  memberTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  memberSub: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  completeAllBtn: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  completeAllBtnText: {
+    color: '#15803D',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  subTaskCard: {
+    backgroundColor: '#FAFBFD',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    padding: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  subTaskInfo: {
     flex: 1,
   },
-  taskHeader: {
+  subTaskHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 4,
   },
-  memberName: {
-    fontSize: 16,
+  subTaskService: {
+    fontSize: 13,
     fontWeight: '700',
     color: COLORS.text,
   },
-  houseLabel: {
-    fontSize: 12,
+  subTaskDueDate: {
+    fontSize: 10,
     color: COLORS.textSecondary,
-  },
-  serviceType: {
-    fontSize: 14,
-    color: COLORS.primary,
     fontWeight: '600',
   },
-  statusBadge: {
+  subTaskDueDateOverdue: {
+    color: COLORS.error,
+    fontWeight: '800',
+  },
+  subTaskDetails: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    lineHeight: 16,
+    marginBottom: 8,
+  },
+  subTaskFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 8,
     marginTop: 4,
+  },
+  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   statusText: {
     fontSize: 10,
     fontWeight: '800',
+    textTransform: 'uppercase',
   },
   whatsappBtn: {
-    marginLeft: 10,
+    marginLeft: 8,
     backgroundColor: '#DCFCE7',
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 8,
+    borderRadius: 6,
   },
   whatsappIcon: {
-    fontSize: 14,
+    fontSize: 12,
   },
   actionButton: {
     backgroundColor: COLORS.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    minWidth: 80,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    minWidth: 60,
     alignItems: 'center',
   },
   actionButtonDone: {
@@ -596,14 +1094,21 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: '#FFF',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700',
   },
   emptyText: {
     textAlign: 'center',
     marginTop: 40,
     color: COLORS.textSecondary,
-    fontSize: 16,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
   },
   modalOverlay: {
     flex: 1,
@@ -776,53 +1281,6 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 18,
     fontWeight: '700',
-  },
-  groupContainer: {
-    marginBottom: 16,
-  },
-  groupTile: {
-    backgroundColor: COLORS.surface,
-    padding: 16,
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderLeftWidth: 6,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  groupIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  groupIconText: {
-    fontSize: 24,
-  },
-  groupName: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: COLORS.text,
-  },
-  groupSubText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  expandIcon: {
-    fontSize: 18,
-    color: COLORS.textSecondary,
-    marginLeft: 10,
-  },
-  expandedTasks: {
-    marginTop: 10,
-    paddingLeft: 10,
   },
 });
 

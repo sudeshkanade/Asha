@@ -207,7 +207,15 @@ export const INDICATOR_TARGETS = {
   "Water Samples Tested / पाणी नमुने तपासणी": 152,
   "Chlorine Tested (TCL) / टी.सी.एल. नमुने तपासणी": 32,
   "Dog Bites / श्वानदंश": 57,
-  "Snake Bites / सर्पदंश": 0
+  "Snake Bites / सर्पदंश": 0,
+  
+  // Newly Added Targets (Based on 25,000 baseline)
+  "OPD / ओ.पी.डी.": 50000,
+  "Hypertension Screened / उच्च रक्तदाब तपासणी": 9250,
+  "Diabetes Screened / मधुमेह तपासणी": 9250,
+  "Cataract Operations / मोतीबिंदू शस्त्रक्रिया": 100,
+  "Eligible Couples Registered / पात्र जोडपे नोंदणी": 4250,
+  "Pregnant Women / पाहणीच्या वेळी गरोदर असणाऱ्या स्त्रियांची संख्या": 425
 };
 
 export const REPORTS_CONFIG = [

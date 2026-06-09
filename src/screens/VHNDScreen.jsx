@@ -43,9 +43,88 @@ const VHNDScreen = ({ user, onBack }) => {
   ];
 
   const handleSave = async () => {
+    const showError = (msg) => {
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert(t('error'), msg);
+    };
+
     if (!formData.sessionDate) {
-      Alert.alert(t('error', 'Error'), t('sessionDateRequired', 'Session date is required.'));
+      showError(t('sessionDateRequired', 'Session date is required.'));
       return;
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(formData.sessionDate)) {
+      showError(t('invalidDateFormat', 'Session date must be in YYYY-MM-DD format.'));
+      return;
+    }
+
+    const parseYyyyMmDd = (str) => {
+      const parts = str.split('-');
+      if (parts.length !== 3) return null;
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      const date = new Date(y, m, d);
+      if (date.getFullYear() !== y || date.getMonth() !== m || date.getDate() !== d) {
+        return null;
+      }
+      return date;
+    };
+
+    const sDate = parseYyyyMmDd(formData.sessionDate);
+    if (!sDate) {
+      showError(t('invalidSessionDate', 'Invalid session date. Please check year, month, and day.'));
+      return;
+    }
+
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    if (sDate > today) {
+      showError(t('sessionDateInFuture', 'Session date cannot be in the future.'));
+      return;
+    }
+
+    const checkNonNegativeInt = (val, fieldLabel) => {
+      if (val !== undefined && val !== null && val !== '') {
+        const trimmed = String(val).trim();
+        if (trimmed !== '') {
+          const num = parseInt(trimmed, 10);
+          if (isNaN(num) || num < 0 || String(num) !== trimmed) {
+            return `${fieldLabel} must be a valid non-negative integer.`;
+          }
+        }
+      }
+      return null;
+    };
+
+    const attendeeFields = [
+      { key: 'pregnantAttended', label: t('pregnantWomen', 'Pregnant Women') },
+      { key: 'childrenAttended', label: t('children05', 'Children (0-5)') },
+      { key: 'adolescentsAttended', label: t('adolescents', 'Adolescents') }
+    ];
+
+    for (const f of attendeeFields) {
+      const err = checkNonNegativeInt(formData[f.key], f.label);
+      if (err) {
+        showError(err);
+        return;
+      }
+    }
+
+    const stockFields = [
+      { key: 'ifaDistributed', label: t('ironTablets', 'Iron Tablets') },
+      { key: 'orsDistributed', label: t('orsPackets', 'ORS Packets') },
+      { key: 'condomsDistributed', label: t('condoms', 'Condoms') },
+      { key: 'ocpDistributed', label: t('ocpStrips', 'OCP Strips') },
+      { key: 'ecpDistributed', label: t('ecpStrips', 'ECP Strips') }
+    ];
+
+    for (const f of stockFields) {
+      const err = checkNonNegativeInt(formData[f.key], f.label);
+      if (err) {
+        showError(err);
+        return;
+      }
     }
     
     try {

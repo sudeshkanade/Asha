@@ -245,6 +245,241 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
       return;
     }
 
+    const showError = (msg) => {
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert(t('error'), msg);
+    };
+
+    const parseDdMmYyyy = (str) => {
+      const parts = str.split('/');
+      if (parts.length !== 3) return null;
+      const d = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const y = parseInt(parts[2], 10);
+      const date = new Date(y, m, d);
+      if (date.getFullYear() !== y || date.getMonth() !== m || date.getDate() !== d) {
+        return null;
+      }
+      return date;
+    };
+
+    const parseYyyyMmDd = (str) => {
+      const parts = str.split('-');
+      if (parts.length !== 3) return null;
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      const date = new Date(y, m, d);
+      if (date.getFullYear() !== y || date.getMonth() !== m || date.getDate() !== d) {
+        return null;
+      }
+      return date;
+    };
+
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    // 1. ANC TAB VALIDATION
+    if (activeTab === 'ANC' && showMaternal) {
+      if (tracker.lmp) {
+        if (!/^\d{2}\/\d{2}\/\d{4}$/.test(tracker.lmp)) {
+          showError(t('invalidLmpFormat', 'Invalid LMP format. Use DD/MM/YYYY.'));
+          return;
+        }
+        const lmpDate = parseDdMmYyyy(tracker.lmp);
+        if (!lmpDate) {
+          showError(t('invalidLmp', 'Invalid LMP date. Please check days and months.'));
+          return;
+        }
+        if (lmpDate > today) {
+          showError(t('lmpInFuture', 'LMP date cannot be in the future.'));
+          return;
+        }
+        const diffMs = today - lmpDate;
+        const diffDays = diffMs / (24 * 60 * 60 * 1000);
+        if (diffDays > 280) {
+          showError(t('lmpTooOld', 'LMP date cannot be older than 280 days (9.3 months).'));
+          return;
+        }
+      }
+
+      if (!tracker.bpSystolic || !tracker.bpSystolic.trim()) {
+        showError(t('bpSystolicRequired', 'BP Systolic is required.'));
+        return;
+      }
+
+      const sys = parseInt(tracker.bpSystolic, 10);
+      if (isNaN(sys) || sys < 50 || sys > 250) {
+        showError(t('invalidSystolic', 'BP Systolic must be between 50 and 250 mmHg.'));
+        return;
+      }
+
+      if (tracker.bpDiastolic) {
+        const dia = parseInt(tracker.bpDiastolic, 10);
+        if (isNaN(dia) || dia < 30 || dia > 150) {
+          showError(t('invalidDiastolic', 'BP Diastolic must be between 30 and 150 mmHg.'));
+          return;
+        }
+        if (sys <= dia) {
+          showError(t('systolicDiastolicComparison', 'BP Systolic must be greater than BP Diastolic.'));
+          return;
+        }
+      }
+
+      if (tracker.hbLevel) {
+        const hb = parseFloat(tracker.hbLevel);
+        if (isNaN(hb) || hb < 1.0 || hb > 25.0) {
+          showError(t('invalidHb', 'Hb Level must be between 1.0 and 25.0 gm%.'));
+          return;
+        }
+      }
+
+      if (tracker.weight) {
+        const w = parseFloat(tracker.weight);
+        if (isNaN(w) || w < 20.0 || w > 250.0) {
+          showError(t('invalidWeight', 'Weight must be a valid decimal between 20.0 and 250.0 kg.'));
+          return;
+        }
+      }
+
+      if (tracker.ifaQuantity) {
+        const ifa = parseInt(tracker.ifaQuantity, 10);
+        if (isNaN(ifa) || ifa < 0) {
+          showError(t('invalidIfaQty', 'IFA Tablets quantity must be a non-negative integer.'));
+          return;
+        }
+      }
+
+      if (tracker.calciumQuantity) {
+        const calc = parseInt(tracker.calciumQuantity, 10);
+        if (isNaN(calc) || calc < 0) {
+          showError(t('invalidCalciumQty', 'Calcium Tablets quantity must be a non-negative integer.'));
+          return;
+        }
+      }
+
+      if (tracker.usgDate) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(tracker.usgDate)) {
+          showError(t('invalidUsgFormat', 'USG scan date must be in YYYY-MM-DD format.'));
+          return;
+        }
+        const usgDate = parseYyyyMmDd(tracker.usgDate);
+        if (!usgDate) {
+          showError(t('invalidUsgDate', 'Invalid USG scan date. Please verify year, month, and day.'));
+          return;
+        }
+        if (usgDate > today) {
+          showError(t('usgInFuture', 'USG scan date cannot be in the future.'));
+          return;
+        }
+      }
+    }
+
+    // 2. CHILD TAB VALIDATION
+    if (activeTab === 'CHILD' && isChild) {
+      if (tracker.weight) {
+        const w = parseFloat(tracker.weight);
+        if (isNaN(w) || w < 0.5 || w > 100.0) {
+          showError(t('invalidChildWeight', 'Child weight must be a valid decimal between 0.5 and 100.0 kg.'));
+          return;
+        }
+      }
+
+      if (tracker.height) {
+        const h = parseFloat(tracker.height);
+        if (isNaN(h) || h < 20.0 || h > 180.0) {
+          showError(t('invalidChildHeight', 'Child height must be a valid decimal between 20.0 and 180.0 cm.'));
+          return;
+        }
+      }
+
+      if (tracker.muac) {
+        const m = parseFloat(tracker.muac);
+        if (isNaN(m) || m < 5.0 || m > 25.0) {
+          showError(t('invalidChildMuac', 'MUAC must be a valid decimal between 5.0 and 25.0 cm.'));
+          return;
+        }
+      }
+    }
+
+    // 3. NCD TAB VALIDATION
+    if (activeTab === 'NCD' && !isChild) {
+      if (tracker.bpSystolic) {
+        const sys = parseInt(tracker.bpSystolic, 10);
+        if (isNaN(sys) || sys < 50 || sys > 250) {
+          showError(t('invalidSystolic', 'BP Systolic must be between 50 and 250 mmHg.'));
+          return;
+        }
+
+        if (tracker.bpDiastolic) {
+          const dia = parseInt(tracker.bpDiastolic, 10);
+          if (isNaN(dia) || dia < 30 || dia > 150) {
+            showError(t('invalidDiastolic', 'BP Diastolic must be between 30 and 150 mmHg.'));
+            return;
+          }
+          if (sys <= dia) {
+            showError(t('systolicDiastolicComparison', 'BP Systolic must be greater than BP Diastolic.'));
+            return;
+          }
+        }
+      }
+
+      if (tracker.sugarLevel) {
+        const sug = parseInt(tracker.sugarLevel, 10);
+        if (isNaN(sug) || sug < 20 || sug > 800) {
+          showError(t('invalidSugar', 'Blood Sugar must be a number between 20 and 800 mg/dL.'));
+          return;
+        }
+      }
+
+      if (tracker.heartRate) {
+        const hr = parseInt(tracker.heartRate, 10);
+        if (isNaN(hr) || hr < 30 || hr > 250) {
+          showError(t('invalidHeartRate', 'Heart Rate must be a number between 30 and 250 bpm.'));
+          return;
+        }
+      }
+
+      if (tracker.hbLevel) {
+        const hb = parseFloat(tracker.hbLevel);
+        if (isNaN(hb) || hb < 1.0 || hb > 25.0) {
+          showError(t('invalidHb', 'Hb Level must be between 1.0 and 25.0 gm%.'));
+          return;
+        }
+      }
+
+      if (tracker.weight) {
+        const w = parseFloat(tracker.weight);
+        if (isNaN(w) || w < 20.0 || w > 250.0) {
+          showError(t('invalidWeight', 'Weight must be a valid decimal between 20.0 and 250.0 kg.'));
+          return;
+        }
+      }
+
+      if (tracker.cbacScore) {
+        const cbac = parseInt(tracker.cbacScore, 10);
+        if (isNaN(cbac) || cbac < 0 || cbac > 20) {
+          showError(t('invalidCbac', 'CBAC Risk Score must be an integer between 0 and 20.'));
+          return;
+        }
+      }
+    }
+
+    // 4. FP TAB VALIDATION
+    if (activeTab === 'FP' && isEC) {
+      if (tracker.fpMethod === 'injectable' && tracker.nextInjectableDate) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(tracker.nextInjectableDate)) {
+          showError(t('invalidNextInjectableFormat', 'Next Injectable Date must be in YYYY-MM-DD format.'));
+          return;
+        }
+        const nextInj = parseYyyyMmDd(tracker.nextInjectableDate);
+        if (!nextInj) {
+          showError(t('invalidNextInjectableDate', 'Invalid Next Injectable Date. Please verify year, month, and day.'));
+          return;
+        }
+      }
+    }
+
     const isRedFlag = (parseInt(tracker.bpSystolic) > 140 || parseInt(tracker.bpDiastolic) > 90) || 
                       (parseFloat(tracker.hbLevel) > 0 && parseFloat(tracker.hbLevel) < 7);
     const finalIsHighRisk = tracker.selectedRiskFactors.length > 0 || isRedFlag;

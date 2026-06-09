@@ -41,6 +41,13 @@ const sanitizeValue = (val) => {
   return val;
 };
 
+// ===================== HELPER: Dynamic Target Calculator =====================
+export const getDynamicTarget = (baseTarget, population = 25000) => {
+  if (baseTarget == null || typeof baseTarget !== 'number') return baseTarget;
+  // NHM norms are based on a 25,000 baseline population
+  return Math.round((baseTarget * population) / 25000);
+};
+
 // ===================== HELPER: Hierarchy filter =====================
 const applyHierarchyFilter = (members, user) => {
   if (!user) return members;
@@ -163,7 +170,7 @@ const diseaseColumns = (health) => ({
 
 // ===================== MAIN EXPORT FUNCTION =====================
 
-export const exportMasterPopulation = async (user, filterType = null) => {
+export const exportMasterPopulation = async (user, filterType = null, additionalFilters = {}) => {
   try {
     const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
     const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
@@ -173,10 +180,18 @@ export const exportMasterPopulation = async (user, filterType = null) => {
     let members = applyHierarchyFilter(allMembers, user);
 
     // 2. Apply report-specific filter
-    if (filterType) {
+    if (filterType || Object.keys(additionalFilters).length > 0) {
       members = members.filter(m => {
-        const health = m.healthData || {};
+        // Apply additional dynamic filters first
+        if (additionalFilters.gender && additionalFilters.gender !== 'All' && m.gender !== additionalFilters.gender) return false;
+        if (additionalFilters.villageId && additionalFilters.villageId !== 'All' && m.villageId !== additionalFilters.villageId) return false;
         const age = parseInt(m.age);
+        if (additionalFilters.minAge !== undefined && !isNaN(age) && age < additionalFilters.minAge) return false;
+        if (additionalFilters.maxAge !== undefined && !isNaN(age) && age > additionalFilters.maxAge) return false;
+
+        if (!filterType) return true; // If only dynamic filters were applied
+
+        const health = m.healthData || {};
         switch (filterType) {
           case 'NEW_ANC':
             return !!health.edd || health.isPregnant || health.ancStatus === 'active';
@@ -663,7 +678,7 @@ export const exportIndent = async (user) => {
  * Each sheet lists indicators (rows) with columns: Indicator | SubCenterId/Village | Actual | Target
  * Role-based: ANM → scoped to their subCenter, MO → full PHC, ASHA → single village.
  */
-export const exportPHCMonthlyWorkbook = async (user, reportData) => {
+export const exportPHCMonthlyWorkbook = async (user, reportData, targetPopulation = 25000) => {
   try {
     // BUG-04 FIX: REPORTS_CONFIG and INDICATOR_TARGETS now come from the static top-level import
     const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
@@ -692,7 +707,8 @@ export const exportPHCMonthlyWorkbook = async (user, reportData) => {
       ];
       params.forEach(param => {
         const actual = aggregateLookup[param] ?? '';
-        const target = INDICATOR_TARGETS[param] ?? '';
+        const baseTarget = INDICATOR_TARGETS[param];
+        const target = getDynamicTarget(baseTarget, targetPopulation) ?? '';
         rows.push({
           'Section': '',
           'Indicator': param,
@@ -712,6 +728,31 @@ export const exportPHCMonthlyWorkbook = async (user, reportData) => {
       // Remove 'Section' column from display (first column), rename header
       XLSX.utils.book_append_sheet(wb, ws, sheetName.substring(0, 31)); // Excel max 31 chars
     });
+
+    // Append Verification_Audit_Log sheet
+    const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
+    const auditRows = members.map((m, index) => {
+      const family = allFamilies.find(f => f.id === m.familyId) || {};
+      const health = m.healthData || {};
+      return {
+        'Sr.No.': index + 1,
+        'Name': `${m.firstName || ''} ${m.lastName || ''}`,
+        'Age': m.age || 'N/A',
+        'Gender': m.gender || 'N/A',
+        'Village': m.villageName || family?.villageName || 'N/A',
+        'ANC Status': health.ancStatus || 'N/A',
+        'Is Pregnant': health.isPregnant ? 'Yes' : 'No',
+        'NCD Screened': (parseInt(m.age) >= 30 && (health.bpSystolic || health.sugarLevel || health.hasNcd)) ? 'Yes' : 'No',
+        'FP Method': health.fpMethod || 'None',
+        'Status': m.status || 'Active'
+      };
+    });
+    
+    if (auditRows.length > 0) {
+      const auditWs = XLSX.utils.json_to_sheet(auditRows);
+      auditWs['!cols'] = [{ wch: 10 }, { wch: 25 }, { wch: 10 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 15 }];
+      XLSX.utils.book_append_sheet(wb, auditWs, 'Verification_Audit_Log'.substring(0, 31));
+    }
 
     const timestamp = new Date().toISOString().split('T')[0];
     const filename = `Monthly_Report_${scopeLabel}_${monthName}_${year}_${timestamp}.xlsx`;

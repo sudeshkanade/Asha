@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  TextInput,
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
@@ -22,6 +23,12 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(null);
   const [drillDownList, setDrillDownList] = useState(null);
+
+  // Dynamic Builder State
+  const [builderType, setBuilderType] = useState('MASTER');
+  const [minAge, setMinAge] = useState('');
+  const [maxAge, setMaxAge] = useState('');
+  const [gender, setGender] = useState('All');
 
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
@@ -144,6 +151,49 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
       if (success) Alert.alert(t('success'), t('excelSuccess'));
       else Alert.alert(t('error'), t('exportFailed'));
     } catch (e) { Alert.alert(t('error'), e.message); }
+    setExporting(null);
+  };
+
+  const REPORT_TYPES = [
+    { value: 'MASTER', label: 'Master Population' },
+    { value: 'NEW_ANC', label: 'All ANC Register' },
+    { value: 'PENDING_ANC', label: 'Pending ANC Register' },
+    { value: 'HRP', label: 'High Risk ANC' },
+    { value: 'ANEMIA', label: 'Severe Anemia' },
+    { value: 'SAM', label: 'SAM Children' },
+    { value: 'FULLY_IMMUNIZED', label: 'Fully Immunized' },
+    { value: 'NCD_SCREENING', label: 'NCD Screenings' },
+    { value: 'PNC_CASES', label: 'PNC Register' },
+    { value: 'FP_REGISTER', label: 'FP Register' },
+    { value: 'FP_PERMANENT', label: 'FP Permanent Method' },
+    { value: 'FP_SPACING', label: 'FP Spacing Method' },
+    { value: 'FP_NONE', label: 'No FP Method' },
+    { value: 'TB_SUSPECTS', label: 'TB Suspects' },
+    { value: 'MALARIA_SUSPECTS', label: 'Malaria Suspects' },
+    { value: 'LEPROSY_SUSPECTS', label: 'Leprosy Suspects' },
+    { value: 'PWD', label: 'PwD List' },
+    { value: 'BPL_FAMILIES', label: 'BPL Families' },
+  ];
+
+  const handleDynamicDownload = async () => {
+    setExporting('DYNAMIC');
+    try {
+      const filters = {
+        gender: gender,
+        minAge: minAge ? parseInt(minAge) : undefined,
+        maxAge: maxAge ? parseInt(maxAge) : undefined,
+      };
+      
+      const backendType = builderType === 'HRP' ? 'HIGH_RISK_ANC' :
+                          builderType === 'ANEMIA' ? 'SEVERE_ANEMIA' :
+                          builderType === 'SAM' ? 'SAM_CHILDREN' : builderType;
+      
+      const success = await exportMasterPopulation(user, backendType, filters);
+      if (success) Alert.alert(t('success'), t('excelSuccess', 'Report downloaded successfully!'));
+      else Alert.alert(t('error'), t('exportFailed'));
+    } catch (e) {
+      Alert.alert(t('error'), e.message);
+    }
     setExporting(null);
   };
 
@@ -335,28 +385,77 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
           ]}
         />
 
+        <View style={styles.builderSection}>
+          <Text style={styles.sectionHeader}>Dynamic Report Builder</Text>
+          
+          <Text style={styles.label}>Select Report Type:</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+            {REPORT_TYPES.map(type => (
+              <TouchableOpacity
+                key={type.value}
+                style={[styles.chip, builderType === type.value && styles.chipActive]}
+                onPress={() => setBuilderType(type.value)}
+              >
+                <Text style={[styles.chipText, builderType === type.value && styles.chipTextActive]}>
+                  {type.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          <Text style={styles.label}>Filter by Gender:</Text>
+          <View style={styles.row}>
+            {['All', 'Male', 'Female'].map(g => (
+              <TouchableOpacity
+                key={g}
+                style={[styles.chip, gender === g && styles.chipActive]}
+                onPress={() => setGender(g)}
+              >
+                <Text style={[styles.chipText, gender === g && styles.chipTextActive]}>{g}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={styles.row}>
+            <View style={{flex: 1, marginRight: 8}}>
+              <Text style={styles.label}>Min Age:</Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                value={minAge}
+                onChangeText={setMinAge}
+                placeholder="0"
+              />
+            </View>
+            <View style={{flex: 1, marginLeft: 8}}>
+              <Text style={styles.label}>Max Age:</Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                value={maxAge}
+                onChangeText={setMaxAge}
+                placeholder="100"
+              />
+            </View>
+          </View>
+
+          <TouchableOpacity 
+            style={styles.dynamicDownloadBtn}
+            onPress={handleDynamicDownload}
+            disabled={exporting !== null}
+          >
+            {exporting === 'DYNAMIC' ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <Text style={styles.dynamicDownloadText}>📥 Build & Download Report</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.downloadGrid}>
-          <DownloadBtn type="MASTER" label="Master Population" />
-          <DownloadBtn type="NEW_ANC" label="All ANC Register" />
-          <DownloadBtn type="PENDING_ANC" label="Pending ANC Register" />
-          <DownloadBtn type="HRP" label="High Risk ANC" />
-          <DownloadBtn type="ANEMIA" label="Severe Anemia" />
-          <DownloadBtn type="SAM" label="SAM Children" />
-          <DownloadBtn type="FULLY_IMMUNIZED" label="Fully Immunized" />
-          <DownloadBtn type="NCD_SCREENING" label="NCD Screenings" />
-          <DownloadBtn type="PNC_CASES" label="PNC Register" />
           <DownloadBtn type="VITAL_BIRTHS" label="Birth Register" />
           <DownloadBtn type="VITAL_DEATHS" label="Death Register" />
           <DownloadBtn type="VHND_SESSIONS" label="VHND Sessions" />
-          <DownloadBtn type="FP_REGISTER" label="FP Register" />
-          <DownloadBtn type="FP_PERMANENT" label="FP Permanent Method" />
-          <DownloadBtn type="FP_SPACING" label="FP Spacing Method" />
-          <DownloadBtn type="FP_NONE" label="No FP Method" />
-          <DownloadBtn type="TB_SUSPECTS" label="TB Suspects" />
-          <DownloadBtn type="MALARIA_SUSPECTS" label="Malaria Suspects" />
-          <DownloadBtn type="LEPROSY_SUSPECTS" label="Leprosy Suspects" />
-          <DownloadBtn type="PWD" label="PwD List" />
-          <DownloadBtn type="BPL_FAMILIES" label="BPL Families" />
         </View>
 
         <TouchableOpacity style={styles.finalizeButton} onPress={handleFinalize}>
@@ -416,6 +515,17 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 11, color: COLORS.textSecondary, fontWeight: '600', marginTop: 4 },
   drillHint: { fontSize: 9, color: COLORS.primary, fontWeight: '700', marginTop: 6, textDecorationLine: 'underline' },
   downloadGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 20 },
+  builderSection: { backgroundColor: '#FFF', borderRadius: 20, padding: 20, marginBottom: 20, borderWidth: 1, borderColor: '#E2E8F0' },
+  label: { fontSize: 13, fontWeight: '700', color: '#475569', marginTop: 16, marginBottom: 8 },
+  chipScroll: { flexDirection: 'row', marginBottom: 8 },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F1F5F9', marginRight: 8, marginBottom: 8 },
+  chipActive: { backgroundColor: COLORS.primary },
+  chipText: { fontSize: 13, color: '#475569', fontWeight: '600' },
+  chipTextActive: { color: '#FFF' },
+  input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, padding: 12, fontSize: 15, color: '#1E293B' },
+  dynamicDownloadBtn: { backgroundColor: COLORS.primary, padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 24, elevation: 2 },
+  dynamicDownloadText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
   finalizeButton: { height: 56, backgroundColor: COLORS.success, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
   finalizeButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
   backButton: { height: 52, justifyContent: 'center', alignItems: 'center', marginTop: 8, marginBottom: 40 },

@@ -80,9 +80,41 @@ const FamilyRegistrationScreen = ({ user, onSave, onBack, existingFamily }) => {
   };
 
   const handleSave = () => {
-    if (!formData.houseNo || !formData.villageId) {
-      Alert.alert(t('error'), t('houseAndVillageRequired'));
+    if (!formData.villageId) {
+      if (Platform.OS === 'web') window.alert(t('villageRequired', 'Village selection is required.'));
+      else Alert.alert(t('error'), t('villageRequired', 'Village selection is required.'));
       return;
+    }
+    if (!formData.houseNo || !formData.houseNo.trim()) {
+      if (Platform.OS === 'web') window.alert(t('houseRequired', 'House number is required.'));
+      else Alert.alert(t('error'), t('houseRequired', 'House number is required.'));
+      return;
+    }
+    if (!formData.religionCaste) {
+      if (Platform.OS === 'web') window.alert(t('casteRequired', 'Category/Caste is required.'));
+      else Alert.alert(t('error'), t('casteRequired', 'Category/Caste is required.'));
+      return;
+    }
+    if (formData.rationCardNo && !/^\d{12}$/.test(formData.rationCardNo)) {
+      if (Platform.OS === 'web') window.alert(t('invalidRationCard', 'Ration card number must be exactly 12 digits.'));
+      else Alert.alert(t('error'), t('invalidRationCard', 'Ration card number must be exactly 12 digits.'));
+      return;
+    }
+    if (formData.latitude) {
+      const lat = parseFloat(formData.latitude);
+      if (isNaN(lat) || lat < -90 || lat > 90) {
+        if (Platform.OS === 'web') window.alert(t('invalidLatitude', 'Latitude must be a valid number between -90 and 90.'));
+        else Alert.alert(t('error'), t('invalidLatitude', 'Latitude must be a valid number between -90 and 90.'));
+        return;
+      }
+    }
+    if (formData.longitude) {
+      const lng = parseFloat(formData.longitude);
+      if (isNaN(lng) || lng < -180 || lng > 180) {
+        if (Platform.OS === 'web') window.alert(t('invalidLongitude', 'Longitude must be a valid number between -180 and 180.'));
+        else Alert.alert(t('error'), t('invalidLongitude', 'Longitude must be a valid number between -180 and 180.'));
+        return;
+      }
     }
     
     const finalData = {

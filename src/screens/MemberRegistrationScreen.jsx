@@ -117,26 +117,115 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
   };
 
   const validateAndSave = (addAnother = false) => {
-    if (!formData.firstName || !formData.lastName) {
-      Alert.alert(t('error'), 'First and Last name are required.');
+    const showError = (msg) => {
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert(t('error'), msg);
+    };
+
+    if (!formData.firstName || !formData.firstName.trim()) {
+      showError(t('firstNameRequired', 'First name is required.'));
       return;
     }
-    if (formData.aadhaar && !validateAadhaar(formData.aadhaar)) {
-      Alert.alert(t('error'), 'Aadhaar must be 12 digits.');
+    if (!formData.middleName || !formData.middleName.trim()) {
+      showError(t('middleNameRequired', 'Father/Husband name is required.'));
       return;
     }
+    if (!formData.lastName || !formData.lastName.trim()) {
+      showError(t('lastNameRequired', 'Last name is required.'));
+      return;
+    }
+
     if (formData.phone && !/^\d{10}$/.test(formData.phone)) {
-      Alert.alert(t('error'), 'Phone number must be 10 digits.');
+      showError(t('invalidPhone', 'Phone number must be exactly 10 digits.'));
       return;
     }
-    if (formData.dob && !/^\d{2}\/\d{2}\/\d{4}$/.test(formData.dob)) {
-      Alert.alert(t('error'), 'Invalid date format. Use DD/MM/YYYY.');
+
+    if (formData.aadhaar && !validateAadhaar(formData.aadhaar)) {
+      showError(t('invalidAadhaar', 'Aadhaar must be exactly 12 digits.'));
       return;
     }
-    // Ensure age is present (manual or calculated)
-    if (!formData.age) {
-      Alert.alert(t('error'), 'Age is required. Enter DOB or set age manually.');
+
+    if (formData.abhaId && !/^\d{14}$|^\d{2}-\d{4}-\d{4}-\d{4}$/.test(formData.abhaId)) {
+      showError(t('invalidAbha', 'ABHA ID must be exactly 14 digits or in XX-XXXX-XXXX-XXXX format.'));
       return;
+    }
+
+    if (!formData.dob) {
+      showError(t('dobRequired', 'Date of Birth is required.'));
+      return;
+    }
+
+    if (!/^\d{2}\/\d{2}\/\d{4}$/.test(formData.dob)) {
+      showError(t('invalidDobFormat', 'Invalid DOB format. Use DD/MM/YYYY.'));
+      return;
+    }
+
+    const parseDdMmYyyy = (str) => {
+      const parts = str.split('/');
+      if (parts.length !== 3) return null;
+      const d = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const y = parseInt(parts[2], 10);
+      const date = new Date(y, m, d);
+      if (date.getFullYear() !== y || date.getMonth() !== m || date.getDate() !== d) {
+        return null;
+      }
+      return date;
+    };
+
+    const dobDate = parseDdMmYyyy(formData.dob);
+    if (!dobDate) {
+      showError(t('invalidDob', 'Invalid Date of Birth. Please check days and months.'));
+      return;
+    }
+
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    if (dobDate > today) {
+      showError(t('dobInFuture', 'Date of Birth cannot be in the future.'));
+      return;
+    }
+
+    const age = parseInt(formData.age, 10);
+    if (isNaN(age) || age < 0 || age > 125) {
+      showError(t('invalidAge', 'Age must be a valid number between 0 and 125.'));
+      return;
+    }
+
+    // Pregnancy rules
+    if (formData.isPregnant) {
+      if (formData.gender !== 'Female') {
+        showError(t('pregnancyFemaleOnly', 'Pregnancy status is only applicable for females.'));
+        return;
+      }
+      if (age < 15 || age > 49) {
+        showError(t('pregnancyAgeRange', 'Pregnancy status is only applicable for females aged 15-49.'));
+        return;
+      }
+      if (!formData.lmp) {
+        showError(t('lmpRequired', 'LMP date is required for pregnant status.'));
+        return;
+      }
+      if (!/^\d{2}\/\d{2}\/\d{4}$/.test(formData.lmp)) {
+        showError(t('invalidLmpFormat', 'Invalid LMP format. Use DD/MM/YYYY.'));
+        return;
+      }
+      const lmpDate = parseDdMmYyyy(formData.lmp);
+      if (!lmpDate) {
+        showError(t('invalidLmp', 'Invalid LMP date. Please check days and months.'));
+        return;
+      }
+      if (lmpDate > today) {
+        showError(t('lmpInFuture', 'LMP date cannot be in the future.'));
+        return;
+      }
+      
+      const diffMs = today - lmpDate;
+      const diffDays = diffMs / (24 * 60 * 60 * 1000);
+      if (diffDays > 280) {
+        showError(t('lmpTooOld', 'LMP date cannot be older than 280 days (9.3 months).'));
+        return;
+      }
     }
 
     // Clean up data structure for saving
@@ -152,8 +241,8 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
     if (isPregnant && lmp && lmp.length === 10) {
       const parts = lmp.split('/');
       if (parts.length === 3) {
-        const lmpDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-        if (!isNaN(lmpDate.getTime())) {
+        const lmpDate = parseDdMmYyyy(lmp);
+        if (lmpDate) {
           lmpDate.setDate(lmpDate.getDate() + 280);
           edd = lmpDate.toISOString().split('T')[0];
         }
