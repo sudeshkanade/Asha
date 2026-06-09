@@ -325,9 +325,9 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
     // D. Search Query Filter (member name, house number, or service type)
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      const nameMatch = task.memberName?.toLowerCase().includes(query);
-      const houseMatch = task.houseNo?.toLowerCase().includes(query);
-      const serviceMatch = task.serviceType?.toLowerCase().includes(query);
+      const nameMatch = String(task.memberName || '').toLowerCase().includes(query);
+      const houseMatch = String(task.houseNo || '').toLowerCase().includes(query);
+      const serviceMatch = String(task.serviceType || '').toLowerCase().includes(query);
       if (!nameMatch && !houseMatch && !serviceMatch) return false;
     }
 
@@ -394,7 +394,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
       return b.pendingCount - a.pendingCount;
     }
     // House Number alphabetical/numeric
-    return a.houseNo.localeCompare(b.houseNo, undefined, { numeric: true, sensitivity: 'base' });
+    return String(a.houseNo || '').localeCompare(String(b.houseNo || ''), undefined, { numeric: true, sensitivity: 'base' });
   });
 
   // Helper renderers
