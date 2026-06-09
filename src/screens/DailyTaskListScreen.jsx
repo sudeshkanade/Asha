@@ -169,8 +169,9 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
         });
       }
       
-      // Update UI state using toggleTaskStatus logic
-      setTasks(tasks.map(task => {
+      // LOGIC-1 FIX: Use functional state update form to avoid reading stale 'tasks' closure.
+      // If two completions fire quickly (e.g. double-tap), both now read the latest state.
+      setTasks(prevTasks => prevTasks.map(task => {
         if (task.id === taskToComplete.id) {
           return { 
             ...task, 
@@ -209,13 +210,11 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
         if (memberIndex >= 0) {
           const member = allMembers[memberIndex];
           const healthData = member.healthData || {};
-          const completedTasks = healthData.completedTasks || [];
-          
-          pendingTasks.forEach(task => {
-            if (!completedTasks.includes(task.id)) {
-              completedTasks.push(task.id);
-            }
-          });
+          // LOGIC-2 FIX: Do not mutate the array extracted from storage.
+          // Spread into a Set to deduplicate, then spread back to an array.
+          const existingCompleted = new Set(healthData.completedTasks || []);
+          pendingTasks.forEach(task => existingCompleted.add(task.id));
+          const completedTasks = [...existingCompleted];
           
           member.healthData = { ...healthData, completedTasks };
           await storage.save(STORAGE_KEYS.MEMBERS, member);
@@ -344,7 +343,10 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
 
     const family = familiesMap[familyId] || {};
     const headName = family.headName ? `${t('folder', 'Family Head')}: ${family.headName}` : `${t('house', 'House')} ${houseNo}`;
-    const villageName = member.villageName || family.villageName || villageName || 'N/A';
+    // UI-4 FIX: 'villageName' was being declared using itself in its own initializer
+    // (referencing the prop of the same name), a latent ReferenceError in strict mode.
+    // Renamed to 'resolvedVillageName' to avoid the self-referential assignment.
+    const resolvedVillageName = member.villageName || family.villageName || villageName || 'N/A';
 
     const key = familyId !== 'unknown' ? familyId : `house-${houseNo}`;
 
@@ -354,7 +356,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
         familyId,
         headName,
         houseNo,
-        villageName,
+        villageName: resolvedVillageName,
         hasHighRisk: false,
         pendingCount: 0,
         members: {}

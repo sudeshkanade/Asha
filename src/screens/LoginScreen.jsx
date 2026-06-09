@@ -84,17 +84,6 @@ const LoginScreen = ({ onLogin }) => {
 
   const handleLogin = async () => {
     setInlineError('');
-    // Secret shortcut for cleanup: Type 'admin_wipe' in username to reset device
-    if (formData.username.toLowerCase() === 'admin_wipe') {
-      handleFactoryReset();
-      return;
-    }
-
-    if (formData.username === 'admin' && formData.password === 'admin') {
-      onLogin({ id: 'admin', name: 'Super Admin', role: 'Admin', approvalStatus: 'approved' });
-      return;
-    }
-
     setLoading(true);
     try {
       await cloudSyncManager.pullFromCloud();
@@ -288,6 +277,8 @@ const LoginScreen = ({ onLogin }) => {
   };
 
   const handleRegister = async () => {
+    // BUG-6 FIX: Validate BEFORE setLoading(true) so an early-return validation
+    // failure never leaves the spinner permanently active.
     if (!formData.email || !formData.password || !formData.name) {
       Alert.alert(t('error'), t('fieldsRequired'));
       return;
@@ -298,24 +289,24 @@ const LoginScreen = ({ onLogin }) => {
       return;
     }
 
+    if (formData.role === 'ASHA' && (!formData.villageId || !formData.phcId)) {
+      Alert.alert(t('error'), t('ashaRequired'));
+      return;
+    }
+    
+    if (formData.role === 'ANM' && !formData.subCenterId) {
+      Alert.alert(t('error'), t('subCenterRequired', 'Sub-Center selection is required for ANM.'));
+      return;
+    }
+
+    if (formData.role === 'MO' && !formData.phcId) {
+      Alert.alert(t('error'), t('phcRequired', 'PHC selection is required for MO.'));
+      return;
+    }
+
     setLoading(true);
 
     try {
-      if (formData.role === 'ASHA' && (!formData.villageId || !formData.phcId)) {
-        Alert.alert(t('error'), t('ashaRequired'));
-        return;
-      }
-      
-      if (formData.role === 'ANM' && !formData.subCenterId) {
-        Alert.alert(t('error'), t('subCenterRequired', 'Sub-Center selection is required for ANM.'));
-        return;
-      }
-
-      if (formData.role === 'MO' && !formData.phcId) {
-        Alert.alert(t('error'), t('phcRequired', 'PHC selection is required for MO.'));
-        return;
-      }
-
       const usersList = await storage.getAll(STORAGE_KEYS.USERS);
       if (usersList.find(u => u.email?.toLowerCase() === formData.email.toLowerCase())) {
         Alert.alert(t('error'), t('emailExists', 'This email address is already registered.'));

@@ -573,10 +573,19 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
                   if (cleaned.length === 10) {
                     const parts = cleaned.split('/');
                     if (parts.length === 3) {
-                      const lmpDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                      // LOGIC-8 FIX: new Date('YYYY-MM-DD') parses as UTC midnight.
+                      // In IST (+5:30), converting back via .toISOString() can shift
+                      // the date backwards by 1 day. Use the local Date constructor
+                      // (new Date(y, m, d)) which operates entirely in local time.
+                      const [day, mon, yr] = parts.map(Number);
+                      const lmpDate = new Date(yr, mon - 1, day); // local time
                       if (!isNaN(lmpDate.getTime())) {
                         lmpDate.setDate(lmpDate.getDate() + 280);
-                        newEdd = lmpDate.toISOString().split('T')[0];
+                        // Format YYYY-MM-DD in local time (not UTC)
+                        const y = lmpDate.getFullYear();
+                        const m = String(lmpDate.getMonth() + 1).padStart(2, '0');
+                        const d = String(lmpDate.getDate()).padStart(2, '0');
+                        newEdd = `${y}-${m}-${d}`;
                       }
                     }
                   }

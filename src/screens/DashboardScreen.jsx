@@ -369,11 +369,18 @@ const DashboardScreen = ({ user, onNavigate }) => {
           <TouchableOpacity 
             style={[styles.syncContainer, { backgroundColor: COLORS.primary, borderColor: 'rgba(255,255,255,0.3)', borderWidth: 1 }]} 
             onPress={async () => {
+              // UI-11 FIX: Wrap in try/finally so isSyncing is always reset
+              // even if loadLiveStats() or pullFromCloud() throws an error.
               setIsSyncing(true);
-              await loadLiveStats();
-              await cloudSyncManager.pullFromCloud(user);
-              setIsSyncing(false);
-              if (Platform.OS === 'web') window.alert(t('pageRefreshed'));
+              try {
+                await loadLiveStats();
+                await cloudSyncManager.pullFromCloud(user);
+                if (Platform.OS === 'web') window.alert(t('pageRefreshed'));
+              } catch (e) {
+                console.error('Manual refresh failed:', e);
+              } finally {
+                setIsSyncing(false);
+              }
             }}
           >
             <Text style={styles.syncText}>↻</Text>

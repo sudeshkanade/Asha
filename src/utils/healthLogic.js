@@ -97,8 +97,10 @@ export const calculateVaccinationSchedule = (dob) => {
 
   return schedule.map(s => {
     const d = new Date(birth);
-    if (s.offsetDays) d.setDate(birth.getDate() + s.offsetDays);
-    if (s.offsetMonths) d.setMonth(birth.getMonth() + s.offsetMonths);
+    // BUG-5 FIX: offsetDays: 0 is falsy. Use !== undefined to correctly handle
+    // the "At Birth" vaccines (BCG, OPV-0, Hep-B) whose offset is exactly 0 days.
+    if (s.offsetDays !== undefined) d.setDate(birth.getDate() + s.offsetDays);
+    if (s.offsetMonths !== undefined) d.setMonth(birth.getMonth() + s.offsetMonths);
     return { ...s, date: d };
   });
 };
@@ -130,6 +132,16 @@ export const generateAllTasks = (members) => {
     const health = member.healthData || {};
     const age = calculateAge(member.dob);
 
+    // SAFETY-3 FIX: If DOB is missing or malformed, calculateAge returns NaN.
+    // Previously, all age-gated conditions evaluated to false and the member
+    // generated zero tasks with no warning to the ASHA worker.
+    // Now we derive age from the stored `age` field as a fallback before giving up.
+    const effectiveAge = !isNaN(age) ? age : (parseInt(member.age) ?? NaN);
+    if (isNaN(effectiveAge)) {
+      // Still inject emergency tasks that don't depend on age
+      // (severe anemia, severe hypertension) even without a valid DOB
+    }
+
     // RUTHLESS FIX: Reactive Clinical Trigger Injections
     // If severe vitals are detected, inject an IMMEDIATE Emergency Task
     // BUG-10 FIX: Always parseFloat before numeric comparison — hbLevel is stored as a string from TextInput
@@ -149,7 +161,9 @@ export const generateAllTasks = (members) => {
       });
     }
 
-    // BUG-10 FIX: Same parseFloat guard for BP values
+    // SAFETY-1 FIX: WHO/NHM guidelines classify BP ≥140/90 as hypertension requiring action.
+    // The previous threshold of 160/100 missed moderate hypertension (risk of eclampsia).
+    // Using 160/100 as the emergency referral trigger and 140/90 for high-risk flagging.
     const bpSys = parseFloat(health.bpSystolic);
     const bpDia = parseFloat(health.bpDiastolic);
     if (!isNaN(bpSys) && !isNaN(bpDia) && (bpSys >= 160 || bpDia >= 100)) {
@@ -165,10 +179,24 @@ export const generateAllTasks = (members) => {
         dueDate: today,
         isEmergency: true
       });
+    } else if (!isNaN(bpSys) && !isNaN(bpDia) && (bpSys >= 140 || bpDia >= 90)) {
+      // SAFETY-1: Flag moderate hypertension as high-risk even if not an emergency transfer
+      generatedTasks.push({
+        id: `highrisk-bp-${member.id}`,
+        member: member,
+        memberId: member.id,
+        memberName: `${member.firstName} ${member.lastName}`,
+        serviceType: 'High-Risk BP Monitoring',
+        status: 'pending',
+        details: `HIGH RISK: Hypertension detected (BP: ${health.bpSystolic}/${health.bpDiastolic}). Monitor closely and refer if worsens.`,
+        priority: 'High',
+        dueDate: today,
+        isEmergency: false
+      });
     }
 
     // 1. Maternal Tasks (Only for eligible females)
-    if (health.edd && shouldShowMaternalFields(member.gender, age)) {
+    if (health.edd && shouldShowMaternalFields(member.gender, effectiveAge)) {
       const lmp = new Date(health.edd);
       lmp.setDate(lmp.getDate() - 280);
       const ancSchedule = calculateMaternalSchedule(lmp);
@@ -242,9 +270,9 @@ export const generateAllTasks = (members) => {
     }
 
     // 2. Child Health & Vaccination Tasks (Only for age < 17)
-    if (member.dob && age < 17) {
+    if (member.dob && effectiveAge < 17) {
       // HBNC/HBYC only for children < 2 years
-      if (age < 2) {
+      if (effectiveAge < 2) {
         const childSchedule = calculateChildSchedule(new Date(member.dob), health.placeOfDelivery === 'Home');
         const hbncVisits = childSchedule.hbnc || [];
         hbncVisits.forEach((visit, idx) => {
@@ -335,7 +363,7 @@ export const generateAllTasks = (members) => {
       });
     }
     // 3. NCD Screening Tasks (Age >= 30, every 6 months)
-    if (age >= 30) {
+    if (!isNaN(effectiveAge) && effectiveAge >= 30) {
       const lastNcdDate = health.lastNcdDate ? new Date(health.lastNcdDate) : null;
       const sixMonthsAgo = new Date(today);
       sixMonthsAgo.setMonth(today.getMonth() - 6);
@@ -416,9 +444,14 @@ export const generateAllTasks = (members) => {
     
     // Calculate age in months
     const dobDate = member.dob ? new Date(member.dob) : null;
-    const ageMonths = dobDate && !isNaN(dobDate.getTime())
-      ? (today.getFullYear() - dobDate.getFullYear()) * 12 + today.getMonth() - dobDate.getMonth()
-      : NaN;
+    // LOGIC-9 FIX: Account for whether the birth day-of-month has passed this month.
+    // Previously: (yearDiff * 12 + monthDiff) — could be +1 month too early for same-month birthdays.
+    let ageMonths = NaN;
+    if (dobDate && !isNaN(dobDate.getTime())) {
+      let months = (today.getFullYear() - dobDate.getFullYear()) * 12 + (today.getMonth() - dobDate.getMonth());
+      if (today.getDate() < dobDate.getDate()) months -= 1; // birthday hasn't occurred yet this month
+      ageMonths = months;
+    }
 
     let malStatus = 'Normal';
     if (!isNaN(weight) && !isNaN(ageMonths) && ageMonths >= 0 && ageMonths <= 60) {
@@ -428,7 +461,9 @@ export const generateAllTasks = (members) => {
     const isSam = (muac > 0 && muac < 11.5) || malStatus === 'SAM';
     const isMam = (muac >= 11.5 && muac < 12.5) || malStatus === 'MAM';
 
-    if (age <= 5 && (isSam || isMam)) {
+    // SAFETY-2 FIX: WHO SAM/MAM classification applies to children 6-59 months (under 5 years).
+    // Using age < 5 (strictly less than) instead of age <= 5 to match the WHO definition.
+    if (!isNaN(effectiveAge) && effectiveAge < 5 && (isSam || isMam)) {
       generatedTasks.push({
         id: `sam-${member.id}`,
         member: member,

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { cloudSyncManager } from './cloudSync';
 import { Platform } from 'react-native';
 import { STORAGE_KEYS } from './constants';
+import { calculateAge } from '../utils/healthLogic';
 
 /**
  * Universal Storage Engine for Rural Health Tracker
@@ -19,22 +19,34 @@ export const storage = {
    * Lock helper to serialize critical sections
    */
   withLock: async (fn) => {
-    storageLock = storageLock.then(async () => {
-      try {
-        return await fn();
-      } catch (e) {
-        console.error('❌ Storage Lock Error:', e);
-        throw e;
-      }
+    // BUG-1 FIX: When fn() throws, we must reset the lock chain to a resolved state
+    // so subsequent callers are not blocked forever by the rejected promise.
+    const next = storageLock.then(fn).catch((e) => {
+      console.error('❌ Storage Lock Error:', e);
+      // Re-throw so the caller of withLock still receives the error,
+      // but the chain itself is reset because `.catch()` returns a resolved promise
+      // that subsequent `.then()` calls can attach to normally.
+      throw e;
     });
-    return storageLock;
+    // storageLock always points to a promise that resolves (never rejects)
+    storageLock = next.catch(() => {});
+    return next;
   },
 
   /**
    * Generate a globally unique ID (timestamp + user prefix + random)
    */
   generateId: (prefix = 'id', userId = 'unknown') => {
-    const entropy = Math.random().toString(36).substr(2, 9);
+    // QUALITY-3 FIX: Use crypto.randomUUID() for cryptographically-secure IDs.
+    // Falls back to Math.random() only on very old environments without crypto support.
+    let entropy;
+    try {
+      entropy = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID().replace(/-/g, '').slice(0, 12)
+        : Math.random().toString(36).slice(2, 11);
+    } catch {
+      entropy = Math.random().toString(36).slice(2, 11);
+    }
     const timePart = Date.now().toString(36);
     const userPart = userId.slice(-6);
     return `${prefix}_${timePart}_${userPart}_${entropy}`.toUpperCase();
@@ -203,12 +215,27 @@ export const storage = {
         type,
         timestamp: Date.now()
       };
-      const existingIdx = queue.findIndex(q => q.docId === payload.id && q.tableName === tableName && q.type === 'save');
-      if (existingIdx >= 0 && type === 'save') {
-        queue[existingIdx] = syncItem;
-      } else {
-        queue.push(syncItem);
+      if (type === 'save') {
+        // Upsert: replace existing save entry for same doc to avoid duplicates
+        const existingIdx = queue.findIndex(q => q.docId === payload.id && q.tableName === tableName && q.type === 'save');
+        if (existingIdx >= 0) {
+          queue[existingIdx] = syncItem;
+          return queue;
+        }
+      } else if (type === 'delete') {
+        // SYNC-4 FIX: Deduplicate delete operations — only keep the latest
+        const existingDeleteIdx = queue.findIndex(q => q.docId === payload.id && q.tableName === tableName && q.type === 'delete');
+        if (existingDeleteIdx >= 0) {
+          queue[existingDeleteIdx] = syncItem;
+          return queue;
+        }
+        // Also remove any pending save for this doc — a delete supersedes it
+        const pendingSaveIdx = queue.findIndex(q => q.docId === payload.id && q.tableName === tableName && q.type === 'save');
+        if (pendingSaveIdx >= 0) {
+          queue.splice(pendingSaveIdx, 1);
+        }
       }
+      queue.push(syncItem);
       return queue;
     });
   },
@@ -344,11 +371,20 @@ export const storage = {
   recomputeSummary: async () => {
     try {
       const members = await storage._getAll(STORAGE_KEYS.MEMBERS);
+      // DATA-4 FIX: Only count living, non-deleted active members in denominators
+      const activeMembers = members.filter(m => m.status !== 'Deceased' && !m.isDeleted);
       const summary = {
-        totalMembers: members.length,
-        totalPregnant: members.filter(m => m.healthData?.isPregnant).length,
-        totalHighRisk: members.filter(m => m.healthData?.isHighRisk).length,
-        totalChildren: members.filter(m => (parseInt(m.age) || 0) < 5).length,
+        totalMembers: activeMembers.length,
+        totalPregnant: activeMembers.filter(m => m.healthData?.isPregnant).length,
+        totalHighRisk: activeMembers.filter(m => m.healthData?.isHighRisk).length,
+        // Use DOB-computed age for accuracy instead of the stale stored age field
+        totalChildren: activeMembers.filter(m => {
+          if (m.dob) {
+            const age = calculateAge(m.dob);
+            return !isNaN(age) && age >= 0 && age < 5;
+          }
+          return (parseInt(m.age) || 99) < 5;
+        }).length,
       };
       await AsyncStorage.setItem('PHC_SUMMARY', JSON.stringify(summary));
       console.log('✅ PHC_SUMMARY recomputed:', summary);
@@ -432,6 +468,9 @@ export const storage = {
           const value = await AsyncStorage.getItem(key);
           if (!value) continue;
           const data = JSON.parse(value);
+          // BUG-4 FIX: Some keys (e.g. PHC_SUMMARY) store a plain object, not an array.
+          // Calling .filter() on a non-array throws TypeError and crashes on every app boot.
+          if (!Array.isArray(data)) continue;
           const filtered = data.filter(item => {
             if (!item.deleted) return true;
             return (item._deletedAt && new Date(item._deletedAt).getTime() > thirtyDaysAgo);

@@ -56,7 +56,12 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
       if (type === 'high_risk' || type === 'high_risk_anc') {
         filtered = scopedMembers.filter(m => m.healthData?.isHighRisk);
       } else if (type === 'anemia' || type === 'severe_anemia') {
-        filtered = scopedMembers.filter(m => parseFloat(m.healthData?.hbLevel) < 7);
+        // LOGIC-6 FIX: parseFloat('0') < 7 = true. Guard against hbLevel=0 (unset default)
+        // to avoid false-positive anemia results for members with no Hb recorded.
+        filtered = scopedMembers.filter(m => {
+          const hb = parseFloat(m.healthData?.hbLevel);
+          return hb > 0 && hb < 7;
+        });
       } else if (type === 'sam' || type === 'sam_children') {
         // BUG-08 FIX: Standardize SAM to MUAC<11.5 (primary) with malnutritionStatus fallback
         filtered = scopedMembers.filter(m => {
@@ -157,17 +162,17 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
     const displayName = name.trim() === 'undefined undefined' ? 'Unnamed Member' : name;
     
     const confirmDelete = async () => {
-      const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
-      // Remove locally (fallback to matching object if id is missing, though rare)
-      const updatedMembers = allMembers.filter(m => m.id !== memberId);
-      await storage.saveAll(STORAGE_KEYS.MEMBERS, updatedMembers);
-      
-      // Queue cloud deletion
-      if (memberId) {
-        await storage.addToDeleteQueue(STORAGE_KEYS.MEMBERS, memberId);
-      }
-      
-      loadMembers(); // Refresh with current filters
+      // LOGIC-7 FIX: Wrap both operations in a single atomic lock so no concurrent
+      // write can insert a record between the saveAll and addToDeleteQueue calls.
+      await storage.withLock(async () => {
+        const allMembers = await storage._getAll(STORAGE_KEYS.MEMBERS);
+        const updatedMembers = allMembers.filter(m => m.id !== memberId);
+        await storage._saveAll(STORAGE_KEYS.MEMBERS, updatedMembers);
+        if (memberId) {
+          await storage._addToDeleteQueue(STORAGE_KEYS.MEMBERS, memberId);
+        }
+      });
+      loadMembers();
     };
 
     if (Platform.OS === 'web') {
@@ -208,7 +213,8 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
             <Text style={[styles.badgeText, { color: COLORS.error }]}>🔴 {t('hrp', 'HRP')}</Text>
           </View>
         )}
-        {item.healthData?.hbLevel && parseFloat(item.healthData.hbLevel) < 7 && (
+        {/* UI-5 FIX: Guard hbLevel > 0 so unset/default hbLevel=0 doesn't trigger false ANEMIA badge */}
+        {parseFloat(item.healthData?.hbLevel) > 0 && parseFloat(item.healthData.hbLevel) < 7 && (
           <View style={[styles.badge, { backgroundColor: '#FFEDD5', borderColor: '#EA580C', borderWidth: 1 }]}>
             <Text style={[styles.badgeText, { color: '#EA580C' }]}>🟠 {t('anemia', 'ANEMIA')}</Text>
           </View>
@@ -218,11 +224,24 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
             <Text style={[styles.badgeText, { color: '#CA8A04' }]}>🟡 {t('ncd', 'NCD')}</Text>
           </View>
         )}
-        {parseInt(item.age) <= 5 && item.healthData?.weight && (parseFloat(item.healthData.weight) < 10) && (
-          <View style={[styles.badge, { backgroundColor: '#FEE2E2', borderColor: COLORS.error, borderWidth: 1 }]}>
-            <Text style={[styles.badgeText, { color: COLORS.error }]}>🔴 {t('sam', 'SAM')}</Text>
-          </View>
-        )}
+        {/* UI-6 FIX: Use MUAC (primary) or malnutritionStatus (fallback) instead of weight<10kg proxy.
+              WHO clinical definition for SAM: MUAC < 11.5cm for children 6-59 months. */}
+        {(() => {
+          const muac = parseFloat(item.healthData?.muac);
+          const isSam = (muac > 0 && muac < 11.5) || item.healthData?.malnutritionStatus === 'SAM';
+          const isMam = (muac >= 11.5 && muac < 12.5) || item.healthData?.malnutritionStatus === 'MAM';
+          const childAge = parseInt(item.age);
+          if ((isSam || isMam) && childAge < 5) {
+            return (
+              <View style={[styles.badge, { backgroundColor: isSam ? '#FEE2E2' : '#FEF9C3', borderColor: isSam ? COLORS.error : '#CA8A04', borderWidth: 1 }]}>
+                <Text style={[styles.badgeText, { color: isSam ? COLORS.error : '#CA8A04' }]}>
+                  {isSam ? `🔴 ${t('sam', 'SAM')}` : `🟡 ${t('mam', 'MAM')}`}
+                </Text>
+              </View>
+            );
+          }
+          return null;
+        })()}
         {item.status === 'Deceased' && (
           <View style={[styles.badge, { backgroundColor: '#475569', borderColor: '#334155', borderWidth: 1 }]}>
             <Text style={[styles.badgeText, { color: '#FFF' }]}>{t('deceased', 'DECEASED')}</Text>

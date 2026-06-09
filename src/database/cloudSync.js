@@ -1,7 +1,7 @@
 import { storage } from './storage';
 import { STORAGE_KEYS } from './constants';
 import { db } from './firebaseConfig';
-import { collection, doc, setDoc, getDocs, query, where, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, setDoc, getDocs, query, where, serverTimestamp, limit } from 'firebase/firestore';
 
 /**
  * Collection name mapping: localStorage key → Firestore collection
@@ -21,6 +21,10 @@ const COLLECTION_MAP = {
   [STORAGE_KEYS.TASKS]: 'tasks',
   [STORAGE_KEYS.CLAIMS]: 'claims',
   [STORAGE_KEYS.TASK_COMPLETIONS]: 'task_completions',
+  // DATA-3 FIX: Add missing collections that were never syncing to Firestore
+  [STORAGE_KEYS.STOCK]: 'stock',
+  'governance_logs': 'governance_logs',
+  'dlq_forensics': 'dlq_forensics',
   // Fallbacks for direct string usage
   'tasks': 'tasks',
   'claims': 'claims',
@@ -89,12 +93,12 @@ export const cloudSyncManager = {
       for (let i = 0; i < queue.length; i++) {
         const item = queue[i];
         try {
-          // PERF-01 FIX: Only apply backoff to items that have already been attempted
-          // New items (no lastAttemptAt) should always be processed immediately
+          // SYNC-7 FIX: Use exponential backoff based on per-item backoffMs, not a fixed 5 minutes
           const now = Date.now();
           const lastAttempt = item.lastAttemptAt || 0;
           const isRetry = item.retryCount > 0;
-          if (isRetry && now - lastAttempt < 300000) { // 5 minute backoff only for retries
+          const backoffMs = item.backoffMs || 300000; // default 5 min if not set
+          if (isRetry && now - lastAttempt < backoffMs) {
             remainingQueue.push(item);
             continue;
           }
@@ -175,19 +179,31 @@ export const cloudSyncManager = {
           // RUTHLESS FIX: Auth-Aware Sync Error Handling
           if (err.message?.includes('permission-denied') || err.message?.includes('unauthenticated')) {
              console.error('🛑 CRITICAL: Session expired. Background sync halted.');
+             // SYNC-1 FIX: Save the remaining queue (unprocessed items) before exiting
+             // so no clinical data is abandoned on auth failure.
+             const unprocessedItems = queue.slice(i + 1);
+             const allRetryItems = [...remainingQueue, ...unprocessedItems];
+             const latestQueueOnAuthFail = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
+             const processedSoFar = new Set(queue.slice(0, i).map(qi => qi.id));
+             const safeQueue = [
+               ...latestQueueOnAuthFail.filter(qi => !processedSoFar.has(qi.id) || allRetryItems.some(r => r.id === qi.id)),
+               ...allRetryItems.filter(r => !latestQueueOnAuthFail.some(qi => qi.id === r.id))
+             ];
+             await storage.saveAll(STORAGE_KEYS.SYNC_QUEUE, safeQueue);
              return { success: false, message: 'AUTH_EXPIRED', error: err.message };
           }
           
-          // RUTHLESS FIX: Dead Letter Queue (Max 5 Retries)
+          // SYNC-7 FIX: Exponential backoff based on retry count
+          // 5min * 2^retryCount: 5min, 10min, 20min, 40min, then DLQ
           const retryCount = (item.retryCount || 0) + 1;
-          const updatedItem = { ...item, retryCount, lastAttemptAt: Date.now() };
+          const backoffMs = Math.min(300000 * Math.pow(2, retryCount - 1), 3600000); // cap at 1 hour
+          const updatedItem = { ...item, retryCount, lastAttemptAt: Date.now(), backoffMs };
           
           if (retryCount < 5) {
-            // Move failed items to the END of the queue to prevent blocking
             remainingQueue.push(updatedItem);
           } else {
             // RUTHLESS FIX: Persistent DLQ (Never discard clinical data)
-            console.error(`💀 CloudSync: Moving ${docId} to Persistent DLQ after 5 failures.`);
+            console.error(`💀 CloudSync: Moving ${item.docId} to Persistent DLQ after 5 failures.`);
             try {
               const dlq = await storage.getAll('dlq_forensics') || [];
               await storage.saveAll('dlq_forensics', [...dlq, { ...item, failedAt: new Date().toISOString(), error: err.message }]);
@@ -273,8 +289,9 @@ export const cloudSyncManager = {
 
             switch (user.role) {
               case 'ASHA': {
-                // BUG-SYNC-ASHA: Fetch by BOTH villageId (Excel-imported data) AND ashaId
-                // (user-registered data). We run two queries and merge to avoid missing records.
+                // SYNC-6 FIX: Firestore 'in' supports up to 30 values.
+                // Previously sliced to 10, silently missing villages 11+.
+                // Now we batch into chunks of 30 and run parallel queries.
                 const assignedVillageIds = [];
                 const rawAssigned = user.assignedVillages || [];
                 rawAssigned.forEach(v => {
@@ -285,20 +302,40 @@ export const cloudSyncManager = {
                   }
                 });
                 if (user.villageId) assignedVillageIds.push(user.villageId);
-                const uniqueVillageIds = [...new Set(assignedVillageIds)].slice(0, 10);
+                const uniqueVillageIds = [...new Set(assignedVillageIds)];
 
-                if (uniqueVillageIds.length > 0) {
-                  // Primary query: by villageId (for admin-imported / Excel data)
-                  q = query(collection(db, col.table), where('villageId', 'in', uniqueVillageIds));
-                  // Secondary query: by ashaId (for ASHA-registered data)
-                  const qByAsha = query(collection(db, col.table), where('ashaId', '==', user.id));
-                  // Merge both queries into the shadow buffer below
-                  col._extraQuery = qByAsha;
-                } else {
-                  // Fallback: only pull by ashaId
-                  q = query(collection(db, col.table), where('ashaId', '==', user.id || 'FORCE_BLOCK'));
+                // SYNC-5 FIX: Do NOT mutate col._extraQuery (shared const array element).
+                // Instead, capture the ashaId snapshot promise locally.
+                const BATCH_SIZE = 30;
+                const batches = [];
+                for (let bIdx = 0; bIdx < uniqueVillageIds.length; bIdx += BATCH_SIZE) {
+                  batches.push(uniqueVillageIds.slice(bIdx, bIdx + BATCH_SIZE));
                 }
-                break;
+
+                // Run all village-batch queries + ashaId query in parallel
+                const batchSnapshots = await Promise.all([
+                  ...batches.map(batch =>
+                    getDocs(query(collection(db, col.table), where('villageId', 'in', batch)))
+                  ),
+                  getDocs(query(collection(db, col.table), where('ashaId', '==', user.id || 'FORCE_BLOCK')))
+                ]);
+
+                const cloudData = [];
+                const deletedInCloud = [];
+                const seenIds = new Set();
+                batchSnapshots.forEach(snapshot => {
+                  snapshot.forEach(docSnap => {
+                    if (seenIds.has(docSnap.id)) return;
+                    seenIds.add(docSnap.id);
+                    const data = docSnap.data();
+                    if (data.deleted === true) deletedInCloud.push(docSnap.id);
+                    else cloudData.push({ id: docSnap.id, ...data });
+                  });
+                });
+
+                shadowBuffer[col.key] = cloudData;
+                deletedBuffer[col.key] = deletedInCloud;
+                continue; // skip the default getDocs(q) below
               }
               case 'ANM':
               case 'MPW':
@@ -318,7 +355,10 @@ export const cloudSyncManager = {
             }
           }
 
-          const querySnapshot = await getDocs(q);
+          // SYNC-2 FIX: Limit results to 500 per collection per pull to prevent unbounded
+          // downloads on large Admin-role deployments. Use cursor pagination if > 500 records needed.
+          const limitedQ = query(q, limit(500));
+          const querySnapshot = await getDocs(limitedQ);
           const cloudData = [];
           const deletedInCloud = [];
           const seenIds = new Set();
@@ -329,23 +369,6 @@ export const cloudSyncManager = {
             if (data.deleted === true) deletedInCloud.push(docSnap.id);
             else cloudData.push({ id: docSnap.id, ...data });
           });
-
-          // BUG-SYNC-ASHA: Execute secondary ashaId query and merge (dedup by id)
-          if (col._extraQuery) {
-            try {
-              const extraSnapshot = await getDocs(col._extraQuery);
-              extraSnapshot.forEach((docSnap) => {
-                if (seenIds.has(docSnap.id)) return; // already included
-                const data = docSnap.data();
-                seenIds.add(docSnap.id);
-                if (data.deleted === true) deletedInCloud.push(docSnap.id);
-                else cloudData.push({ id: docSnap.id, ...data });
-              });
-            } catch (extraErr) {
-              console.warn(`⚠️ ShadowPull [${col.table}] ashaId query failed:`, extraErr.message);
-            }
-            delete col._extraQuery; // clean up
-          }
 
           shadowBuffer[col.key] = cloudData;
           deletedBuffer[col.key] = deletedInCloud;
@@ -377,10 +400,14 @@ export const cloudSyncManager = {
                 : new Date(rawCloudTime || 0).getTime();
               
               const localTime = localItem.lastUpdatedAt || 0;
+              // BUG-8 FIX: isFutureLocked should PROTECT local data from being overwritten.
+              // A local timestamp implausibly far in the future (clock skew) means we should
+              // KEEP the local record — do NOT overwrite it with cloud data.
               const isFutureLocked = localTime > (Date.now() + 86400000);
 
               if (isFutureLocked) {
-                merged[idx] = { ...cd, syncStatus: 'synced' };
+                // Preserve local data — just mark it synced so it stops being re-uploaded
+                merged[idx] = { ...localItem, syncStatus: 'synced' };
               } else if (localItem.syncStatus !== 'pending' || cloudTime > localTime) {
                 merged[idx] = { ...localItem, ...cd, syncStatus: 'synced' };
               }

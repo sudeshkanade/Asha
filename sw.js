@@ -51,9 +51,18 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Network-first with 5-second timeout for other requests (e.g. Firebase APIs, Firestore)
+  // SYNC-3 FIX: Firebase/Firestore calls need significantly more time on rural 2G networks
+  // (typical round-trip: 10-30s). The previous 5s timeout was killing every Firestore call
+  // on slow connections, causing silent fallbacks to stale cache with no error to the user.
+  const isFirebaseRequest = (
+    event.request.url.includes('firestore.googleapis.com') ||
+    event.request.url.includes('firebase.googleapis.com') ||
+    event.request.url.includes('identitytoolkit.googleapis.com') ||
+    event.request.url.includes('securetoken.googleapis.com')
+  );
+  const timeoutMs = isFirebaseRequest ? 45000 : 5000;
   const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('Network timeout')), 5000)
+    setTimeout(() => reject(new Error('Network timeout')), timeoutMs)
   );
 
   event.respondWith(

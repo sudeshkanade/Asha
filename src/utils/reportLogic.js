@@ -32,12 +32,18 @@ export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], p
 
   members.forEach(m => {
     const health = m.healthData || {};
+    const isPregnantRecord = health.edd || health.ancStatus === 'active' || health.ancStatus === 'registered' || health.isPregnant;
 
-    // Count ANC registrations: check multiple ancStatus values for compatibility (B3)
-    if (health.edd || health.ancStatus === 'active' || health.ancStatus === 'registered' || health.isPregnant) {
-      maternalStats.newANC++;
+    if (isPregnantRecord) {
+      // LOGIC-3 FIX: newANC should count registrations THIS reporting month, not all-time.
+      // Previously every currently-pregnant woman was counted as "new" every month,
+      // inflating the NHM indicator. Now we check ancRegistrationDate first,
+      // falling back to health.lastUpdatedAt (when the ANC record was last modified).
+      const registrationDate = health.ancRegistrationDate || health.lastUpdatedAt;
+      if (isCurrentMonth(registrationDate)) {
+        maternalStats.newANC++;
+      }
       if (health.isHighRisk) maternalStats.highRiskTotal++;
-      
       if (parseFloat(health.hbLevel) > 0 && parseFloat(health.hbLevel) < 7) {
         maternalStats.severeAnemia++;
       }
@@ -173,10 +179,13 @@ export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], p
     }
   });
 
-  // 6. Pending ANC (pregnant women not yet visited this month)
+  // 6. Pending ANC (pregnant women not yet updated/visited this month)
+  // LOGIC-4 FIX: Use health.lastUpdatedAt (the ANC record's own timestamp) rather than
+  // m.lastUpdatedAt (the member record's timestamp). This correctly identifies pregnant
+  // women whose ANC data hasn't been recorded this month, not just members not edited.
   const pendingANC = members.filter(m => {
     const health = m.healthData || {};
-    return health.edd && !isCurrentMonth(m.lastUpdatedAt);
+    return health.edd && !isCurrentMonth(health.lastUpdatedAt || m.lastUpdatedAt);
   }).length;
 
   return {

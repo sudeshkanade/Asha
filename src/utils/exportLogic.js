@@ -335,8 +335,10 @@ export const exportMasterPopulation = async (user, filterType = null, additional
 
 export const exportVitalEvents = async (user, eventType = 'Birth', placeFilter = null, infantOnly = false) => {
   try {
-    // DATA-CLEAN-P1C: Read ONLY from persistent VITAL_EVENTS. The sync queue approach caused events
-    // to disappear after sync and appear twice while pending. VITAL_EVENTS is always the source of truth.
+    // BUG-3 FIX: allMembers was referenced in the infantOnly filter block but never declared
+    // in this function's scope. It only existed in exportMasterPopulation, causing a
+    // ReferenceError crash whenever infantOnly=true was passed.
+    const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
     const persistentVitalEvents = await storage.getAll(STORAGE_KEYS.VITAL_EVENTS);
 
     const combined = persistentVitalEvents.filter(e => e.type === eventType);
