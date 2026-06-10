@@ -3,7 +3,7 @@ import {
   StyleSheet,
   View,
   Text,
-  FlatList,
+  ActivityIndicator,
   TouchableOpacity,
   SafeAreaView,
   Modal,
