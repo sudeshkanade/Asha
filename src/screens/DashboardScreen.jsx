@@ -374,7 +374,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
               setIsSyncing(true);
               try {
                 await loadLiveStats();
-                await cloudSyncManager.pullFromCloud(user);
+                await cloudSyncManager.pullFromCloud(user, true); // force=true: bypass cooldown on manual refresh
                 if (Platform.OS === 'web') window.alert(t('pageRefreshed'));
               } catch (e) {
                 console.error('Manual refresh failed:', e);

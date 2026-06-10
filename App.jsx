@@ -116,9 +116,10 @@ export default function App() {
 
       try {
         await storage.autoPrune();
+        // QUOTA FIX: Only pull once on startup (cooldown guard inside pullFromCloud prevents repeated calls).
+        // The periodic interval below handles subsequent refreshes at a safe 30-minute cadence.
         await cloudSyncManager.pullFromCloud(restoredUser);
         await cloudSyncManager.startBackgroundSync();
-        await storage.autoPrune();
         await storage.purgeOrphanedData(restoredUser);
       } catch (syncError) {
         console.error("Initial app load sequence failed, proceeding offline:", syncError);
@@ -146,17 +147,18 @@ export default function App() {
 
     const heartbeatId = setInterval(securityCheck, 30 * 1000);
 
-    // Periodic cloud pull every 5 minutes (reads user from ref — always fresh)
+    // QUOTA FIX: Reduced from 5 minutes to 30 minutes to prevent Firestore read quota exhaustion.
+    // The cooldown guard inside pullFromCloud also enforces a minimum 15-minute gap as a safety net.
     const periodicPullId = setInterval(async () => {
       const currentUser = userRef.current;
       if (!currentUser) return;
       if (typeof navigator !== 'undefined' && !navigator.onLine) return;
       try {
-        await cloudSyncManager.pullFromCloud(currentUser);
+        await cloudSyncManager.pullFromCloud(currentUser); // respects cooldown guard automatically
       } catch (e) {
         console.warn('Periodic pull failed (offline?):', e.message);
       }
-    }, 5 * 60 * 1000);
+    }, 30 * 60 * 1000);
 
     // BUG-02 FIX: Guard against null user in inactivity handler
     const handleVisibilityChange = async () => {

@@ -1,7 +1,15 @@
 import { storage } from './storage';
 import { STORAGE_KEYS } from './constants';
 import { db } from './firebaseConfig';
-import { collection, doc, setDoc, getDocs, query, where, serverTimestamp, limit } from 'firebase/firestore';
+import { collection, doc, setDoc, getDocs, query, where, serverTimestamp, limit, orderBy } from 'firebase/firestore';
+
+// Minimum time (ms) between full cloud pulls to prevent Firestore quota exhaustion.
+// 15 minutes is a safe floor for rural health data that doesn't change by the second.
+const PULL_COOLDOWN_MS = 15 * 60 * 1000;
+
+// Static reference collections that rarely change — only pull once per session,
+// not on every periodic refresh, to save significant read quota.
+const STATIC_COLLECTIONS = new Set(['phcs', 'sub_centers', 'app_config', 'locked_periods']);
 
 /**
  * Collection name mapping: localStorage key → Firestore collection
@@ -247,14 +255,39 @@ export const cloudSyncManager = {
    * Pull data from Firestore and merge into local storage
    * SECURITY: Enforces jurisdictional isolation via Firestore queries
    */
-  pullFromCloud: async (user = null) => {
+  pullFromCloud: async (user = null, force = false) => {
     if (!db) {
       console.warn('❌ CloudSync: Missing DB for pull.');
       return { success: false, message: 'DB not initialized' };
     }
 
+    // QUOTA FIX: Cooldown guard — skip pull if last pull was within PULL_COOLDOWN_MS.
+    // Manual refresh (force=true) bypasses this. Periodic background pulls respect it.
+    if (!force) {
+      try {
+        const lastPullStr = await storage.getRaw('LAST_CLOUD_PULL_AT');
+        const lastPull = lastPullStr ? parseInt(lastPullStr) : 0;
+        if (Date.now() - lastPull < PULL_COOLDOWN_MS) {
+          const waitMin = Math.ceil((PULL_COOLDOWN_MS - (Date.now() - lastPull)) / 60000);
+          console.log(`⏳ CloudSync: Pull skipped (cooldown). Next pull in ~${waitMin} min.`);
+          return { success: true, pulledCount: 0, skipped: true };
+        }
+      } catch (_) { /* proceed if storage read fails */ }
+    }
+
+    // QUOTA FIX: Delta sync — only fetch records updated since the last successful pull.
+    // This reduces reads from O(all records) to O(changed records).
+    let lastPullTimestamp = 0;
+    try {
+      const lastPullStr = await storage.getRaw('LAST_CLOUD_PULL_AT');
+      lastPullTimestamp = lastPullStr ? parseInt(lastPullStr) : 0;
+    } catch (_) {}
+
     const startTime = Date.now();
-    console.log('⬇️ CloudSync: Starting Shadow Pull...');
+    console.log(`⬇️ CloudSync: Starting Delta Pull (since ${lastPullTimestamp ? new Date(lastPullTimestamp).toISOString() : 'beginning'})...`);
+
+    // Track whether static collections were pulled this session
+    const sessionStaticPulled = cloudSyncManager._sessionStaticPulled || false;
 
     try {
       const collectionsToPull = [
@@ -279,6 +312,13 @@ export const cloudSyncManager = {
 
       for (const col of collectionsToPull) {
         try {
+          // QUOTA FIX: Skip static reference collections if already pulled this session.
+          // PHCs, sub-centers, app config don't change during a user's work day.
+          if (STATIC_COLLECTIONS.has(col.table) && sessionStaticPulled && !force) {
+            console.log(`⏭️ CloudSync: Skipping static collection ${col.table} (already pulled this session).`);
+            continue;
+          }
+
           // JURISDICTIONAL SECURITY
           let q = collection(db, col.table);
           if (['members', 'families', 'vital_events', 'claims', 'vhnd_sessions'].includes(col.table)) {
@@ -355,9 +395,22 @@ export const cloudSyncManager = {
             }
           }
 
-          // SYNC-2 FIX: Limit results to 500 per collection per pull to prevent unbounded
-          // downloads on large Admin-role deployments. Use cursor pagination if > 500 records needed.
-          const limitedQ = query(q, limit(500));
+          // QUOTA FIX: Delta sync — filter by lastUpdatedAt to only fetch changed records.
+          // On first pull (lastPullTimestamp=0), fetches everything. Subsequent pulls fetch only changes.
+          // SYNC-2 FIX: Cap at 500 records per collection per pull.
+          let limitedQ;
+          if (lastPullTimestamp > 0 && !force) {
+            // Use server-side timestamp filtering for delta sync
+            // Note: Firestore requires an index on lastUpdatedAt if combined with other where() clauses.
+            // For simple queries, this works without an extra index.
+            try {
+              limitedQ = query(q, where('lastUpdatedAt', '>', lastPullTimestamp), limit(500));
+            } catch (_) {
+              limitedQ = query(q, limit(500));
+            }
+          } else {
+            limitedQ = query(q, limit(500));
+          }
           const querySnapshot = await getDocs(limitedQ);
           const cloudData = [];
           const deletedInCloud = [];
@@ -428,8 +481,13 @@ export const cloudSyncManager = {
         // P2-D: Call storage.recomputeSummary() after merge completes
         await storage.recomputeSummary();
 
+        // QUOTA FIX: Save last successful pull timestamp for delta sync on next pull
+        await storage.saveRaw('LAST_CLOUD_PULL_AT', startTime.toString());
+        // Mark static collections as pulled for this session
+        cloudSyncManager._sessionStaticPulled = true;
+
         const elapsed = Date.now() - startTime;
-        console.log(`✅ CloudSync: Shadow Pull merged in ${elapsed}ms — pulled:${totalPulled} removed:${totalDeleted}`);
+        console.log(`✅ CloudSync: Delta Pull merged in ${elapsed}ms — pulled:${totalPulled} removed:${totalDeleted}`);
         return { success: true, pulledCount: totalPulled, deletedCount: totalDeleted };
       });
 
