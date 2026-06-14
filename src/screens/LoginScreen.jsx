@@ -100,13 +100,24 @@ const LoginScreen = ({ onLogin }) => {
           const userCredential = await signInWithEmailAndPassword(auth, input, password);
           const uid = userCredential.user.uid;
 
-          // Fetch the user document from Firestore (online first directly by ID, fallback to local cache)
+          // Fetch the user document from Firestore (online first directly by ID, fallback to query, then local cache)
           let user = null;
           try {
+            // 1. Try direct fetch by document ID (uid) first (faster, handles new email registrations)
             const docRef = doc(db, 'users', uid);
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
               user = { id: docSnap.id, ...docSnap.data() };
+            } else {
+              // 2. Fallback: query by uid field (handles legacy/migrated users whose document ID is not uid)
+              const q = query(collection(db, 'users'), where('uid', '==', uid));
+              const querySnapshot = await getDocs(q);
+              if (!querySnapshot.empty) {
+                user = { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() };
+              }
+            }
+
+            if (user) {
               await storage.save(STORAGE_KEYS.USERS, user);
             }
           } catch (fetchErr) {
@@ -158,7 +169,10 @@ const LoginScreen = ({ onLogin }) => {
       } else {
         // --- USERNAME LOGIN (Legacy / Migration) ---
         const usersList = await storage.getAll(STORAGE_KEYS.USERS);
-        const user = usersList.find(u => u.username?.toLowerCase() === input.toLowerCase() && u.password === password);
+        const user = usersList.find(u => 
+          (u.username?.toLowerCase() === input.toLowerCase() || u.mobile === input || u.id === input) && 
+          u.password === password
+        );
 
         if (user) {
           if (user.authMigrated || user.email) {
