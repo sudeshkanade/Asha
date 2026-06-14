@@ -15,7 +15,7 @@ import {
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { db, auth } from '../database/firebaseConfig';
-import { collection, doc, setDoc, getDocs, query, where, serverTimestamp, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDoc, setDoc, getDocs, query, where, serverTimestamp, deleteDoc, writeBatch } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { useTranslation } from 'react-i18next';
 import { cloudSyncManager } from '../database/cloudSync';
@@ -100,18 +100,23 @@ const LoginScreen = ({ onLogin }) => {
           const userCredential = await signInWithEmailAndPassword(auth, input, password);
           const uid = userCredential.user.uid;
 
-          // Fetch the user document from Firestore (locally first, fallback to remote query)
-          const usersList = await storage.getAll(STORAGE_KEYS.USERS);
-          let user = usersList.find(u => u.uid === uid || u.email === input);
-
-          if (!user) {
-            // fallback: query firestore directly
-            const q = query(collection(db, 'users'), where('uid', '==', uid));
-            const querySnapshot = await getDocs(q);
-            if (!querySnapshot.empty) {
-              user = { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() };
+          // Fetch the user document from Firestore (online first directly by ID, fallback to local cache)
+          let user = null;
+          try {
+            const docRef = doc(db, 'users', uid);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              user = { id: docSnap.id, ...docSnap.data() };
               await storage.save(STORAGE_KEYS.USERS, user);
             }
+          } catch (fetchErr) {
+            console.warn("Could not fetch user directly from Firestore:", fetchErr);
+          }
+
+          // Fallback to local storage if offline or Firestore fetch failed
+          if (!user) {
+            const usersList = await storage.getAll(STORAGE_KEYS.USERS);
+            user = usersList.find(u => u.uid === uid || u.email === input);
           }
 
           if (user) {

@@ -319,13 +319,23 @@ export const cloudSyncManager = {
             continue;
           }
 
+          // If no user is logged in, only allow pulling static reference/hierarchy data.
+          // Skip clinical collections, users, and other operational tables to avoid permission errors.
+          const isStaticOrHierarchy = ['phcs', 'sub_centers', 'villages', 'app_config', 'locked_periods'].includes(col.table);
+          if (!user && !isStaticOrHierarchy) {
+            console.log(`🛡️ Security: Skipping collection ${col.table} for unauthenticated pull.`);
+            continue;
+          }
+
           // JURISDICTIONAL SECURITY
           let q = collection(db, col.table);
+
+          // Filter users list by PHC for non-admin roles to comply with Firestore rules and protect data
+          if (col.table === 'users' && user && user.role !== 'Admin') {
+            q = query(q, where('phcId', '==', user.phcId || 'FORCE_BLOCK'));
+          }
+
           if (['members', 'families', 'vital_events', 'claims', 'vhnd_sessions'].includes(col.table)) {
-            if (!user) {
-              console.log(`🛡️ Security: Skipping clinical table ${col.table} for unauthenticated pull.`);
-              continue; // Skip clinical data if no user is logged in
-            }
 
             switch (user.role) {
               case 'ASHA': {
