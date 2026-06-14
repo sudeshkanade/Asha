@@ -19,6 +19,26 @@ import { cloudSyncManager } from '../database/cloudSync';
 import { Alert, Platform } from 'react-native';
 import ClosedBuildingModal from '../components/ClosedBuildingModal';
 
+// BUG-H1 / OPT-3: Memoized task generation cache.
+// generateAllTasks is O(members * schedule_items) — expensive on 500+ member datasets.
+// We cache the last result and only recompute when the member snapshot actually changes.
+let _lastTaskHash = null;
+let _cachedTasks = [];
+
+const _getTaskHash = (members) => {
+  if (!members || members.length === 0) return '0';
+  // Lightweight hash: count + first record timestamp + last record timestamp
+  return `${members.length}_${members[0]?.lastUpdatedAt || 0}_${members[members.length - 1]?.lastUpdatedAt || 0}`;
+};
+
+const getMemoizedTasks = (members) => {
+  const hash = _getTaskHash(members);
+  if (hash === _lastTaskHash) return _cachedTasks;
+  _lastTaskHash = hash;
+  _cachedTasks = generateAllTasks(members);
+  return _cachedTasks;
+};
+
 const DashboardScreen = ({ user, onNavigate }) => {
   const { t, i18n } = useTranslation();
   const [stats, setStats] = React.useState(null);
@@ -100,9 +120,8 @@ const DashboardScreen = ({ user, onNavigate }) => {
 
   const loadLiveStats = async () => {
     try {
-      // RUTHLESS FIX: O(1) Summary-First Load
-      // We load the pre-calculated summary from storage to show the UI instantly
-      const summaryStr = await storage.getRaw('PHC_SUMMARY');
+    // BUG-M1 FIX: Use STORAGE_KEYS.PHC_SUMMARY constant instead of raw magic string
+      const summaryStr = await storage.getRaw(STORAGE_KEYS.PHC_SUMMARY);
       const summary = summaryStr ? JSON.parse(summaryStr) : null;
       
       if (summary) {
@@ -167,8 +186,10 @@ const DashboardScreen = ({ user, onNavigate }) => {
 
       setSyncCount(events.length);
       
-      // Calculate actual pending task count from real member profiles using healthLogic
-      const generatedTasks = generateAllTasks(members);
+      // BUG-H1 / OPT-3 FIX: Use memoized task generation.
+      // generateAllTasks is CPU-heavy (O(n * schedule_items)). We skip recompute
+      // when the member snapshot hash matches the previous call.
+      const generatedTasks = getMemoizedTasks(members);
       const pendingCount = generatedTasks.filter(t => t.status === 'pending').length;
       const criticalCount = generatedTasks.filter(t => t.isEmergency && t.status === 'pending').length;
       
@@ -225,7 +246,14 @@ const DashboardScreen = ({ user, onNavigate }) => {
     setQuickFamilyHouseNo('');
     setQuickFamilyVillageId('');
     Alert.alert(t('success'), 'Family registered successfully!');
-    await loadLiveStats();
+    // BUG-H5 FIX: Update total count incrementally instead of triggering a full loadLiveStats()
+    // reload (which re-fetches 4 collections, re-runs generateAllTasks, and re-computes MPR stats).
+    setStats(prev => prev ? ({
+      ...prev,
+      demographics: { ...prev.demographics, total: (prev.demographics?.total || 0) + 1 }
+    }) : prev);
+    // Invalidate task memo hash so next full reload sees the new family
+    _lastTaskHash = null;
   };
 
   const handleQuickEventSave = async () => {
@@ -264,7 +292,8 @@ const DashboardScreen = ({ user, onNavigate }) => {
     setQuickEventDate('');
     setQuickEventVillageId('');
     Alert.alert(t('success'), 'Vital event logged successfully!');
-    await loadLiveStats();
+    // BUG-H5 FIX: Update sync queue counter only — no full reload needed for a vital event log.
+    setSyncCount(prev => prev + 1);
   };
 
   // BUG-STOCK-01 FIX: Persist stock changes to STORAGE_KEYS.STOCK

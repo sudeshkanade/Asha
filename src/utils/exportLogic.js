@@ -261,11 +261,17 @@ export const exportMasterPopulation = async (user, filterType = null, additional
       });
     }
 
+    // OPT-6 FIX: Pre-build lookup Maps to replace O(n²) allFamilies.find() inside .map()
+    // For 500 members × 500 families the old approach = 250,000 comparisons per export.
+    // Map lookups are O(1), reducing total export time from O(n²) → O(n).
+    const familyById = new Map(allFamilies.map(f => [f.id, f]));
+    const userById = new Map(allUsers.map(u => [u.id, u]));
+
     // 3. Build rows with appropriate columns per report type
     const flatData = members.map((m, index) => {
-      const family = allFamilies.find(f => f.id === m.familyId) || {};
+      const family = familyById.get(m.familyId) || {};
       const health = m.healthData || {};
-      const base = baseColumns(m, family, user, allUsers);
+      const base = baseColumns(m, family, user, allUsers, userById);
       base['Sr.No.'] = index + 1;
 
       switch (filterType) {
@@ -377,25 +383,33 @@ export const exportVitalEvents = async (user, eventType = 'Birth', placeFilter =
       filteredEvents = filteredEvents.filter(e => e.phcId === user.phcId);
     }
 
+    // BUG-H6 FIX: Pre-build memberById Map to avoid O(n²) find() inside .map()
+    // Birth rows previously called allMembers.find() TWICE per event for village and houseNo.
+    // For 200 births × 1000 members = 400,000 comparisons. Now it's O(1) per lookup.
+    const memberById = new Map(allMembers.map(m => [m.id, m]));
+
     let rows;
     if (eventType === 'Birth') {
-      rows = filteredEvents.map((e, i) => ({
-        'Sr.No.': i + 1,
-        'Date of Birth': e.date || 'N/A',
-        'Child Name': e.name || 'N/A',
-        'Gender': e.gender || 'N/A',
-        'Mother Name': e.motherName || 'N/A',
-        'Mother ID': e.motherId || 'N/A',
-        'Birth Weight (kg)': e.birthWeight || 'N/A',
-        'Place of Delivery': e.place || 'N/A',
-        'Hospital Name': e.hospitalName || 'N/A',
-        'Delivery Type': e.deliveryType || 'N/A',
-        'Village': allMembers.find(m => m.id === e.motherId)?.villageName || e.villageName || 'N/A',
-        'House No.': allMembers.find(m => m.id === e.motherId)?.houseNo || e.houseNo || 'N/A',
-      }));
+      rows = filteredEvents.map((e, i) => {
+        const mother = memberById.get(e.motherId) || {};
+        return ({
+          'Sr.No.': i + 1,
+          'Date of Birth': e.date || 'N/A',
+          'Child Name': e.name || 'N/A',
+          'Gender': e.gender || 'N/A',
+          'Mother Name': e.motherName || 'N/A',
+          'Mother ID': e.motherId || 'N/A',
+          'Birth Weight (kg)': e.birthWeight || 'N/A',
+          'Place of Delivery': e.place || 'N/A',
+          'Hospital Name': e.hospitalName || 'N/A',
+          'Delivery Type': e.deliveryType || 'N/A',
+          'Village': mother.villageName || e.villageName || 'N/A',
+          'House No.': mother.houseNo || e.houseNo || 'N/A',
+        });
+      });
     } else {
       rows = filteredEvents.map((e, i) => {
-        const member = allMembers.find(m => m.id === e.memberId) || {};
+        const member = memberById.get(e.memberId) || {};
         return {
           'Sr.No.': i + 1,
           'Date of Death': e.date || 'N/A',
@@ -509,9 +523,41 @@ export const exportFPRegister = async (user) => {
       (m.maritalStatus === 'Married' || m.relation === 'Wife' || m.relationToHead === 'Wife')
     );
 
+    // BUG-H3 FIX: Pre-build Maps to replace O(n²) nested find/filter loops inside ecMembers.map().
+    // Old code: for each EC woman, called allMembers.filter() + 2×allMembers.find() = O(n²).
+    // For 100 EC women × 500 members = 50,000+ iterations. New code: O(n) via Map lookups.
+    const familyMembersMap = new Map(); // familyId -> Member[]
+    const husbandMap = new Map();       // familyId -> husband Member
+    allMembers.forEach(m => {
+      if (!familyMembersMap.has(m.familyId)) familyMembersMap.set(m.familyId, []);
+      familyMembersMap.get(m.familyId).push(m);
+    });
+    // Identify the husband for each family (head or explicit husband relation)
+    allMembers.forEach(m => {
+      if (m.gender !== 'Male') return;
+      const rel = (m.relationToHead || m.relation || '').toLowerCase();
+      if (rel === 'self (head)' || rel === 'head' || rel === 'husband') {
+        if (!husbandMap.has(m.familyId)) husbandMap.set(m.familyId, m);
+      }
+    });
+
     const rows = ecMembers.map((m, i) => {
-      const family = allFamilies.find(f => f.id === m.familyId) || {};
+      const family = familyById.get(m.familyId) || {};
       const health = m.healthData || {};
+      const familyMembers = familyMembersMap.get(m.familyId) || [];
+      const husband = husbandMap.get(m.familyId);
+      const fatherFirstName = (husband ? husband.firstName : m.middleName || '').trim().toLowerCase();
+
+      const childCount = familyMembers.filter(member => {
+        if (member.id === m.id) return false;
+        if (husband && member.id === husband.id) return false;
+        const relation = (member.relationToHead || member.relation || '').toLowerCase();
+        const isSonDaughter = ['son', 'daughter', 'child'].includes(relation);
+        const childMiddleName = (member.middleName || '').trim().toLowerCase();
+        const hasFatherMiddleName = fatherFirstName && childMiddleName === fatherFirstName;
+        return hasFatherMiddleName || isSonDaughter;
+      }).length;
+
       return {
         'Sr.No.': i + 1,
         'Village': m.villageName || family.villageName || 'N/A',
@@ -519,35 +565,9 @@ export const exportFPRegister = async (user) => {
         'Wife Name': `${m.firstName || ''} ${m.lastName || ''}`,
         'Age': m.age || 'N/A',
         'Husband Name': m.middleName || 'N/A',
-        'No. of Children': allMembers.filter(member => {
-          if (member.familyId !== m.familyId) return false;
-          if (member.id === m.id) return false;
-          
-          // Find the husband in the same family to get his first name (falling back to the wife's middle name)
-          const husband = allMembers.find(h => 
-            h.familyId === m.familyId &&
-            h.gender === 'Male' &&
-            (
-              (m.relationToHead === 'Wife' && (h.relationToHead === 'Self (Head)' || h.relationToHead === 'Head')) ||
-              ((m.relationToHead === 'Self (Head)' || m.relationToHead === 'Head') && h.relationToHead === 'Husband')
-            )
-          );
-          
-          const fatherFirstName = (husband ? husband.firstName : m.middleName || '').trim().toLowerCase();
-          
-          // Exclude the father/husband himself from the children count
-          if (husband && member.id === husband.id) return false;
-          if (fatherFirstName && (member.firstName || '').trim().toLowerCase() === fatherFirstName && member.gender === 'Male') return false;
-          
-          // Compare the child's middle name with the father's first name
-          const childMiddleName = (member.middleName || '').trim().toLowerCase();
-          const hasFatherMiddleName = fatherFirstName && childMiddleName === fatherFirstName;
-          
-          const relation = (member.relationToHead || member.relation || '').toLowerCase();
-          const isSonDaughter = ['son', 'daughter', 'child'].includes(relation);
-          
-          return hasFatherMiddleName || isSonDaughter;
-        }).length,
+        // BUG-H3 FIX: Use the pre-computed childCount (O(n) Map lookups) instead of
+        // the old nested allMembers.filter() + allMembers.find() per row (O(n²)).
+        'No. of Children': childCount,
         'Current FP Method': health.fpMethod || 'None',
         'FP Method Category': health.fpMethod === 'permanent' ? 'Permanent' :
           (health.fpMethod && health.fpMethod !== 'none' ? 'Spacing' : 'None'),
@@ -559,6 +579,7 @@ export const exportFPRegister = async (user) => {
         'BPL': family.isBPL ? 'Yes' : 'No',
       };
     });
+
 
     if (rows.length === 0) {
       rows.push({ 'Info': 'No eligible couples found.' });

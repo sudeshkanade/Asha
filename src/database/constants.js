@@ -24,4 +24,21 @@ export const STORAGE_KEYS = {
   HWC_ACTIVITY: '@rural_health_hwc',
   WATER_QUALITY: '@rural_health_water',
   COLD_CHAIN: '@rural_health_cold_chain',
+  // BUG-M1 FIX: Named constant prevents magic string repetition across files
+  PHC_SUMMARY: 'PHC_SUMMARY',
 };
+
+/**
+ * BUG-M2 / OPT-5 FIX: Only clinical collections can contain soft-deleted records.
+ * Used by cleanupTombstones and autoPrune to avoid scanning all 27 storage keys.
+ */
+export const CLINICAL_KEYS = [
+  STORAGE_KEYS.MEMBERS,
+  STORAGE_KEYS.FAMILIES,
+  STORAGE_KEYS.VITAL_EVENTS,
+  STORAGE_KEYS.CLAIMS,
+  STORAGE_KEYS.TASK_COMPLETIONS,
+  STORAGE_KEYS.VHND_SESSIONS,
+  STORAGE_KEYS.STOCK,
+];
+

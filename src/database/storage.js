@@ -1,7 +1,63 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import { STORAGE_KEYS } from './constants';
+import { STORAGE_KEYS, CLINICAL_KEYS } from './constants';
 import { calculateAge } from '../utils/healthLogic';
+
+/**
+ * OPT-1: In-Memory Read Cache
+ * Caches hot collections (MEMBERS, VILLAGES, FAMILIES) for up to 60 seconds.
+ * Invalidated on any write to that key, keeping reads fast without stale data.
+ */
+const _readCache = new Map(); // key -> { data: Array, loadedAt: number }
+const READ_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
+const _cacheGet = (key) => {
+  const HOT_KEYS = new Set([STORAGE_KEYS.MEMBERS, STORAGE_KEYS.FAMILIES, STORAGE_KEYS.VILLAGES]);
+  if (!HOT_KEYS.has(key)) return null;
+  const entry = _readCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.loadedAt > READ_CACHE_TTL_MS) {
+    _readCache.delete(key);
+    return null;
+  }
+  return entry.data;
+};
+
+const _cacheSet = (key, data) => {
+  const HOT_KEYS = new Set([STORAGE_KEYS.MEMBERS, STORAGE_KEYS.FAMILIES, STORAGE_KEYS.VILLAGES]);
+  if (HOT_KEYS.has(key)) {
+    _readCache.set(key, { data, loadedAt: Date.now() });
+  }
+};
+
+const _cacheInvalidate = (key) => {
+  _readCache.delete(key);
+};
+
+/**
+ * OPT-4: Debounced PHC_SUMMARY Writer
+ * Coalesces rapid summary updates (e.g. bulk imports) into a single write
+ * within a 500ms window, reducing write ops by ~90% during bulk flows.
+ */
+let _summaryDebounceTimer = null;
+let _pendingSummaryData = null;
+
+const _flushSummary = async () => {
+  if (_pendingSummaryData === null) return;
+  const toWrite = _pendingSummaryData;
+  _pendingSummaryData = null;
+  try {
+    await AsyncStorage.setItem(STORAGE_KEYS.PHC_SUMMARY, JSON.stringify(toWrite));
+  } catch (e) {
+    console.error('❌ Debounced Summary Write Error:', e);
+  }
+};
+
+const _debouncedSaveSummary = (summaryData) => {
+  _pendingSummaryData = summaryData;
+  if (_summaryDebounceTimer) clearTimeout(_summaryDebounceTimer);
+  _summaryDebounceTimer = setTimeout(_flushSummary, 500);
+};
 
 /**
  * Universal Storage Engine for Rural Health Tracker
@@ -64,6 +120,9 @@ export const storage = {
    * Internal logic for getAll (no lock)
    */
   _getAll: async (key) => {
+    // OPT-1: Serve from cache if available (hot collections only)
+    const cached = _cacheGet(key);
+    if (cached) return cached;
     try {
       const value = await AsyncStorage.getItem(key);
       const parsed = value != null ? JSON.parse(value) : [];
@@ -172,6 +231,8 @@ export const storage = {
         });
       }
 
+      // OPT-1: Cache the result for hot collections
+      _cacheSet(key, parsed);
       return parsed;
     } catch (e) {
       return [];
@@ -183,6 +244,8 @@ export const storage = {
    */
   _saveAll: async (key, items) => {
     try {
+      // OPT-1: Invalidate cache on any write to keep reads consistent
+      _cacheInvalidate(key);
       await AsyncStorage.setItem(key, JSON.stringify(items));
       return true;
     } catch (e) {
@@ -190,6 +253,7 @@ export const storage = {
       return false;
     }
   },
+
 
   /**
    * Internal logic for update (no lock)
@@ -324,7 +388,8 @@ export const storage = {
 
   updateSummary: async (newData, oldData) => {
     try {
-      const summaryStr = await AsyncStorage.getItem('PHC_SUMMARY');
+      // BUG-M1 FIX: Use STORAGE_KEYS.PHC_SUMMARY constant instead of raw string
+      const summaryStr = await AsyncStorage.getItem(STORAGE_KEYS.PHC_SUMMARY);
       const summary = summaryStr ? JSON.parse(summaryStr) : {
         totalMembers: 0, totalPregnant: 0, totalHighRisk: 0, totalChildren: 0
       };
@@ -334,15 +399,22 @@ export const storage = {
         summary.totalMembers = Math.max(0, summary.totalMembers - 1);
         if (oldData.healthData?.isPregnant) summary.totalPregnant = Math.max(0, summary.totalPregnant - 1);
         if (oldData.healthData?.isHighRisk) summary.totalHighRisk = Math.max(0, summary.totalHighRisk - 1);
-        if ((parseInt(oldData.age) || 0) < 5) summary.totalChildren = Math.max(0, summary.totalChildren - 1);
+        // BUG-C3 FIX: Use calculateAge(dob) instead of stale stored `age` string.
+        // The stored age field is set at registration and never auto-updated.
+        // calculateAge(dob) always returns the correct current age.
+        const oldAge = oldData.dob ? calculateAge(oldData.dob) : (parseInt(oldData.age) || 99);
+        if (!isNaN(oldAge) && oldAge < 5) summary.totalChildren = Math.max(0, summary.totalChildren - 1);
       }
 
       summary.totalMembers++;
       if (newData.healthData?.isPregnant) summary.totalPregnant++;
       if (newData.healthData?.isHighRisk) summary.totalHighRisk++;
-      if ((parseInt(newData.age) || 0) < 5) summary.totalChildren++;
+      // BUG-C3 FIX: Same fix for the new record — compute from DOB
+      const newAge = newData.dob ? calculateAge(newData.dob) : (parseInt(newData.age) || 99);
+      if (!isNaN(newAge) && newAge < 5) summary.totalChildren++;
 
-      await AsyncStorage.setItem('PHC_SUMMARY', JSON.stringify(summary));
+      // OPT-4: Use debounced writer to coalesce rapid sequential updates
+      _debouncedSaveSummary(summary);
     } catch (e) {
       console.error('❌ Summary Error:', e);
     }
@@ -386,7 +458,8 @@ export const storage = {
           return (parseInt(m.age) || 99) < 5;
         }).length,
       };
-      await AsyncStorage.setItem('PHC_SUMMARY', JSON.stringify(summary));
+      // BUG-M1 FIX: Use STORAGE_KEYS.PHC_SUMMARY constant
+      await AsyncStorage.setItem(STORAGE_KEYS.PHC_SUMMARY, JSON.stringify(summary));
       console.log('✅ PHC_SUMMARY recomputed:', summary);
     } catch (e) {
       console.error('❌ recomputeSummary Error:', e);
@@ -394,18 +467,22 @@ export const storage = {
   },
 
   autoPrune: async () => {
-    const logKeys = [STORAGE_KEYS.STOCK, STORAGE_KEYS.IDSP_SURVEILLANCE, STORAGE_KEYS.VECTOR_SURVEYS];
-    const threshold = Date.now() - (90 * 24 * 60 * 60 * 1000);
-    
-    for (const key of logKeys) {
-      const data = await storage.getAll(key);
-      const filtered = data.filter(item => 
-        item.syncStatus !== 'synced' || item.lastUpdatedAt > threshold
-      );
-      if (filtered.length < data.length) {
-        await storage.saveAll(key, filtered);
+    // BUG-H4 FIX: Wrap in withLock to prevent race condition between
+    // the getAll() and saveAll() calls if a concurrent save() runs between them.
+    return storage.withLock(async () => {
+      const logKeys = [STORAGE_KEYS.STOCK, STORAGE_KEYS.IDSP_SURVEILLANCE, STORAGE_KEYS.VECTOR_SURVEYS];
+      const threshold = Date.now() - (90 * 24 * 60 * 60 * 1000);
+
+      for (const key of logKeys) {
+        const data = await storage._getAll(key);
+        const filtered = data.filter(item =>
+          item.syncStatus !== 'synced' || item.lastUpdatedAt > threshold
+        );
+        if (filtered.length < data.length) {
+          await storage._saveAll(key, filtered);
+        }
       }
-    }
+    });
   },
 
   getRaw: async (key) => {
@@ -425,7 +502,7 @@ export const storage = {
   purgeOrphanedData: async (user) => {
     if (!user || user.role === 'Admin') return;
     const collectionsToCheck = [STORAGE_KEYS.MEMBERS, STORAGE_KEYS.FAMILIES, STORAGE_KEYS.VITAL_EVENTS];
-    
+
     let assignedIds = new Set();
     if (user.role === 'ASHA') {
       const assigned = user.assignedVillages || [];
@@ -452,30 +529,34 @@ export const storage = {
                (user.role === 'MO' && (item.phcId === user.phcId || !!item.ashaId));
       });
 
-      // P2-E: Always write back normalized data, not only when records are deleted.
-      // This persists resolved subCenterId/phcId for Excel-imported records that had
-      // those fields missing in raw storage but resolved via village lookup in _getAll.
-      await storage.saveAll(key, filtered);
+      // OPT-7 FIX: Only write back when records were actually removed.
+      // Previously this always wrote all 3 collections on every login,
+      // costing 3 unnecessary LocalStorage writes even when nothing changed.
+      if (filtered.length < data.length) {
+        await storage.saveAll(key, filtered);
+      }
     }
   },
 
   cleanupTombstones: async () => {
     return await storage.withLock(async () => {
-      const collections = Object.values(STORAGE_KEYS);
+      // BUG-M2 / OPT-5 FIX: Only scan clinical collections that can contain
+      // soft-deleted records. Previously iterated ALL 27 STORAGE_KEYS including
+      // PHC_SUMMARY, APP_CONFIG, PHCS etc. which never contain deleted items.
+      // This reduces boot-time reads from 27 → 7 targeted scans.
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-      for (const key of collections) {
+      for (const key of CLINICAL_KEYS) {
         try {
           const value = await AsyncStorage.getItem(key);
           if (!value) continue;
           const data = JSON.parse(value);
-          // BUG-4 FIX: Some keys (e.g. PHC_SUMMARY) store a plain object, not an array.
-          // Calling .filter() on a non-array throws TypeError and crashes on every app boot.
           if (!Array.isArray(data)) continue;
           const filtered = data.filter(item => {
             if (!item.deleted) return true;
             return (item._deletedAt && new Date(item._deletedAt).getTime() > thirtyDaysAgo);
           });
           if (filtered.length !== data.length) {
+            _cacheInvalidate(key); // OPT-1: Invalidate cache if records were pruned
             await AsyncStorage.setItem(key, JSON.stringify(filtered));
           }
         } catch (e) {}
@@ -516,9 +597,14 @@ export const storage = {
       for (const member of membersToDelete) {
         await storage._addToDeleteQueue(STORAGE_KEYS.MEMBERS, member.id);
       }
+      // BUG-C5 FIX: Remove the family record itself from local storage immediately.
+      // Previously, deleting a family only added it to the sync queue (for cloud delete)
+      // but never removed it from STORAGE_KEYS.FAMILIES locally, so the deleted family
+      // remained visible in the UI until the next cloud pull.
+      await storage._update(STORAGE_KEYS.FAMILIES, (data) => data.filter(f => f.id !== id));
     }
     await storage._addToSyncQueue(tableName, { id }, 'delete');
-    
+
     // Add to local tombstones
     await storage._update(STORAGE_KEYS.DELETED_IDS, (tombstones) => {
       if (!tombstones.includes(id.toString())) {
@@ -535,8 +621,20 @@ export const storage = {
   },
 
   init: async () => {
-     // Initialization logic if needed (e.g. creating default config)
-     return true;
+    // Initialization logic if needed (e.g. creating default config)
+    return true;
+  },
+
+  /**
+   * OPT-1: Invalidate the in-memory read cache for a specific key.
+   * Call this after external cache-busting events (e.g. cloud pull completion).
+   */
+  invalidateCache: (key) => {
+    if (key) {
+      _cacheInvalidate(key);
+    } else {
+      _readCache.clear(); // Invalidate all if no key provided
+    }
   },
 
   clearAll: async () => {

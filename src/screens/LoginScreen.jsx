@@ -69,10 +69,12 @@ const LoginScreen = ({ onLogin }) => {
 
   const loadHierarchy = async () => {
     setLoading(true);
-    
-    // Auto-pull latest hierarchy & users from cloud
-    await cloudSyncManager.pullFromCloud();
-    
+
+    // BUG-C4 NOTE: This pull is intentionally unauthenticated — it only fetches
+    // static hierarchy data (PHCs, sub-centers, villages) for the registration
+    // dropdowns. Clinical tables (members, families) are skipped when user=null.
+    await cloudSyncManager.pullFromCloud(null);
+
     const p = await storage.getAll(STORAGE_KEYS.PHCS);
     const s = await storage.getAll(STORAGE_KEYS.SUB_CENTERS);
     const v = await storage.getAll(STORAGE_KEYS.VILLAGES);
@@ -86,8 +88,9 @@ const LoginScreen = ({ onLogin }) => {
     setInlineError('');
     setLoading(true);
     try {
-      await cloudSyncManager.pullFromCloud();
-      
+      // BUG-H2 FIX: Removed redundant pullFromCloud() here.
+      // loadHierarchy() already pulled on mount; post-auth pull (line ~118) handles user-scoped data.
+      // The pre-auth pull was causing 3 Firestore pulls on every login attempt (even failed ones).
       const input = formData.username.trim();
       const password = formData.password;
 
@@ -277,8 +280,10 @@ const LoginScreen = ({ onLogin }) => {
   };
 
   const handleRegister = async () => {
-    // BUG-6 FIX: Validate BEFORE setLoading(true) so an early-return validation
-    // failure never leaves the spinner permanently active.
+    // BUG-C2 FIX: Run all validation BEFORE setLoading(true).
+    // Previously, setLoading(true) ran first, and any early-return validation
+    // failure (e.g. duplicate email check) never called setLoading(false),
+    // leaving the spinner permanently active until force-close.
     if (!formData.email || !formData.password || !formData.name) {
       Alert.alert(t('error'), t('fieldsRequired'));
       return;
@@ -293,7 +298,7 @@ const LoginScreen = ({ onLogin }) => {
       Alert.alert(t('error'), t('ashaRequired'));
       return;
     }
-    
+
     if (formData.role === 'ANM' && !formData.subCenterId) {
       Alert.alert(t('error'), t('subCenterRequired', 'Sub-Center selection is required for ANM.'));
       return;
@@ -308,6 +313,8 @@ const LoginScreen = ({ onLogin }) => {
 
     try {
       const usersList = await storage.getAll(STORAGE_KEYS.USERS);
+      // BUG-C2 FIX: This check now runs inside try/finally so setLoading(false)
+      // is always called even if we return early here.
       if (usersList.find(u => u.email?.toLowerCase() === formData.email.toLowerCase())) {
         Alert.alert(t('error'), t('emailExists', 'This email address is already registered.'));
         return;

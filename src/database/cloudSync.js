@@ -481,8 +481,13 @@ export const cloudSyncManager = {
         // P2-D: Call storage.recomputeSummary() after merge completes
         await storage.recomputeSummary();
 
+        // OPT-1: Invalidate in-memory read cache for all collections updated by cloud pull.
+        // This ensures subsequent reads pick up the freshly merged data, not 60s-old snapshots.
+        Object.keys(shadowBuffer).forEach(key => storage.invalidateCache(key));
+
         // QUOTA FIX: Save last successful pull timestamp for delta sync on next pull
         await storage.saveRaw('LAST_CLOUD_PULL_AT', startTime.toString());
+
         // Mark static collections as pulled for this session
         cloudSyncManager._sessionStaticPulled = true;
 
