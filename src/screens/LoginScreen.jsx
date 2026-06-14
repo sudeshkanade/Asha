@@ -630,7 +630,7 @@ const LoginScreen = ({ onLogin }) => {
               style={[styles.switchBtn, { marginTop: 15 }]} 
               onPress={async () => {
                 setLoading(true);
-                await cloudSyncManager.pullFromCloud();
+                await cloudSyncManager.pullFromCloud(null, true);
                 setLoading(false);
                 Alert.alert(t('success'), t('accountsSynced'));
               }}
