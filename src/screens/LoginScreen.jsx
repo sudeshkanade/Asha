@@ -73,7 +73,7 @@ const LoginScreen = ({ onLogin }) => {
     // BUG-C4 NOTE: This pull is intentionally unauthenticated — it only fetches
     // static hierarchy data (PHCs, sub-centers, villages) for the registration
     // dropdowns. Clinical tables (members, families) are skipped when user=null.
-    await cloudSyncManager.pullFromCloud(null);
+    await cloudSyncManager.pullFromCloud(null, false, 'hierarchy');
 
     const p = await storage.getAll(STORAGE_KEYS.PHCS);
     const s = await storage.getAll(STORAGE_KEYS.SUB_CENTERS);

@@ -255,7 +255,7 @@ export const cloudSyncManager = {
    * Pull data from Firestore and merge into local storage
    * SECURITY: Enforces jurisdictional isolation via Firestore queries
    */
-  pullFromCloud: async (user = null, force = false) => {
+  pullFromCloud: async (user = null, force = false, pullType = null) => {
     if (!db) {
       console.warn('❌ CloudSync: Missing DB for pull.');
       return { success: false, message: 'DB not initialized' };
@@ -319,12 +319,24 @@ export const cloudSyncManager = {
             continue;
           }
 
-          // If no user is logged in, only allow pulling static reference/hierarchy data.
-          // Skip clinical collections, users, and other operational tables to avoid permission errors.
-          const isStaticOrHierarchy = ['phcs', 'sub_centers', 'villages', 'app_config', 'locked_periods'].includes(col.table);
-          if (!user && !isStaticOrHierarchy) {
-            console.log(`🛡️ Security: Skipping collection ${col.table} for unauthenticated pull.`);
-            continue;
+          // If no user is logged in:
+          // 1. If pullType is 'hierarchy', skip everything except static reference/hierarchy data.
+          // 2. Otherwise, skip clinical collections and tasks (which are sensitive/unauthorized), but allow pulling 'users' so legacy credentials sync.
+          if (!user) {
+            const isStaticOrHierarchy = ['phcs', 'sub_centers', 'villages', 'app_config', 'locked_periods'].includes(col.table);
+            const isUsers = col.table === 'users';
+            
+            if (pullType === 'hierarchy') {
+              if (!isStaticOrHierarchy) {
+                console.log(`🛡️ Security: Skipping collection ${col.table} for hierarchy-only pull.`);
+                continue;
+              }
+            } else {
+              if (!isStaticOrHierarchy && !isUsers) {
+                console.log(`🛡️ Security: Skipping collection ${col.table} for unauthenticated pull.`);
+                continue;
+              }
+            }
           }
 
           // JURISDICTIONAL SECURITY
