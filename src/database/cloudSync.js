@@ -419,21 +419,25 @@ export const cloudSyncManager = {
 
           // QUOTA FIX: Delta sync — filter by lastUpdatedAt to only fetch changed records.
           // On first pull (lastPullTimestamp=0), fetches everything. Subsequent pulls fetch only changes.
-          // SYNC-2 FIX: Cap at 500 records per collection per pull.
-          let limitedQ;
+          let querySnapshot;
           if (lastPullTimestamp > 0 && !force) {
-            // Use server-side timestamp filtering for delta sync
-            // Note: Firestore requires an index on lastUpdatedAt if combined with other where() clauses.
-            // For simple queries, this works without an extra index.
             try {
-              limitedQ = query(q, where('lastUpdatedAt', '>', lastPullTimestamp), limit(500));
-            } catch (_) {
-              limitedQ = query(q, limit(500));
+              const deltaQ = query(q, where('lastUpdatedAt', '>', lastPullTimestamp));
+              querySnapshot = await getDocs(deltaQ);
+            } catch (err) {
+              // If composite index is missing for role-based filters + lastUpdatedAt,
+              // fallback to fetching everything for this collection to prevent data loss.
+              if (err.message && err.message.includes('index')) {
+                console.warn(`⚠️ CloudSync: Missing index for delta sync on ${col.table}, falling back to full fetch.`);
+                querySnapshot = await getDocs(q);
+              } else {
+                throw err;
+              }
             }
           } else {
-            limitedQ = query(q, limit(500));
+            querySnapshot = await getDocs(q);
           }
-          const querySnapshot = await getDocs(limitedQ);
+
           const cloudData = [];
           const deletedInCloud = [];
           const seenIds = new Set();
