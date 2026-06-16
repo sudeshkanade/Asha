@@ -1156,7 +1156,6 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     marginBottom: 20,
   },
-  },
   cameraIcon: {
     fontSize: 32,
     marginBottom: 8,
