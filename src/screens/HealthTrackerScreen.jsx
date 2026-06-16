@@ -24,7 +24,7 @@ const RenderInput = ({ label, value, onChange, placeholder, keyboardType = 'defa
   </View>
 );
 
-const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
+const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab }) => {
   const { t } = useTranslation();
   const [tracker, setTracker] = useState({
     ancStatus: member?.healthData?.ancStatus || 'none',
@@ -135,7 +135,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack }) => {
   if (!isChild) tabs.push('NCD');
   if (isEC) tabs.push('FP');
 
-  const [activeTab, setActiveTab] = useState(tabs[0] || 'NCD');
+  const [activeTab, setActiveTab] = useState(initialTab && tabs.includes(initialTab) ? initialTab : (tabs[0] || 'NCD'));
 
   const fpMethods = [
     { label: t('none'), value: 'none' },

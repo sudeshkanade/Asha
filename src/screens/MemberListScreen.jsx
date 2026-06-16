@@ -197,6 +197,27 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
     }
   };
 
+  const handleMemberInteraction = (member) => {
+    if (!filterType) {
+      toggleExpandMember(member);
+      return;
+    }
+    
+    const type = filterType.toLowerCase();
+    let initialTab = null;
+
+    if (type === 'eligible_couple') initialTab = 'FP';
+    else if (['high_risk_anc', 'new_anc', 'pnc_cases', 'pnc', 'high_risk'].includes(type)) initialTab = 'ANC';
+    else if (['sam_children', 'sam'].includes(type)) initialTab = 'CHILD';
+    else if (['ncd_screening', 'ncd'].includes(type)) initialTab = 'NCD';
+
+    if (initialTab) {
+      onNavigate('HealthTracker', { member, initialTab });
+    } else {
+      toggleExpandMember(member);
+    }
+  };
+
   const toggleExpandMember = (member) => {
     if (expandedMemberId === member.id) {
       setExpandedMemberId(null);
@@ -253,7 +274,7 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
         <View style={styles.memberCard}>
           <TouchableOpacity 
             style={styles.memberInfo}
-            onPress={() => toggleExpandMember(item)}
+            onPress={() => handleMemberInteraction(item)}
             activeOpacity={0.7}
           >
             <Text style={styles.memberName}>{item.firstName} {item.lastName}</Text>

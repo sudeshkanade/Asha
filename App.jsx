@@ -412,6 +412,7 @@ export default function App() {
                   user={user}
                   member={selectedMember} 
                   taskId={selectedTaskId}
+                  initialTab={adminSetupData}
                   onSave={(updatedMember) => {
                     setSelectedMember(null);
                     setSelectedTaskId(null);
