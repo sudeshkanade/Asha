@@ -23,9 +23,11 @@ export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], p
   // 1. Maternal Stats
   const maternalStats = {
     newANC: 0,
+    activeANC: 0,
     firstTrimesterANC: 0,
     severeAnemia: 0,
     highRiskTotal: 0,
+    activeHighRisk: 0,
     hospitalDeliveries: 0,
     homeDeliveries: 0,
   };
@@ -35,6 +37,9 @@ export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], p
     const isPregnantRecord = health.edd || health.ancStatus === 'active' || health.ancStatus === 'registered' || health.isPregnant;
 
     if (isPregnantRecord) {
+      maternalStats.activeANC++;
+      if (health.isHighRisk) maternalStats.activeHighRisk++;
+      
       // LOGIC-3 FIX: newANC should count registrations THIS reporting month, not all-time.
       // Previously every currently-pregnant woman was counted as "new" every month,
       // inflating the NHM indicator. Now we check ancRegistrationDate first,
@@ -42,8 +47,8 @@ export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], p
       const registrationDate = health.ancRegistrationDate || health.lastUpdatedAt;
       if (isCurrentMonth(registrationDate)) {
         maternalStats.newANC++;
+        if (health.isHighRisk) maternalStats.highRiskTotal++; // Monthly for MPR Report
       }
-      if (health.isHighRisk) maternalStats.highRiskTotal++;
       if (parseFloat(health.hbLevel) > 0 && parseFloat(health.hbLevel) < 7) {
         maternalStats.severeAnemia++;
       }

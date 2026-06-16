@@ -13,7 +13,7 @@ import {
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { generateGoshwaraReport } from '../utils/goshwaraLogic';
-import { exportMasterPopulation, exportVitalEvents, exportFPRegister, exportVHNDSessions, exportPHCMonthlyWorkbook, exportFamilySurveyReport } from '../utils/exportLogic';
+import { exportMasterPopulation, exportVitalEvents, exportFPRegister, exportVHNDSessions, exportPHCMonthlyWorkbook, exportFamilySurveyReport, exportParentChildMapping } from '../utils/exportLogic';
 
 import { useTranslation } from 'react-i18next';
 
@@ -144,6 +144,7 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
         case 'VHND': success = await exportVHNDSessions(user); break;
         case 'FP_REGISTER':
         case 'FP': success = await exportFPRegister(user); break;
+        case 'PARENT_CHILD': success = await exportParentChildMapping(user); break;
         case 'HRP': success = await exportMasterPopulation(user, 'HIGH_RISK_ANC'); break;
         case 'ANEMIA': success = await exportMasterPopulation(user, 'SEVERE_ANEMIA'); break;
         case 'SAM': success = await exportMasterPopulation(user, 'SAM_CHILDREN'); break;
@@ -172,6 +173,7 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
     { value: 'TB_SUSPECTS', label: 'TB Suspects' },
     { value: 'MALARIA_SUSPECTS', label: 'Malaria Suspects' },
     { value: 'LEPROSY_SUSPECTS', label: 'Leprosy Suspects' },
+    { value: 'PARENT_CHILD', label: 'Parent-Child Mapping' },
     { value: 'PWD', label: 'PwD List' },
     { value: 'BPL_FAMILIES', label: 'BPL Families' },
   ];
@@ -189,7 +191,12 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
                           builderType === 'ANEMIA' ? 'SEVERE_ANEMIA' :
                           builderType === 'SAM' ? 'SAM_CHILDREN' : builderType;
       
-      const success = await exportMasterPopulation(user, backendType, filters);
+      let success;
+      if (backendType === 'PARENT_CHILD') {
+        success = await exportParentChildMapping(user);
+      } else {
+        success = await exportMasterPopulation(user, backendType, filters);
+      }
       if (success) Alert.alert(t('success'), t('excelSuccess', 'Report downloaded successfully!'));
       else Alert.alert(t('error'), t('exportFailed'));
     } catch (e) {

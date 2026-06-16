@@ -69,21 +69,37 @@ const applyHierarchyFilter = (members, user) => {
 
 // ===================== COLUMN DEFINITIONS =====================
 
-const baseColumns = (m, family, user, allUsers = []) => {
+const baseColumns = (m, family, user, userById = new Map(), villagesMap = new Map(), subCentersMap = new Map()) => {
   let ashaName = user?.name || 'N/A';
   
   // If current user is Admin/ANM/MO, look up the ASHA name for this specific member
   if (user?.role !== 'ASHA' && m.ashaId) {
-    const asha = allUsers.find(u => u.id === m.ashaId);
+    const asha = userById.get(m.ashaId);
     if (asha) ashaName = asha.name;
   }
+
+  // BUG FIX: Member's own location data must take priority over the logged-in user's location.
+  // Resolve missing names from lookup maps
+  const phcName = m.phcName || family?.phcName || user?.phcName || m.phcId || 'N/A';
+  
+  let subCenterName = m.subCenterName || family?.subCenterName;
+  if (!subCenterName && m.subCenterId && subCentersMap.has(m.subCenterId)) {
+    subCenterName = subCentersMap.get(m.subCenterId).name;
+  }
+  subCenterName = subCenterName || user?.subCenterName || m.subCenterId || 'N/A';
+
+  let villageName = m.villageName || family?.villageName;
+  if (!villageName && m.villageId && villagesMap.has(m.villageId)) {
+    villageName = villagesMap.get(m.villageId).name;
+  }
+  villageName = villageName || 'N/A';
 
   return {
     'Sr.No.': '', // filled later
     'ASHA Name': sanitizeValue(ashaName),
-    'PHC': sanitizeValue(user?.phcName || m.phcName || m.phcId || 'N/A'),
-    'Sub-Center': sanitizeValue(user?.subCenterName || m.subCenterName || m.subCenterId || 'N/A'),
-    'Village': sanitizeValue(m.villageName || family?.villageName || 'N/A'),
+    'PHC': sanitizeValue(phcName),
+    'Sub-Center': sanitizeValue(subCenterName),
+    'Village': sanitizeValue(villageName),
     'House No.': sanitizeValue(m.houseNo || family?.houseNo || 'N/A'),
     'Family ID': sanitizeValue(m.familyId || 'N/A'),
     'First Name': sanitizeValue(m.firstName || ''),
@@ -97,7 +113,7 @@ const baseColumns = (m, family, user, allUsers = []) => {
     'Education': m.education || 'N/A',
     'Aadhaar': m.aadhaar || 'N/A',
     'ABHA ID': m.abhaId || 'N/A',
-    'Mobile': m.phone || m.mobile || 'N/A',  // DATA-CLEAN-P2B: phone (saved by UI) or mobile (Excel import)
+    'Mobile': m.phone || m.mobile || 'N/A',
     'Caste/Category': family.religionCaste || m.caste || 'N/A',
     'BPL': family.isBPL ? 'Yes' : 'No',
     'PwD': m.isPwd ? 'Yes' : 'No',
@@ -117,6 +133,10 @@ const ancColumns = (health) => ({
   'Hb Level (gm%)': health.hbLevel || 'N/A',
   'Weight (kg)': health.weight || 'N/A',
   'Sugar Level': health.sugarLevel || 'N/A',
+  'Blood Group': health.bloodGroup || 'N/A',
+  'IFA Tablets Given': health.ifaQuantity || '0',
+  'Calcium Tablets Given': health.calciumQuantity || '0',
+  'USG Date': health.usgDate || 'N/A',
   'Is Pregnant': health.isPregnant ? 'Yes' : 'No',
 });
 
@@ -125,9 +145,13 @@ const childColumns = (health) => ({
   'Delivery Type': health.deliveryType || 'N/A',
   'Place of Delivery': health.placeOfDelivery || 'N/A',
   'Hospital Name': health.hospitalName || 'N/A',
+  'Height (cm)': health.height || 'N/A',
+  'MUAC (cm)': health.muac || 'N/A',
   'Vaccination Status': health.vaccinationStatus || 'N/A',
   'Malnutrition Status': health.malnutritionStatus || 'Normal',
-  'Breastfeeding': health.breastfeeding || 'N/A',
+  'Breastfeeding': health.exclusiveBreastfeeding !== undefined ? (health.exclusiveBreastfeeding ? 'Yes' : 'No') : (health.breastfeeding || 'N/A'),
+  'Vitamin A Dose': health.vitaminADose || 'N/A',
+  'Deworming Done': health.dewormingDone ? 'Yes' : 'No',
 });
 
 const fpColumns = (health) => ({
@@ -175,6 +199,8 @@ export const exportMasterPopulation = async (user, filterType = null, additional
     const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
     const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
     const allUsers = await storage.getAll(STORAGE_KEYS.USERS);
+    const allVillages = await storage.getAll(STORAGE_KEYS.VILLAGES);
+    const allSubCenters = await storage.getAll(STORAGE_KEYS.SUB_CENTERS);
 
     // 1. Hierarchy filter
     let members = applyHierarchyFilter(allMembers, user);
@@ -266,12 +292,14 @@ export const exportMasterPopulation = async (user, filterType = null, additional
     // Map lookups are O(1), reducing total export time from O(n²) → O(n).
     const familyById = new Map(allFamilies.map(f => [f.id, f]));
     const userById = new Map(allUsers.map(u => [u.id, u]));
+    const villagesMap = new Map(allVillages.map(v => [v.id || v.villageId, v]));
+    const subCentersMap = new Map(allSubCenters.map(sc => [sc.id || sc.subCenterId, sc]));
 
     // 3. Build rows with appropriate columns per report type
     const flatData = members.map((m, index) => {
       const family = familyById.get(m.familyId) || {};
       const health = m.healthData || {};
-      const base = baseColumns(m, family, user, allUsers, userById);
+      const base = baseColumns(m, family, user, userById, villagesMap, subCentersMap);
       base['Sr.No.'] = index + 1;
 
       switch (filterType) {
@@ -322,6 +350,43 @@ export const exportMasterPopulation = async (user, filterType = null, additional
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+    // Add Summary Sheet based on filterType
+    let summaryData = [];
+    if (filterType === 'HIGH_RISK_ANC' || filterType === 'NEW_ANC' || filterType === 'PENDING_ANC' || filterType === 'SEVERE_ANEMIA') {
+      summaryData = [
+        { 'Metric': 'Total Pregnant Women', 'Count': flatData.length },
+        { 'Metric': 'High Risk Cases', 'Count': flatData.filter(r => r['High Risk'] === 'Yes').length },
+        { 'Metric': 'Severe Anemia (Hb < 7)', 'Count': flatData.filter(r => parseFloat(r['Hb Level (gm%)']) > 0 && parseFloat(r['Hb Level (gm%)']) < 7).length },
+        { 'Metric': 'Received IFA', 'Count': flatData.filter(r => parseInt(r['IFA Tablets Given']) > 0).length }
+      ];
+    } else if (filterType === 'CHILDREN_0_5' || filterType === 'SAM_CHILDREN' || filterType === 'FULLY_IMMUNIZED') {
+      summaryData = [
+        { 'Metric': 'Total Children', 'Count': flatData.length },
+        { 'Metric': 'SAM/High Risk Children', 'Count': flatData.filter(r => String(r['Malnutrition Status']).toUpperCase() === 'SAM' || String(r['Malnutrition Status']).toLowerCase() === 'high_risk').length },
+        { 'Metric': 'Fully Immunized (Self-Reported)', 'Count': flatData.filter(r => String(r['Vaccination Status']).toLowerCase() === 'complete').length },
+        { 'Metric': 'Received Deworming', 'Count': flatData.filter(r => r['Deworming Done'] === 'Yes').length }
+      ];
+    } else if (filterType === 'NCD_SCREENING') {
+       summaryData = [
+         { 'Metric': 'Total Screened', 'Count': flatData.length },
+         { 'Metric': 'Known NCD Cases', 'Count': flatData.filter(r => r['Has Known NCD'] === 'Yes').length }
+       ];
+    } else if (!filterType || filterType === 'MASTER') {
+       summaryData = [
+         { 'Metric': 'Total Population', 'Count': flatData.length },
+         { 'Metric': 'Males', 'Count': flatData.filter(r => r['Gender'] === 'Male').length },
+         { 'Metric': 'Females', 'Count': flatData.filter(r => r['Gender'] === 'Female').length },
+         { 'Metric': 'Eligible Couples', 'Count': flatData.filter(r => r['Gender'] === 'Female' && parseInt(r['Age']) >= 15 && parseInt(r['Age']) <= 49 && (r['Marital Status'] === 'Married' || r['Relation to Head'] === 'Wife' || String(r['Relation to Head']).toLowerCase() === 'daughter-in-law')).length },
+         { 'Metric': 'Children (0-5)', 'Count': flatData.filter(r => parseInt(r['Age']) <= 5).length }
+       ];
+    }
+
+    if (summaryData.length > 0) {
+      const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+      wsSummary['!cols'] = [{ wch: 40 }, { wch: 15 }];
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+    }
 
     // 5. Generate filename and download
     const timestamp = new Date().toISOString().split('T')[0];
@@ -523,9 +588,8 @@ export const exportFPRegister = async (user) => {
       (m.maritalStatus === 'Married' || m.relation === 'Wife' || m.relationToHead === 'Wife')
     );
 
-    // BUG-H3 FIX: Pre-build Maps to replace O(n²) nested find/filter loops inside ecMembers.map().
-    // Old code: for each EC woman, called allMembers.filter() + 2×allMembers.find() = O(n²).
-    // For 100 EC women × 500 members = 50,000+ iterations. New code: O(n) via Map lookups.
+    // BUG FIX: Build all Maps here so they're available throughout the function
+    const familyById = new Map(allFamilies.map(f => [f.id, f]));
     const familyMembersMap = new Map(); // familyId -> Member[]
     const husbandMap = new Map();       // familyId -> husband Member
     allMembers.forEach(m => {
@@ -565,8 +629,6 @@ export const exportFPRegister = async (user) => {
         'Wife Name': `${m.firstName || ''} ${m.lastName || ''}`,
         'Age': m.age || 'N/A',
         'Husband Name': m.middleName || 'N/A',
-        // BUG-H3 FIX: Use the pre-computed childCount (O(n) Map lookups) instead of
-        // the old nested allMembers.filter() + allMembers.find() per row (O(n²)).
         'No. of Children': childCount,
         'Current FP Method': health.fpMethod || 'None',
         'FP Method Category': health.fpMethod === 'permanent' ? 'Permanent' :
@@ -595,6 +657,115 @@ export const exportFPRegister = async (user) => {
     return true;
   } catch (error) {
     console.error('FP Export Error:', error);
+    return false;
+  }
+};
+
+// ===================== PARENT-CHILD MAPPING EXPORT =====================
+
+export const exportParentChildMapping = async (user) => {
+  try {
+    const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+    const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
+    let members = applyHierarchyFilter(allMembers, user);
+
+    // Identify all mothers (married females)
+    const mothers = members.filter(m =>
+      m.gender === 'Female' &&
+      (m.maritalStatus === 'Married' || m.relation === 'Wife' || m.relationToHead === 'Wife' || m.relation === 'Mother' || m.relationToHead === 'Mother')
+    );
+
+    const familyById = new Map(allFamilies.map(f => [f.id, f]));
+    const familyMembersMap = new Map();
+    const husbandMap = new Map();
+    
+    allMembers.forEach(m => {
+      if (!familyMembersMap.has(m.familyId)) familyMembersMap.set(m.familyId, []);
+      familyMembersMap.get(m.familyId).push(m);
+    });
+
+    allMembers.forEach(m => {
+      if (m.gender !== 'Male') return;
+      const rel = (m.relationToHead || m.relation || '').toLowerCase();
+      if (rel === 'self (head)' || rel === 'head' || rel === 'husband') {
+        if (!husbandMap.has(m.familyId)) husbandMap.set(m.familyId, m);
+      }
+    });
+
+    const rows = mothers.map((m, i) => {
+      const family = familyById.get(m.familyId) || {};
+      const familyMembers = familyMembersMap.get(m.familyId) || [];
+      const husband = husbandMap.get(m.familyId);
+      const fatherFirstName = (husband ? husband.firstName : m.middleName || '').trim().toLowerCase();
+
+      // Find children
+      const children = familyMembers.filter(member => {
+        if (member.id === m.id) return false;
+        if (husband && member.id === husband.id) return false;
+        const relation = (member.relationToHead || member.relation || '').toLowerCase();
+        const isSonDaughter = ['son', 'daughter', 'child'].includes(relation);
+        const childMiddleName = (member.middleName || '').trim().toLowerCase();
+        const hasFatherMiddleName = fatherFirstName && childMiddleName === fatherFirstName;
+        return hasFatherMiddleName || isSonDaughter;
+      }).sort((a, b) => parseInt(b.age || 0) - parseInt(a.age || 0)); // Sort oldest first
+
+      const row = {
+        'Sr.No.': i + 1,
+        'Village': sanitizeValue(m.villageName || family.villageName || 'N/A'),
+        'House No.': sanitizeValue(m.houseNo || family.houseNo || 'N/A'),
+        'Mother Name': sanitizeValue(`${m.firstName || ''} ${m.lastName || ''}`),
+        'Mother Age': m.age || 'N/A',
+        'Father/Husband Name': sanitizeValue(husband ? `${husband.firstName} ${husband.lastName}` : m.middleName || 'N/A'),
+        'Total Children': children.length,
+      };
+
+      // Add columns for up to 6 children
+      for (let j = 0; j < 6; j++) {
+        const child = children[j];
+        if (child) {
+          row[`Child ${j + 1} Name`] = sanitizeValue(`${child.firstName || ''} ${child.lastName || ''}`);
+          row[`Child ${j + 1} Age`] = child.age || 'N/A';
+          row[`Child ${j + 1} Gender`] = child.gender || 'N/A';
+        } else {
+          row[`Child ${j + 1} Name`] = '';
+          row[`Child ${j + 1} Age`] = '';
+          row[`Child ${j + 1} Gender`] = '';
+        }
+      }
+
+      return row;
+    });
+
+    // Summary calculation
+    const summary = {
+      '0 Children': rows.filter(r => r['Total Children'] === 0).length,
+      '1 Child': rows.filter(r => r['Total Children'] === 1).length,
+      '2 Children': rows.filter(r => r['Total Children'] === 2).length,
+      '3+ Children': rows.filter(r => r['Total Children'] >= 3).length,
+      'Total Mothers': rows.length,
+      'Total Children Found': rows.reduce((acc, r) => acc + r['Total Children'], 0)
+    };
+
+    if (rows.length === 0) {
+      rows.push({ 'Info': 'No mothers/parents found.' });
+    }
+
+    const wb = XLSX.utils.book_new();
+    
+    // Add Detail Sheet
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, 'Parent_Child_Details');
+
+    // Add Summary Sheet
+    const wsSummary = XLSX.utils.json_to_sheet([summary]);
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `Parent_Child_Mapping_${user?.villageName || user?.village || 'Report'}_${timestamp}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    return true;
+  } catch (error) {
+    console.error('Parent-Child Export Error:', error);
     return false;
   }
 };

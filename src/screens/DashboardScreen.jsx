@@ -394,7 +394,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
           <View style={[styles.statsRow, { marginTop: 12 }]}>
             <StatCard 
               label={t('highRiskPreg')} 
-              value={stats.maternal?.highRiskTotal || 0} 
+              value={stats.maternal?.activeHighRisk || 0} 
               color={COLORS.error}
               onPress={() => onNavigate('MemberList', { filterType: 'HIGH_RISK_ANC' })}
             />
