@@ -21,6 +21,8 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
   const [filteredMembers, setFilteredMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [expandedMemberId, setExpandedMemberId] = useState(null);
+  const [quickVitals, setQuickVitals] = useState({ weight: '', bp: '', hb: '' });
 
   useEffect(() => {
     loadMembers();
@@ -195,24 +197,76 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
     }
   };
 
-  const renderMember = ({ item }) => (
-    <View style={styles.memberCard}>
-      <TouchableOpacity 
-        style={styles.memberInfo}
-        onPress={() => onMemberSelect(item)}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.memberName}>{item.firstName} {item.lastName}</Text>
-        <Text style={styles.memberSubText}>
-          {item.gender} • {t('age')}: {item.age} • {t('house') || 'House'}: {item.houseNo || t('na')}
-        </Text>
-      </TouchableOpacity>
-      <View style={styles.badgeContainer}>
-        {item.healthData?.isPregnant && item.healthData?.isHighRisk && (
-          <View style={[styles.badge, { backgroundColor: '#FEE2E2', borderColor: COLORS.error, borderWidth: 1 }]}>
-            <Text style={[styles.badgeText, { color: COLORS.error }]}>🔴 {t('hrp', 'HRP')}</Text>
-          </View>
-        )}
+  const toggleExpandMember = (member) => {
+    if (expandedMemberId === member.id) {
+      setExpandedMemberId(null);
+    } else {
+      setExpandedMemberId(member.id);
+      setQuickVitals({
+        weight: member.healthData?.weight || '',
+        bp: member.healthData?.bpSystolic ? `${member.healthData.bpSystolic}/${member.healthData.bpDiastolic || ''}` : '',
+        hb: member.healthData?.hbLevel || ''
+      });
+    }
+  };
+
+  const handleSaveQuickVitals = async (member) => {
+    try {
+      const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+      const mIndex = allMembers.findIndex(m => m.id === member.id);
+      if (mIndex >= 0) {
+        const mToUpdate = allMembers[mIndex];
+        const bpParts = quickVitals.bp.split('/');
+        
+        mToUpdate.healthData = {
+          ...mToUpdate.healthData,
+          weight: quickVitals.weight || mToUpdate.healthData?.weight,
+          hbLevel: quickVitals.hb || mToUpdate.healthData?.hbLevel,
+          bpSystolic: bpParts[0] || mToUpdate.healthData?.bpSystolic,
+          bpDiastolic: bpParts[1] || mToUpdate.healthData?.bpDiastolic,
+        };
+        
+        await storage.save(STORAGE_KEYS.MEMBERS, mToUpdate);
+        
+        await storage.addToSyncQueue('member_update', {
+          memberId: member.id,
+          healthData: mToUpdate.healthData,
+          updatedAt: new Date().toISOString()
+        });
+
+        const precomputed = { ...mToUpdate, _searchStr: `${mToUpdate.firstName || ''} ${mToUpdate.lastName || ''} ${mToUpdate.houseNo || ''}`.toLowerCase() };
+        setMembers(prev => prev.map(m => m.id === member.id ? precomputed : m));
+        setFilteredMembers(prev => prev.map(m => m.id === member.id ? precomputed : m));
+        setExpandedMemberId(null);
+        if (Platform.OS === 'web') window.alert(t('success', 'Vitals saved successfully')); else Alert.alert(t('success'), t('success', 'Vitals saved successfully'));
+      }
+    } catch (e) {
+      console.error(e);
+      if (Platform.OS === 'web') window.alert(t('error')); else Alert.alert(t('error'));
+    }
+  };
+
+  const renderMember = ({ item }) => {
+    const isExpanded = expandedMemberId === item.id;
+    return (
+      <View style={styles.memberCardWrapper}>
+        <View style={styles.memberCard}>
+          <TouchableOpacity 
+            style={styles.memberInfo}
+            onPress={() => toggleExpandMember(item)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.memberName}>{item.firstName} {item.lastName}</Text>
+            <Text style={styles.memberSubText}>
+              {item.gender} • {t('age')}: {item.age} • {t('house') || 'House'}: {item.houseNo || t('na')}
+            </Text>
+          </TouchableOpacity>
+          <View style={styles.badgeContainer}>
+            {item.healthData?.isPregnant && item.healthData?.isHighRisk && (
+              <View style={[styles.badge, { backgroundColor: '#FEE2E2', borderColor: COLORS.error, borderWidth: 1 }]}>
+                <Text style={[styles.badgeText, { color: COLORS.error }]}>🔴 {t('hrp', 'HRP')}</Text>
+              </View>
+            )}
         {/* UI-5 FIX: Guard hbLevel > 0 so unset/default hbLevel=0 doesn't trigger false ANEMIA badge */}
         {parseFloat(item.healthData?.hbLevel) > 0 && parseFloat(item.healthData.hbLevel) < 7 && (
           <View style={[styles.badge, { backgroundColor: '#FFEDD5', borderColor: '#EA580C', borderWidth: 1 }]}>
@@ -252,31 +306,55 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
             <Text style={[styles.badgeText, { color: '#4F46E5' }]}>{t('migrant', 'MIGRANT')}</Text>
           </View>
         )}
-        {item.isPwd && (
-          <View style={[styles.badge, { backgroundColor: '#F3E8FF', borderColor: '#9333EA', borderWidth: 1 }]}>
-            <Text style={[styles.badgeText, { color: '#9333EA' }]}>{t('pwd', 'PwD')}</Text>
-          </View>
-        )}
+          {item.isPwd && (
+            <View style={[styles.badge, { backgroundColor: '#F3E8FF', borderColor: '#9333EA', borderWidth: 1 }]}>
+              <Text style={[styles.badgeText, { color: '#9333EA' }]}>{t('pwd', 'PwD')}</Text>
+            </View>
+          )}
+        </View>
+        <TouchableOpacity onPress={() => toggleExpandMember(item)}>
+          <Text style={styles.arrow}>{isExpanded ? '▼' : '▶'}</Text>
+        </TouchableOpacity>
       </View>
-      <TouchableOpacity 
-        style={styles.editBtn}
-        onPress={async () => {
-          const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
-          const currentFamily = allFamilies.find(f => f.id === item.familyId);
-          onNavigate('MemberRegistration', { member: item, family: currentFamily });
-        }}
-      >
-        <Text style={styles.editBtnText}>✏️</Text>
-      </TouchableOpacity>
-      <TouchableOpacity 
-        style={styles.deleteBtn}
-        onPress={() => handleDeleteMember(item.id, `${item.firstName} ${item.lastName}`)}
-      >
-        <Text style={styles.deleteBtnText}>🗑️</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => onMemberSelect(item)}>
-        <Text style={styles.arrow}>›</Text>
-      </TouchableOpacity>
+
+      {isExpanded && (
+        <View style={styles.expandedPanel}>
+          <Text style={styles.panelTitle}>Quick Vitals</Text>
+          <View style={styles.vitalsRow}>
+            <View style={styles.vitalInputGroup}>
+              <Text style={styles.vitalLabel}>Weight (kg)</Text>
+              <TextInput style={styles.vitalInput} keyboardType="numeric" value={quickVitals.weight} onChangeText={t => setQuickVitals(p => ({...p, weight: t}))} />
+            </View>
+            <View style={styles.vitalInputGroup}>
+              <Text style={styles.vitalLabel}>BP (SYS/DIA)</Text>
+              <TextInput style={styles.vitalInput} placeholder="120/80" value={quickVitals.bp} onChangeText={t => setQuickVitals(p => ({...p, bp: t}))} />
+            </View>
+            <View style={styles.vitalInputGroup}>
+              <Text style={styles.vitalLabel}>Hb (g/dL)</Text>
+              <TextInput style={styles.vitalInput} keyboardType="numeric" value={quickVitals.hb} onChangeText={t => setQuickVitals(p => ({...p, hb: t}))} />
+            </View>
+          </View>
+          <TouchableOpacity style={styles.saveVitalsBtn} onPress={() => handleSaveQuickVitals(item)}>
+            <Text style={styles.saveVitalsBtnText}>Save Quick Vitals</Text>
+          </TouchableOpacity>
+
+          <View style={styles.quickActionsRow}>
+            <TouchableOpacity style={styles.quickActionBtn} onPress={async () => {
+              const allFamilies = await storage.getAll(STORAGE_KEYS.FAMILIES);
+              const currentFamily = allFamilies.find(f => f.id === item.familyId);
+              onNavigate('MemberRegistration', { member: item, family: currentFamily });
+            }}>
+              <Text style={styles.quickActionText}>✏️ Profile</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickActionBtn} onPress={() => onMemberSelect(item)}>
+              <Text style={styles.quickActionText}>🩺 Clinical</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.quickActionBtn, {backgroundColor: '#FEE2E2'}]} onPress={() => handleDeleteMember(item.id, `${item.firstName} ${item.lastName}`)}>
+              <Text style={[styles.quickActionText, {color: COLORS.error}]}>🗑️ Delete</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </View>
   );
 
@@ -410,17 +488,9 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
   memberCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    shadowColor: COLORS.cardShadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   },
   memberInfo: {
     flex: 1,

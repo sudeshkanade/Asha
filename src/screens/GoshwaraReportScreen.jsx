@@ -29,6 +29,7 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
   const [minAge, setMinAge] = useState('');
   const [maxAge, setMaxAge] = useState('');
   const [gender, setGender] = useState('All');
+  const [showBuilder, setShowBuilder] = useState(false);
 
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
@@ -219,48 +220,68 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
     </TouchableOpacity>
   );
 
-  const RenderSection = ({ title, items, downloadType, downloadLabel }) => (
-    <View style={styles.section}>
-      <View style={styles.sectionHeaderRow}>
-        <Text style={styles.sectionHeader}>{title}</Text>
-        {downloadType && <DownloadBtn type={downloadType} label={downloadLabel} />}
+  const RenderSection = ({ title, items, downloadType, downloadLabel, defaultExpanded = false }) => {
+    const [expanded, setExpanded] = useState(defaultExpanded);
+    return (
+      <View style={styles.section}>
+        <TouchableOpacity style={styles.sectionHeaderRow} onPress={() => setExpanded(!expanded)}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+            <Text style={styles.sectionHeader}>{title}</Text>
+            <Text style={{ marginLeft: 8, color: COLORS.textSecondary }}>{expanded ? '▼' : '▶'}</Text>
+          </View>
+          {downloadType && <DownloadBtn type={downloadType} label={downloadLabel} />}
+        </TouchableOpacity>
+        {expanded && (
+          <View style={styles.grid}>
+            {items.map((item, idx) => (
+              <TouchableOpacity 
+                key={idx} 
+                style={styles.statBox}
+                onPress={() => item.drillKey ? handleDrillDown(item.drillKey, item.label) : null}
+                disabled={!item.drillKey}
+              >
+                <Text style={styles.statValue}>{item.value}</Text>
+                <Text style={styles.statLabel}>{item.label}</Text>
+                {item.drillKey && <Text style={styles.drillHint}>View List</Text>}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
-      <View style={styles.grid}>
-        {items.map((item, idx) => (
-          <TouchableOpacity 
-            key={idx} 
-            style={styles.statBox}
-            onPress={() => item.drillKey ? handleDrillDown(item.drillKey, item.label) : null}
-            disabled={!item.drillKey}
-          >
-            <Text style={styles.statValue}>{item.value}</Text>
-            <Text style={styles.statLabel}>{item.label}</Text>
-            {item.drillKey && <Text style={styles.drillHint}>View List</Text>}
-          </TouchableOpacity>
-        ))}
-      </View>
-    </View>
-  );
+    );
+  };
 
-  const RenderTable = ({ title, rows }) => (
-    <View style={styles.section}>
-      <Text style={styles.sectionHeader}>{title}</Text>
-      <View style={styles.tableHeader}>
-        <Text style={[styles.cell, { flex: 2 }]}>Age Group</Text>
-        <Text style={styles.cell}>Male</Text>
-        <Text style={styles.cell}>Female</Text>
-        <Text style={styles.cell}>Total</Text>
+  const RenderTable = ({ title, rows, defaultExpanded = false }) => {
+    const [expanded, setExpanded] = useState(defaultExpanded);
+    return (
+      <View style={styles.section}>
+        <TouchableOpacity style={styles.sectionHeaderRow} onPress={() => setExpanded(!expanded)}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={styles.sectionHeader}>{title}</Text>
+            <Text style={{ marginLeft: 8, color: COLORS.textSecondary }}>{expanded ? '▼' : '▶'}</Text>
+          </View>
+        </TouchableOpacity>
+        {expanded && (
+          <View>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.cell, { flex: 2 }]}>Age Group</Text>
+              <Text style={styles.cell}>Male</Text>
+              <Text style={styles.cell}>Female</Text>
+              <Text style={styles.cell}>Total</Text>
+            </View>
+            {rows.map((row, idx) => (
+              <View key={idx} style={styles.tableRow}>
+                <Text style={[styles.cell, { flex: 2, fontWeight: '700' }]}>{row.label}</Text>
+                <Text style={styles.cell}>{row.m}</Text>
+                <Text style={styles.cell}>{row.f}</Text>
+                <Text style={[styles.cell, { fontWeight: '800' }]}>{row.m + row.f}</Text>
+              </View>
+            ))}
+          </View>
+        )}
       </View>
-      {rows.map((row, idx) => (
-        <View key={idx} style={styles.tableRow}>
-          <Text style={[styles.cell, { flex: 2, fontWeight: '700' }]}>{row.label}</Text>
-          <Text style={styles.cell}>{row.m}</Text>
-          <Text style={styles.cell}>{row.f}</Text>
-          <Text style={[styles.cell, { fontWeight: '800' }]}>{row.m + row.f}</Text>
-        </View>
-      ))}
-    </View>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -385,72 +406,89 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
           ]}
         />
 
-        <View style={styles.builderSection}>
-          <Text style={styles.sectionHeader}>Dynamic Report Builder</Text>
-          
-          <Text style={styles.label}>Select Report Type:</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-            {REPORT_TYPES.map(type => (
-              <TouchableOpacity
-                key={type.value}
-                style={[styles.chip, builderType === type.value && styles.chipActive]}
-                onPress={() => setBuilderType(type.value)}
-              >
-                <Text style={[styles.chipText, builderType === type.value && styles.chipTextActive]}>
-                  {type.label}
-                </Text>
+        <TouchableOpacity 
+          style={styles.advancedExportBtn}
+          onPress={() => setShowBuilder(true)}
+        >
+          <Text style={styles.advancedExportText}>⚙️ Advanced Report Builder</Text>
+        </TouchableOpacity>
+
+        {showBuilder && (
+          <View style={styles.builderSection}>
+            <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
+              <Text style={styles.sectionHeader}>Dynamic Report Builder</Text>
+              <TouchableOpacity onPress={() => setShowBuilder(false)}>
+                <Text style={{color: COLORS.textSecondary, fontSize: 20}}>×</Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <Text style={styles.label}>Filter by Gender:</Text>
-          <View style={styles.row}>
-            {['All', 'Male', 'Female'].map(g => (
-              <TouchableOpacity
-                key={g}
-                style={[styles.chip, gender === g && styles.chipActive]}
-                onPress={() => setGender(g)}
-              >
-                <Text style={[styles.chipText, gender === g && styles.chipTextActive]}>{g}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={styles.row}>
-            <View style={{flex: 1, marginRight: 8}}>
-              <Text style={styles.label}>Min Age:</Text>
-              <TextInput
-                style={styles.input}
-                keyboardType="numeric"
-                value={minAge}
-                onChangeText={setMinAge}
-                placeholder="0"
-              />
             </View>
-            <View style={{flex: 1, marginLeft: 8}}>
-              <Text style={styles.label}>Max Age:</Text>
-              <TextInput
-                style={styles.input}
-                keyboardType="numeric"
-                value={maxAge}
-                onChangeText={setMaxAge}
-                placeholder="100"
-              />
-            </View>
-          </View>
+            
+            <Text style={styles.label}>Select Report Type:</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+              {REPORT_TYPES.map(type => (
+                <TouchableOpacity
+                  key={type.value}
+                  style={[styles.chip, builderType === type.value && styles.chipActive]}
+                  onPress={() => setBuilderType(type.value)}
+                >
+                  <Text style={[styles.chipText, builderType === type.value && styles.chipTextActive]}>
+                    {type.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
 
-          <TouchableOpacity 
-            style={styles.dynamicDownloadBtn}
-            onPress={handleDynamicDownload}
-            disabled={exporting !== null}
-          >
-            {exporting === 'DYNAMIC' ? (
-              <ActivityIndicator size="small" color="#FFF" />
-            ) : (
-              <Text style={styles.dynamicDownloadText}>📥 Build & Download Report</Text>
-            )}
-          </TouchableOpacity>
-        </View>
+            <Text style={styles.label}>Filter by Gender:</Text>
+            <View style={styles.row}>
+              {['All', 'Male', 'Female'].map(g => (
+                <TouchableOpacity
+                  key={g}
+                  style={[styles.chip, gender === g && styles.chipActive]}
+                  onPress={() => setGender(g)}
+                >
+                  <Text style={[styles.chipText, gender === g && styles.chipTextActive]}>{g}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.row}>
+              <View style={{flex: 1, marginRight: 8}}>
+                <Text style={styles.label}>Min Age:</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  value={minAge}
+                  onChangeText={setMinAge}
+                  placeholder="0"
+                />
+              </View>
+              <View style={{flex: 1, marginLeft: 8}}>
+                <Text style={styles.label}>Max Age:</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  value={maxAge}
+                  onChangeText={setMaxAge}
+                  placeholder="100"
+                />
+              </View>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.dynamicDownloadBtn}
+              onPress={() => {
+                handleDynamicDownload();
+                setShowBuilder(false);
+              }}
+              disabled={exporting !== null}
+            >
+              {exporting === 'DYNAMIC' ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Text style={styles.dynamicDownloadText}>📥 Build & Download Report</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.downloadGrid}>
           <DownloadBtn type="VITAL_BIRTHS" label="Birth Register" />
@@ -458,14 +496,15 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
           <DownloadBtn type="VHND_SESSIONS" label="VHND Sessions" />
         </View>
 
+        <View style={{ height: 100 }} /> {/* spacer for sticky footer */}
+      </ScrollView>
+
+      {/* Sticky Footer */}
+      <View style={styles.stickyFooter}>
         <TouchableOpacity style={styles.finalizeButton} onPress={handleFinalize}>
           <Text style={styles.finalizeButtonText}>{t('finalizeAndSubmit', 'Finalize & Submit Report')}</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity style={styles.backButton} onPress={onBack}>
-          <Text style={styles.backButtonText}>{t('backToDashboard', 'Back to Dashboard')}</Text>
-        </TouchableOpacity>
-      </ScrollView>
+      </View>
 
       {drillDownList && (
         <View style={styles.modalOverlay}>
@@ -528,8 +567,10 @@ const styles = StyleSheet.create({
   dynamicDownloadText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
   finalizeButton: { height: 56, backgroundColor: COLORS.success, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
   finalizeButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-  backButton: { height: 52, justifyContent: 'center', alignItems: 'center', marginTop: 8, marginBottom: 40 },
   backButtonText: { color: COLORS.textSecondary, fontWeight: '600' },
+  advancedExportBtn: { backgroundColor: '#E2E8F0', padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 20 },
+  advancedExportText: { color: '#475569', fontSize: 14, fontWeight: '700' },
+  stickyFooter: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFF', padding: 16, borderTopWidth: 1, borderTopColor: '#E2E8F0', elevation: 10 },
   modalOverlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },
   modalContent: { backgroundColor: '#FFF', borderRadius: 24, padding: 24, maxHeight: '80%' },
   modalTitle: { fontSize: 18, fontWeight: '800', color: '#1E293B', marginBottom: 20 },

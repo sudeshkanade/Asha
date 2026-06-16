@@ -31,7 +31,10 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('pending'); // 'pending', 'completed', 'all'
   const [filterPriority, setFilterPriority] = useState('all'); // 'all', 'high'
-  const [filterTime, setFilterTime] = useState('all'); // 'all', 'today_overdue', 'this_week'
+  const [filterTime, setFilterTime] = useState('active_pending'); // 'all', 'today_overdue', 'this_week', 'active_pending', 'past_tasks'
+
+  const [expandedTasks, setExpandedTasks] = useState({});
+  const [completionDataMap, setCompletionDataMap] = useState({});
 
   React.useEffect(() => {
     loadTasksFromStorage();
@@ -79,20 +82,18 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
     setLoading(false);
   };
 
-  const [selectedTask, setSelectedTask] = useState(null);
-  const [completionModalVisible, setCompletionModalVisible] = useState(false);
-  const [completionData, setCompletionData] = useState({
-    reasoning: '',
-    image: null,
-  });
-
   const handleStatusChange = (task) => {
     if (task.status === 'completed') {
       toggleTaskStatus(task.id);
     } else {
-      setSelectedTask(task);
-      setCompletionModalVisible(true);
-      setCompletionData({ reasoning: '', image: null });
+      toggleTaskExpanded(task.id);
+    }
+  };
+
+  const toggleTaskExpanded = (id) => {
+    setExpandedTasks(prev => ({ ...prev, [id]: !prev[id] }));
+    if (!completionDataMap[id]) {
+      setCompletionDataMap(prev => ({ ...prev, [id]: { reasoning: '', image: null } }));
     }
   };
 
@@ -136,7 +137,10 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
 
   const submitCompletion = async (taskOverride = null, isQuick = false) => {
     const taskToComplete = taskOverride || selectedTask;
-    const reasoningToSave = isQuick ? 'Routine task completed' : completionData.reasoning;
+    if (!taskToComplete) return;
+
+    const data = completionDataMap[taskToComplete.id] || { reasoning: '', image: null };
+    const reasoningToSave = isQuick ? 'Routine task completed' : data.reasoning;
 
     if (!isQuick && !reasoningToSave.trim()) {
       if (Platform.OS === 'web') window.alert(t('provideVisitSummary'));
@@ -177,13 +181,12 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
             ...task, 
             status: 'completed',
             visitSummary: reasoningToSave,
-            visitImage: isQuick ? null : completionData.image,
+            visitImage: isQuick ? null : data.image,
           };
         }
         return task;
       }));
-      setCompletionModalVisible(false);
-      setSelectedTask(null);
+      setExpandedTasks(prev => ({ ...prev, [taskToComplete.id]: false }));
       
       if (!isQuick) {
         if (Platform.OS === 'web') window.alert(t('taskMarkedDone'));
@@ -287,9 +290,10 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
     Linking.openURL(`whatsapp://send?text=${encodeURIComponent(message)}`);
   };
 
-  const mockCaptureImage = () => {
+  const mockCaptureImage = (taskId) => {
     const PLACEHOLDER_DATA_URI = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200"><rect width="300" height="200" fill="%23E2E8F0"/><text x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="16" fill="%2364748B">Visit Evidence</text></svg>';
-    setCompletionData({ ...completionData, image: PLACEHOLDER_DATA_URI });
+    const data = completionDataMap[taskId] || { reasoning: '', image: null };
+    setCompletionDataMap(prev => ({ ...prev, [taskId]: { ...data, image: PLACEHOLDER_DATA_URI } }));
   };
 
   const toggleHouseholdExpanded = (key) => {
@@ -313,8 +317,13 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
     today.setHours(0,0,0,0);
     const dueDate = new Date(task.dueDate);
     dueDate.setHours(0,0,0,0);
+    const diffDays = (today - dueDate) / (1000 * 60 * 60 * 24);
 
-    if (filterTime === 'today_overdue') {
+    if (filterTime === 'active_pending') {
+      if (diffDays > 30 && task.status !== 'completed') return false; 
+    } else if (filterTime === 'past_tasks') {
+      if (diffDays <= 30) return false;
+    } else if (filterTime === 'today_overdue') {
       if (dueDate > today) return false;
     } else if (filterTime === 'this_week') {
       const nextWeek = new Date(today);
@@ -410,24 +419,71 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
     if (isCompleted) borderLeftColor = COLORS.success;
     else if (isHigh) borderLeftColor = COLORS.error;
 
+    const isExpanded = !!expandedTasks[task.id];
+    const data = completionDataMap[task.id] || { reasoning: '', image: null };
+
     return (
-      <TouchableOpacity 
-        key={task.id} 
-        style={[styles.subTaskCard, { borderLeftColor }]}
-        onPress={() => setSelectedTask(task)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.subTaskInfo}>
+      <View key={task.id} style={[styles.subTaskCard, { borderLeftColor }]}>
+        <TouchableOpacity 
+          style={styles.subTaskInfo}
+          onPress={() => toggleTaskExpanded(task.id)}
+          activeOpacity={0.7}
+        >
           <View style={styles.subTaskHeader}>
             <Text style={styles.subTaskService}>{task.serviceType}</Text>
             <Text style={[styles.subTaskDueDate, isOverdue && styles.subTaskDueDateOverdue]}>
               📅 {dueDate.toLocaleDateString()}
             </Text>
           </View>
-          <Text style={styles.subTaskDetails} numberOfLines={2}>
+          <Text style={styles.subTaskDetails} numberOfLines={isExpanded ? null : 2}>
             {task.details}
           </Text>
-          
+        </TouchableOpacity>
+        
+        {isExpanded && !isCompleted && (
+          <View style={styles.expandedTaskContent}>
+            <Text style={styles.label}>{t('visitSummaryReasoning', 'Visit Summary & Reasoning')}</Text>
+            <TextInput
+              style={styles.textArea}
+              placeholder={t('visitSummary', 'Enter details here...')}
+              multiline
+              numberOfLines={3}
+              value={data.reasoning}
+              onChangeText={(text) => setCompletionDataMap(prev => ({ ...prev, [task.id]: { ...data, reasoning: text } }))}
+            />
+            {data.image ? (
+              <View style={styles.capturedImageContainer}>
+                <Image source={{ uri: data.image }} style={styles.capturedImage} />
+                <TouchableOpacity style={styles.retakeBtn} onPress={() => setCompletionDataMap(prev => ({ ...prev, [task.id]: { ...data, image: null } }))}>
+                  <Text style={styles.retakeBtnText}>Retake Photo</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.cameraBtn} onPress={() => mockCaptureImage(task.id)}>
+                <Text style={styles.cameraBtnText}>📷 Capture Evidence</Text>
+              </TouchableOpacity>
+            )}
+            
+            <TouchableOpacity style={styles.submitBtn} onPress={() => submitCompletion(task, false)}>
+              <Text style={styles.submitBtnText}>{t('submitMarkDone', 'Submit & Mark Done')}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {isExpanded && isCompleted && (
+          <View style={styles.expandedTaskContent}>
+            <Text style={styles.label}>Visit Summary</Text>
+            <Text style={styles.summaryValueText}>{task.visitSummary}</Text>
+            {task.visitImage && (
+               <Image source={{ uri: task.visitImage }} style={styles.evidenceImage} />
+            )}
+            <TouchableOpacity style={[styles.statusToggleBtn, { backgroundColor: '#f0f0f0', marginTop: 12 }]} onPress={() => toggleTaskStatus(task.id)}>
+              <Text style={[styles.statusToggleText, { color: COLORS.text }]}>{t('markAsPending')}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {!isExpanded && (
           <View style={styles.subTaskFooter}>
             <View style={styles.statusBadge}>
               <Text style={[styles.statusText, { color: isCompleted ? COLORS.success : COLORS.accent }]}>
@@ -452,8 +508,8 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
-      </TouchableOpacity>
+        )}
+      </View>
     );
   };
 
@@ -611,6 +667,22 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
 
           {/* Time Limit Chips */}
           <TouchableOpacity 
+            style={[styles.smallFilterChip, filterTime === 'active_pending' && styles.activeFilterChip]}
+            onPress={() => setFilterTime('active_pending')}
+          >
+            <Text style={[styles.smallFilterChipText, filterTime === 'active_pending' && styles.activeFilterChipText]}>
+              🌟 {t('activePending', 'Active')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.smallFilterChip, filterTime === 'past_tasks' && styles.activeFilterChip]}
+            onPress={() => setFilterTime('past_tasks')}
+          >
+            <Text style={[styles.smallFilterChipText, filterTime === 'past_tasks' && styles.activeFilterChipText]}>
+              📁 {t('pastTasks', 'Past Tasks')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
             style={[styles.smallFilterChip, filterTime === 'all' && styles.activeFilterChip]}
             onPress={() => setFilterTime('all')}
           >
@@ -652,135 +724,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
         </ScrollView>
       )}
 
-      {/* Task Details Modal */}
-      <Modal
-        visible={selectedTask !== null && !completionModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setSelectedTask(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('taskDetails')}</Text>
-              <TouchableOpacity onPress={() => setSelectedTask(null)}>
-                <Text style={styles.closeButton}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            {selectedTask && (
-              <ScrollView style={styles.modalBody}>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>{t('memberDetails')}</Text>
-                  <Text style={styles.detailValue}>{selectedTask.memberName}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>{t('serviceRequired')}</Text>
-                  <Text style={styles.detailValue}>{selectedTask.serviceType}</Text>
-                </View>
-                
-                <View style={styles.descriptionBox}>
-                  <Text style={styles.detailLabel}>{t('taskInstructions')}</Text>
-                  <Text style={styles.descriptionText}>{selectedTask.details}</Text>
-                </View>
-
-                {selectedTask.status === 'completed' && (
-                  <View style={styles.visitSummaryBox}>
-                    <Text style={styles.detailLabel}>Visit Summary</Text>
-                    <Text style={styles.summaryValueText}>{selectedTask.visitSummary}</Text>
-                    {selectedTask.visitImage && (
-                      <View style={styles.imagePreviewContainer}>
-                        <Text style={styles.detailLabel}>Evidence Capture</Text>
-                        <Image source={{ uri: selectedTask.visitImage }} style={styles.evidenceImage} />
-                      </View>
-                    )}
-                  </View>
-                )}
-
-                <View style={styles.modalActions}>
-                  <TouchableOpacity 
-                    style={[styles.statusToggleBtn, { backgroundColor: selectedTask.status === 'completed' ? '#f0f0f0' : COLORS.success }]}
-                    onPress={() => handleStatusChange(selectedTask)}
-                  >
-                    <Text style={[styles.statusToggleText, { color: selectedTask.status === 'completed' ? COLORS.text : '#FFF' }]}>
-                      {selectedTask.status === 'completed' ? t('markAsPending') : t('markAsCompleted')}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* Completion & Reasoning Modal */}
-      <Modal
-        visible={completionModalVisible}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={() => setCompletionModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('completeVisit')}</Text>
-              <TouchableOpacity onPress={() => setCompletionModalVisible(false)}>
-                <Text style={styles.closeButton}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalBody}>
-              <Text style={styles.completionHeading}>{t('confirmDetailsFor')} {selectedTask?.memberName}</Text>
-              
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>{t('visitSummaryReasoning')}</Text>
-                <TextInput
-                  style={styles.textArea}
-                  placeholder={t('visitSummary')}
-                  multiline
-                  numberOfLines={4}
-                  value={completionData.reasoning}
-                  onChangeText={(text) => setCompletionData({ ...completionData, reasoning: text })}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  Evidence Capture {selectedTask?.requiresImage ? '*' : '(Optional)'}
-                </Text>
-                <Text style={styles.imageInstructions}>{selectedTask?.imageLabel || 'Capture an image of the visit or medical records'}</Text>
-                
-                {completionData.image ? (
-                  <View style={styles.capturedImageContainer}>
-                    <Image source={{ uri: completionData.image }} style={styles.capturedImage} />
-                    <TouchableOpacity 
-                      style={styles.retakeBtn}
-                      onPress={() => setCompletionData({ ...completionData, image: null })}
-                    >
-                      <Text style={styles.retakeBtnText}>Retake Photo</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity 
-                    style={styles.cameraBtn}
-                    onPress={mockCaptureImage}
-                  >
-                    <Text style={styles.cameraIcon}>📷</Text>
-                    <Text style={styles.cameraBtnText}>{t('openCamera')}</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              <TouchableOpacity 
-                style={styles.submitBtn}
-                onPress={submitCompletion}
-              >
-                <Text style={styles.submitBtnText}>{t('submitMarkDone')}</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      {/* Modals removed in favor of Expandable Inline Forms */}
     </SafeAreaView>
   );
 };
@@ -1212,39 +1156,6 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     marginBottom: 20,
   },
-  inputGroup: {
-    marginBottom: 24,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 8,
-  },
-  textArea: {
-    backgroundColor: '#FAFAFA',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 15,
-    height: 100,
-    textAlignVertical: 'top',
-  },
-  imageInstructions: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginBottom: 12,
-  },
-  cameraBtn: {
-    height: 120,
-    backgroundColor: '#F5F5F5',
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   cameraIcon: {
     fontSize: 32,
