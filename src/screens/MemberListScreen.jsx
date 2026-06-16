@@ -357,6 +357,7 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
       )}
     </View>
   );
+};
 
   return (
     <SafeAreaView style={styles.container}>
@@ -590,6 +591,83 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     lineHeight: 34,
   },
+  memberCardWrapper: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    marginBottom: 12,
+    shadowColor: COLORS.cardShadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    overflow: 'hidden'
+  },
+  expandedPanel: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    backgroundColor: '#F8FAFC'
+  },
+  panelTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 12
+  },
+  vitalsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16
+  },
+  vitalInputGroup: {
+    flex: 1
+  },
+  vitalLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+    fontWeight: '600'
+  },
+  vitalInput: {
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    padding: 8,
+    fontSize: 14,
+    color: COLORS.text
+  },
+  saveVitalsBtn: {
+    backgroundColor: COLORS.primary,
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 16
+  },
+  saveVitalsBtnText: {
+    color: '#FFF',
+    fontWeight: '700',
+    fontSize: 14
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8
+  },
+  quickActionBtn: {
+    flex: 1,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center'
+  },
+  quickActionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.text
+  }
 });
 
 export default MemberListScreen;
