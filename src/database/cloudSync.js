@@ -62,6 +62,58 @@ export const cloudSyncManager = {
   isSyncing: false,
 
   /**
+   * Disaster Recovery: Scan all local tables for any records that were never
+   * successfully synced to the cloud (status !== 'synced') and forcefully
+   * inject them back into the sync queue.
+   */
+  recoverUnsyncedData: async () => {
+    console.log('🚑 CloudSync: Starting disaster recovery scan for unsynced data...');
+    let recoveredCount = 0;
+    const currentQueue = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE) || [];
+    const inQueueIds = new Set(currentQueue.map(q => q.payload?.id || q.id));
+
+    const collectionsToCheck = [
+      { key: STORAGE_KEYS.MEMBERS, table: 'members' },
+      { key: STORAGE_KEYS.FAMILIES, table: 'families' },
+      { key: STORAGE_KEYS.VITAL_EVENTS, table: 'vital_events' },
+      { key: STORAGE_KEYS.VHND_SESSIONS, table: 'vhnd_sessions' },
+      { key: STORAGE_KEYS.TASKS, table: 'tasks' },
+      { key: STORAGE_KEYS.TASK_COMPLETIONS, table: 'task_completions' },
+    ];
+
+    for (const col of collectionsToCheck) {
+      try {
+        const records = await storage.getAll(col.key);
+        for (const record of records) {
+          if (record.syncStatus !== 'synced' && !inQueueIds.has(record.id)) {
+            currentQueue.push({
+              id: storage.generateId('sync_recover'),
+              tableName: col.key,
+              payload: record,
+              timestamp: record.lastUpdatedAt || Date.now(),
+              type: 'save',
+              retryCount: 0,
+              isRecovery: true
+            });
+            inQueueIds.add(record.id);
+            recoveredCount++;
+          }
+        }
+      } catch (e) {
+        console.error(`⚠️ Recovery failed for ${col.table}:`, e.message);
+      }
+    }
+
+    if (recoveredCount > 0) {
+      await storage.saveAll(STORAGE_KEYS.SYNC_QUEUE, currentQueue);
+      console.log(`✅ CloudSync: Recovered ${recoveredCount} unsynced records and added them to queue!`);
+    } else {
+      console.log('✅ CloudSync: No orphaned unsynced records found.');
+    }
+    return recoveredCount;
+  },
+
+  /**
    * Push local sync queue to Firestore
    */
   startBackgroundSync: async () => {

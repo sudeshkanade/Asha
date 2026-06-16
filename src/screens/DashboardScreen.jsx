@@ -216,10 +216,13 @@ const DashboardScreen = ({ user, onNavigate }) => {
     if (isSyncing) return;
     setIsSyncing(true);
     try {
-      // 1. Push local changes to cloud
+      // 1. Recover any dropped data from the queue
+      await cloudSyncManager.recoverUnsyncedData();
+
+      // 2. Push local changes to cloud
       const pushResult = await cloudSyncManager.startBackgroundSync();
       
-      // 2. Pull latest data from cloud
+      // 3. Pull latest data from cloud
       const pullResult = await cloudSyncManager.pullFromCloud(user);
 
       if (pushResult.success || pullResult.success) {
