@@ -86,7 +86,9 @@ export default function App() {
         const now = Date.now();
         
         if (now - parseInt(lastCheck) > 14400000) {
-          const response = await fetch('/version.json?t=' + now);
+          // Use a relative URL (no leading slash) so it works on GitHub Pages sub-paths like /Asha/
+          const response = await fetch('version.json?t=' + now);
+          if (!response.ok) throw new Error('version.json not found (' + response.status + ')');
           const serverVersion = await response.json();
           const localVersion = await AsyncStorage.getItem('APP_VERSION');
           
