@@ -965,7 +965,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
                 <Switch value={tracker.hasAefi} onValueChange={(v) => setTracker({...tracker, hasAefi: v})} trackColor={{ true: COLORS.primary, false: '#D1DBCE' }} />
               </View>
               {tracker.hasAefi && (
-                 <RenderInput label={t('aefiDetails', 'AEFI Details (e.g. High fever, swelling)')} value={tracker.aefiDetails} onChange={(t) => setTracker({...tracker, aefiDetails: t})} placeholder="Describe symptoms" />
+                 <RenderInput label={t('aefiDetails', 'AEFI Details (e.g. High fever, swelling)')} value={tracker.aefiDetails} onChange={(t) => setTracker({...tracker, aefiDetails: t})} placeholder={t('describeSymptoms', 'Describe symptoms')} />
               )}
             </View>
           </>

@@ -25,6 +25,7 @@ import ClaimsScreen from './src/screens/ClaimsScreen';
 import TeamScreen from './src/screens/TeamScreen';
 import FamilyFolderScreen from './src/screens/FamilyFolderScreen';
 import LogisticsScreen from './src/screens/LogisticsScreen';
+import ParityReportScreen from './src/screens/ParityReportScreen';
 import SurveillanceScreen from './src/screens/SurveillanceScreen';
 import WorkplanScreen from './src/screens/WorkplanScreen';
 import FinancialsScreen from './src/screens/FinancialsScreen';
@@ -37,6 +38,8 @@ const MODashboard = React.lazy(() => import('./src/screens/MODashboard'));
 const AdminDashboard = React.lazy(() => import('./src/screens/AdminDashboard'));
 import { storage, STORAGE_KEYS } from './src/database/storage';
 import { cloudSyncManager } from './src/database/cloudSync';
+import { MemberPayload } from './src/utils/schema';
+import { DataRecoveryManager } from './src/utils/DataRecoveryManager';
 import './src/locales/i18n';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -121,6 +124,10 @@ export default function App() {
         // QUOTA FIX: Only pull once on startup (cooldown guard inside pullFromCloud prevents repeated calls).
         // The periodic interval below handles subsequent refreshes at a safe 30-minute cadence.
         await cloudSyncManager.pullFromCloud(restoredUser);
+        
+        // Auto-heal missing IDs, orphaned family relationships, and corrupted DOBs/Ages
+        await DataRecoveryManager.runHeal(restoredUser);
+        
         await cloudSyncManager.startBackgroundSync();
         await storage.purgeOrphanedData(restoredUser);
       } catch (syncError) {
@@ -248,6 +255,11 @@ export default function App() {
       setCurrentScreen('Login');
       return;
     }
+    // RBAC: Block ASHA workers from administrative screens
+    if (user?.role === 'ASHA' && (screen === 'AdminSetup' || screen === 'RateSettings')) {
+      Alert.alert("Access Denied", "You do not have permission to access administrative tools.");
+      return;
+    }
     if (data?.member) setSelectedMember(data.member);
     if (data?.family) setSelectedFamily(data.family);
     if (data?.taskId) setSelectedTaskId(data.taskId);
@@ -324,26 +336,20 @@ export default function App() {
   };
 
   const handleMemberSave = async (memberData, addAnother = false) => {
-    // FIX A1: Map 'relation' field to 'relationToHead' for all downstream consumers
-    const { relation, ...restMemberData } = memberData;
+    // Apply strict schema validation
+    const rawPayload = new MemberPayload(memberData, selectedMember, user, selectedFamily).toJSON();
+    
+    // Merge with any specific overrides required by the app router context
     const finalMember = {
-      ...selectedMember, // Preserve existing IDs and metadata
-      ...restMemberData,
-      relation: relation,
-      relationToHead: relation,
-      id: selectedMember?.id || storage.generateId('mem', user?.id || 'sys'),
-      familyId: selectedFamily?.id || selectedMember?.familyId,
-      houseNo: selectedFamily?.houseNo || selectedMember?.houseNo,
+      ...rawPayload,
+      houseNo: selectedFamily?.houseNo || selectedMember?.houseNo || rawPayload.houseNo,
       status: selectedMember?.status || 'Active',
-      // Hierarchy Preservation Logic:
-      // 1. If worker is ASHA, use her IDs
-      // 2. If worker is ANM/MO and member already has IDs, keep them
-      // 3. Fallback to family IDs
+      // Enforce Hierarchy
       ashaId: selectedFamily?.ashaId || (user?.role === 'ASHA' ? user.id : selectedMember?.ashaId) || user?.id,
       villageId: selectedFamily?.villageId || (user?.role === 'ASHA' ? user.villageId : selectedMember?.villageId) || user?.villageId,
       subCenterId: selectedFamily?.subCenterId || (user?.role === 'ANM' ? user.subCenterId : selectedMember?.subCenterId) || user?.subCenterId,
       phcId: selectedFamily?.phcId || selectedMember?.phcId || user?.phcId,
-      lastUpdatedAt: new Date().getTime()
+      lastUpdatedAt: new Date().toISOString()
     };
     
     await storage.save(STORAGE_KEYS.MEMBERS, finalMember);
@@ -389,6 +395,8 @@ export default function App() {
         return <MemberRegistrationScreen key={`reg-${registrationKey}`} familyHead={selectedFamily} existingMember={selectedMember} onSave={handleMemberSave} onBack={handleGoBack} />;
       case 'MPRReport':
         return <MPRReportScreen user={user} onBack={handleGoBack} />;
+      case 'ParityReport':
+        return <ParityReportScreen user={user} onNavigate={handleNavigate} onBack={handleGoBack} />;
       case 'MemberList':
         return <MemberListScreen 
                   user={user}
@@ -406,6 +414,9 @@ export default function App() {
       case 'GoshwaraReport':
         return <GoshwaraReportScreen user={user} onBack={handleGoBack} />;
       case 'AdminSetup':
+        if (user?.role === 'ASHA') {
+          return <DashboardScreen user={user} onNavigate={handleNavigate} />;
+        }
         return <AdminSetupScreen user={user} initialTab={adminSetupData} onBack={handleGoBack} />;
       case 'HealthTracker':
         return <HealthTrackerScreen 
@@ -432,6 +443,9 @@ export default function App() {
       case 'Team':
         return <TeamScreen user={user} onBack={handleGoBack} />;
       case 'RateSettings':
+        if (user?.role === 'ASHA') {
+          return <DashboardScreen user={user} onNavigate={handleNavigate} />;
+        }
         return <AdminSettingsScreen user={user} onBack={handleGoBack} />;
       case 'Logistics':
         return <LogisticsScreen user={user} onBack={handleGoBack} />;

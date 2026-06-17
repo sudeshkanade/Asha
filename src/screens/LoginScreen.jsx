@@ -134,7 +134,7 @@ const LoginScreen = ({ onLogin }) => {
             if (user.approvalStatus === 'approved') {
               try {
                 await storage.purgeOrphanedData(user);
-                await cloudSyncManager.pullFromCloud(user);
+                await cloudSyncManager.pullFromCloud(user, true);
                 await cloudSyncManager.startBackgroundSync();
               } catch (e) {
                 console.error("Login Sync Error:", e);
@@ -262,7 +262,7 @@ const LoginScreen = ({ onLogin }) => {
       if (updatedUser.approvalStatus === 'approved') {
         try {
           await storage.purgeOrphanedData(updatedUser);
-          await cloudSyncManager.pullFromCloud(updatedUser);
+          await cloudSyncManager.pullFromCloud(updatedUser, true);
           await cloudSyncManager.startBackgroundSync();
         } catch (e) {
           console.error("Post-migration Sync Error:", e);

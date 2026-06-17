@@ -413,7 +413,7 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
               style={styles.input}
               value={formData.abhaId}
               onChangeText={(text) => setFormData({ ...formData, abhaId: text })}
-              placeholder="Health ID"
+              placeholder={t('healthId', 'Health ID')}
               placeholderTextColor={COLORS.textSecondary}
             />
           </View>

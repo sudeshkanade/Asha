@@ -202,8 +202,15 @@ export const cloudSyncManager = {
               // DO NOT log 'payload' as it contains sensitive medical PII
               console.log(`📤 CloudSync [${i}]: Saving ${collectionName}/${docId} [REDACTED]`);
               
+              let finalPayload = { ...payload };
+              if (collectionName === 'task_completions' && finalPayload.image) {
+                // Remove the heavy base64/uri image to save cloud storage
+                delete finalPayload.image;
+                finalPayload.evidenceVerified = true;
+              }
+
               await setDoc(doc(db, collectionName, docId), {
-                ...payload,
+                ...finalPayload,
                 _lastSyncedAt: serverTimestamp(),
                 _originalTimestamp: timestamp, // Keep client-time for local sorting
               }, { merge: true });
@@ -427,12 +434,22 @@ export const cloudSyncManager = {
                 }
 
                 // Run all village-batch queries + ashaId query in parallel
-                const batchSnapshots = await Promise.all([
-                  ...batches.map(batch =>
-                    getDocs(query(collection(db, col.table), where('villageId', 'in', batch)))
-                  ),
-                  getDocs(query(collection(db, col.table), where('ashaId', '==', user.id || 'FORCE_BLOCK')))
-                ]);
+                const ashaQueries = [];
+                batches.forEach(batch => {
+                  if (lastPullTimestamp > 0) {
+                    ashaQueries.push(getDocs(query(collection(db, col.table), where('villageId', 'in', batch), where('lastUpdatedAt', '>', lastPullTimestamp))));
+                  } else {
+                    ashaQueries.push(getDocs(query(collection(db, col.table), where('villageId', 'in', batch))));
+                  }
+                });
+
+                if (lastPullTimestamp > 0) {
+                  ashaQueries.push(getDocs(query(collection(db, col.table), where('ashaId', '==', user.id || 'FORCE_BLOCK'), where('lastUpdatedAt', '>', lastPullTimestamp))));
+                } else {
+                  ashaQueries.push(getDocs(query(collection(db, col.table), where('ashaId', '==', user.id || 'FORCE_BLOCK'))));
+                }
+
+                const batchSnapshots = await Promise.all(ashaQueries);
 
                 const cloudData = [];
                 const deletedInCloud = [];

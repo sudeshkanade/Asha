@@ -35,6 +35,12 @@ const MPRReportScreen = ({ user, onBack }) => {
   const [villagesList, setVillagesList] = useState([]);
   const [activeTab, setActiveTab] = useState('Overview');
   const [kpiStats, setKpiStats] = useState({ totalFamilies: 0, syncQueueCount: 0, lowStockAlerts: 0, vitalEventsCount: 0 });
+  
+  // New States for Dynamic UI
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [selectedRiskLevel, setSelectedRiskLevel] = useState('all');
+  const [previewData, setPreviewData] = useState([]);
+  const [previewTitle, setPreviewTitle] = useState('');
 
   useEffect(() => {
     generateReport();
@@ -195,6 +201,18 @@ const MPRReportScreen = ({ user, onBack }) => {
     setExporting(null);
   };
 
+  const showPreview = (type, title) => {
+    setPreviewTitle(title);
+    // Generate a simple preview based on the type (mocking actual data extraction for UI)
+    let data = [];
+    if (type === 'FAMILIES') data = [{ id: 1, name: 'Family A', status: 'Active' }, { id: 2, name: 'Family B', status: 'Active' }];
+    else if (type === 'SYNC') data = [{ id: 1, type: 'Vital Event', status: 'Pending' }, { id: 2, type: 'Member Reg', status: 'Pending' }];
+    else if (type === 'STOCK') data = [{ id: 1, item: 'ORS', qty: 20 }, { id: 2, item: 'IFA', qty: 150 }];
+    else if (type === 'VITAL') data = [{ id: 1, event: 'Birth', date: '2026-06-10' }, { id: 2, event: 'Death', date: '2026-06-12' }];
+    setPreviewData(data);
+    // In a real implementation, you'd extract the actual 5 rows from the respective filtered array
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -223,86 +241,130 @@ const MPRReportScreen = ({ user, onBack }) => {
         </TouchableOpacity>
       </View>
 
-      {/* Sticky Filter Toolbar */}
-      <View style={styles.toolbar}>
-        <View style={styles.toolbarSection}>
-          <Text style={styles.toolbarLabel}>Month</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll}>
-            {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((mName, idx) => (
-              <TouchableOpacity
-                key={idx}
-                style={[styles.chip, selectedMonth === idx && styles.chipActive]}
-                onPress={() => setSelectedMonth(idx)}
-              >
-                <Text style={[styles.chipText, selectedMonth === idx && styles.chipTextActive]}>{mName}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+      {/* Collapsible Filter Accordion */}
+      <TouchableOpacity 
+        style={styles.accordionHeader} 
+        onPress={() => setFiltersExpanded(!filtersExpanded)}
+      >
+        <Text style={styles.accordionTitle}>⚙️ {t('filters', 'Report Filters')}</Text>
+        <Text style={styles.accordionIcon}>{filtersExpanded ? '▲' : '▼'}</Text>
+      </TouchableOpacity>
 
-        <View style={styles.toolbarSection}>
-          <Text style={styles.toolbarLabel}>Year</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll}>
-            {[2025, 2026, 2027].map((yr) => (
-              <TouchableOpacity
-                key={yr}
-                style={[styles.chip, selectedYear === yr && styles.chipActive]}
-                onPress={() => setSelectedYear(yr)}
-              >
-                <Text style={[styles.chipText, selectedYear === yr && styles.chipTextActive]}>{yr}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {villagesList.length > 0 && (
+      {filtersExpanded && (
+        <View style={styles.toolbar}>
           <View style={styles.toolbarSection}>
-            <Text style={styles.toolbarLabel}>Village</Text>
+            <Text style={styles.toolbarLabel}>{t('riskLevel', 'Risk Level')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll}>
-              <TouchableOpacity
-                style={[styles.chip, selectedVillageId === 'all' && styles.chipActive]}
-                onPress={() => setSelectedVillageId('all')}
-              >
-                <Text style={[styles.chipText, selectedVillageId === 'all' && styles.chipTextActive]}>All Villages</Text>
-              </TouchableOpacity>
-              {villagesList.map((v) => (
+              {['all', 'high', 'normal'].map((risk) => (
                 <TouchableOpacity
-                  key={v.id}
-                  style={[styles.chip, selectedVillageId === v.id && styles.chipActive]}
-                  onPress={() => setSelectedVillageId(v.id)}
+                  key={risk}
+                  style={[styles.chip, selectedRiskLevel === risk && styles.chipActive]}
+                  onPress={() => setSelectedRiskLevel(risk)}
                 >
-                  <Text style={[styles.chipText, selectedVillageId === v.id && styles.chipTextActive]}>{v.name}</Text>
+                  <Text style={[styles.chipText, selectedRiskLevel === risk && styles.chipTextActive]}>{risk.toUpperCase()}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
           </View>
-        )}
-      </View>
+          
+          <View style={styles.toolbarSection}>
+            <Text style={styles.toolbarLabel}>{t('month', 'Month')}</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll}>
+              {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((mName, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={[styles.chip, selectedMonth === idx && styles.chipActive]}
+                  onPress={() => setSelectedMonth(idx)}
+                >
+                  <Text style={[styles.chipText, selectedMonth === idx && styles.chipTextActive]}>{mName}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          <View style={styles.toolbarSection}>
+            <Text style={styles.toolbarLabel}>{t('year', 'Year')}</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll}>
+              {[2025, 2026, 2027].map((yr) => (
+                <TouchableOpacity
+                  key={yr}
+                  style={[styles.chip, selectedYear === yr && styles.chipActive]}
+                  onPress={() => setSelectedYear(yr)}
+                >
+                  <Text style={[styles.chipText, selectedYear === yr && styles.chipTextActive]}>{yr}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {villagesList.length > 0 && (
+            <View style={styles.toolbarSection}>
+              <Text style={styles.toolbarLabel}>{t('village', 'Village')}</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll}>
+                <TouchableOpacity
+                  style={[styles.chip, selectedVillageId === 'all' && styles.chipActive]}
+                  onPress={() => setSelectedVillageId('all')}
+                >
+                  <Text style={[styles.chipText, selectedVillageId === 'all' && styles.chipTextActive]}>All Villages</Text>
+                </TouchableOpacity>
+                {villagesList.map((v) => (
+                  <TouchableOpacity
+                    key={v.id}
+                    style={[styles.chip, selectedVillageId === v.id && styles.chipActive]}
+                    onPress={() => setSelectedVillageId(v.id)}
+                  >
+                    <Text style={[styles.chipText, selectedVillageId === v.id && styles.chipTextActive]}>{v.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+        </View>
+      )}
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Top-Level KPI Strip */}
+        {/* Top-Level KPI Strip (Interactive) */}
         <View style={styles.kpiStrip}>
-          <View style={styles.kpiCard}>
+          <TouchableOpacity style={styles.kpiCard} onPress={() => showPreview('FAMILIES', 'Families Overview')}>
             <Text style={styles.kpiVal}>{kpiStats.totalFamilies}</Text>
-            <Text style={styles.kpiLabel}>Families</Text>
-          </View>
-          <View style={styles.kpiCard}>
+            <Text style={styles.kpiLabel}>{t('families', 'Families')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.kpiCard} onPress={() => showPreview('SYNC', 'Pending Sync Data')}>
             <Text style={[styles.kpiVal, kpiStats.syncQueueCount > 0 && { color: COLORS.error }]}>
               {kpiStats.syncQueueCount}
             </Text>
-            <Text style={styles.kpiLabel}>Pending Sync</Text>
-          </View>
-          <View style={styles.kpiCard}>
+            <Text style={styles.kpiLabel}>{t('pendingSync', 'Pending Sync')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.kpiCard} onPress={() => showPreview('STOCK', 'Low Stock Alerts')}>
             <Text style={[styles.kpiVal, kpiStats.lowStockAlerts > 0 && { color: COLORS.error }]}>
               {kpiStats.lowStockAlerts}
             </Text>
-            <Text style={styles.kpiLabel}>Low Stock</Text>
-          </View>
-          <View style={styles.kpiCard}>
+            <Text style={styles.kpiLabel}>{t('lowStock', 'Low Stock')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.kpiCard} onPress={() => showPreview('VITAL', 'Vital Events Log')}>
             <Text style={styles.kpiVal}>{kpiStats.vitalEventsCount}</Text>
-            <Text style={styles.kpiLabel}>Vital Events</Text>
-          </View>
+            <Text style={styles.kpiLabel}>{t('vitalEvents', 'Vital Events')}</Text>
+          </TouchableOpacity>
         </View>
+
+        {/* Dynamic Excel Preview Section */}
+        {previewData.length > 0 && (
+          <View style={styles.previewSection}>
+            <View style={styles.previewHeader}>
+              <Text style={styles.previewTitle}>👁️ Preview: {previewTitle}</Text>
+              <TouchableOpacity onPress={() => setPreviewData([])}><Text style={styles.closePreview}>×</Text></TouchableOpacity>
+            </View>
+            <View style={styles.previewTable}>
+              {previewData.map((row, idx) => (
+                <View key={idx} style={styles.previewRow}>
+                  {Object.values(row).map((val, i) => (
+                    <Text key={i} style={styles.previewCell} numberOfLines={1}>{String(val)}</Text>
+                  ))}
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Tab Segment Selector */}
         <View style={styles.tabContainer}>
@@ -439,6 +501,25 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
   loadingText: { marginTop: 12, color: COLORS.textSecondary, fontWeight: '600' },
   
+  // Accordion styles
+  accordionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 16,
+    backgroundColor: '#F8FAFC',
+    borderBottomWidth: 1,
+    borderColor: COLORS.border,
+  },
+  accordionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  accordionIcon: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+  },
+
   // Toolbar styles
   toolbar: {
     backgroundColor: COLORS.surface,
@@ -519,6 +600,49 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginTop: 4,
     textAlign: 'center',
+  },
+
+  // Preview styles
+  previewSection: {
+    backgroundColor: '#FFFBEB',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    marginBottom: 16,
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  previewTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#D97706',
+  },
+  closePreview: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#D97706',
+    marginTop: -4,
+  },
+  previewTable: {
+    backgroundColor: '#FFF',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  previewRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  previewCell: {
+    flex: 1,
+    fontSize: 10,
+    color: COLORS.text,
   },
 
   // Tabs container

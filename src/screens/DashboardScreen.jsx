@@ -28,8 +28,12 @@ let _cachedTasks = [];
 
 const _getTaskHash = (members) => {
   if (!members || members.length === 0) return '0';
-  // Lightweight hash: count + first record timestamp + last record timestamp
-  return `${members.length}_${members[0]?.lastUpdatedAt || 0}_${members[members.length - 1]?.lastUpdatedAt || 0}`;
+  // Include total completed tasks in hash to instantly reflect when a task is marked done
+  let completedCount = 0;
+  for (let i = 0; i < members.length; i++) {
+    completedCount += (members[i].healthData?.completedTasks?.length || 0);
+  }
+  return `${members.length}_${completedCount}_${members[0]?.lastUpdatedAt || 0}_${members[members.length - 1]?.lastUpdatedAt || 0}`;
 };
 
 const getMemoizedTasks = (members) => {
@@ -188,6 +192,21 @@ const DashboardScreen = ({ user, onNavigate }) => {
       const pendingCount = generatedTasks.filter(t => t.status === 'pending').length;
       const criticalCount = generatedTasks.filter(t => t.isEmergency && t.status === 'pending').length;
       
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const dueTodayCount = generatedTasks.filter(t => {
+        if (t.status !== 'pending') return false;
+        const dueDate = new Date(t.dueDate);
+        dueDate.setHours(0,0,0,0);
+        return dueDate.getTime() === today.getTime();
+      }).length;
+      const overdueCount = generatedTasks.filter(t => {
+        if (t.status !== 'pending') return false;
+        const dueDate = new Date(t.dueDate);
+        dueDate.setHours(0,0,0,0);
+        return dueDate.getTime() < today.getTime();
+      }).length;
+      
       const liveStats = generateMPRStats(members, vEvents, vhndSessions, events);
 
       setPendingTasksCount(pendingCount);
@@ -195,6 +214,8 @@ const DashboardScreen = ({ user, onNavigate }) => {
         ...prev,
         ...liveStats,
         criticalCount,
+        dueTodayCount,
+        overdueCount,
         maternal: {
           ...prev?.maternal,
           ...liveStats?.maternal
@@ -345,7 +366,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
         </Text>
         {syncCount > 0 && !isSyncing && (
           <TouchableOpacity onPress={() => cloudSyncManager.startBackgroundSync()}>
-            <Text style={styles.syncNowText}>SYNC NOW</Text>
+            <Text style={styles.syncNowText}>{t('syncNow', 'SYNC NOW')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -390,6 +411,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
             <StatCard 
               label={t('pendingTasks')} 
               value={pendingTasksCount} 
+              subText={(stats.dueTodayCount > 0 || stats.overdueCount > 0) ? `${stats.overdueCount} Overdue, ${stats.dueTodayCount} Today` : null}
               color={COLORS.accent}
               onPress={() => onNavigate('Tasks')}
             />
@@ -441,6 +463,10 @@ const DashboardScreen = ({ user, onNavigate }) => {
               <Text style={styles.shortcutIcon}>📊</Text>
               <Text style={styles.shortcutLabel}>{t('reports')}</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.shortcutCard} onPress={() => onNavigate('ParityReport')}>
+              <Text style={styles.shortcutIcon}>👩‍👧</Text>
+              <Text style={styles.shortcutLabel}>{t('parityReport', 'Parity Report')}</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.shortcutCard} onPress={() => onNavigate('VHND')}>
               <Text style={styles.shortcutIcon}>🏕️</Text>
               <Text style={styles.shortcutLabel}>{t('vhndSession')}</Text>
@@ -449,10 +475,12 @@ const DashboardScreen = ({ user, onNavigate }) => {
               <Text style={styles.shortcutIcon}>📅</Text>
               <Text style={styles.shortcutLabel}>{t('workplan')}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.shortcutCard, { backgroundColor: '#F1F5F9' }]} onPress={() => onNavigate('AdminSetup')}>
-              <Text style={styles.shortcutIcon}>⚙️</Text>
-              <Text style={styles.shortcutLabel}>{t('moreTools', 'More Tools')}</Text>
-            </TouchableOpacity>
+            {user?.role !== 'ASHA' && (
+              <TouchableOpacity style={[styles.shortcutCard, { backgroundColor: '#F1F5F9' }]} onPress={() => onNavigate('AdminSetup')}>
+                <Text style={styles.shortcutIcon}>⚙️</Text>
+                <Text style={styles.shortcutLabel}>{t('moreTools', 'More Tools')}</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -461,10 +489,13 @@ const DashboardScreen = ({ user, onNavigate }) => {
       {fabOpen && (
         <View style={styles.fabMenu}>
           <TouchableOpacity style={styles.fabMenuItem} onPress={() => { setFabOpen(false); handleAddClosedBuilding(); }}>
-            <Text style={styles.fabMenuText}>🏠 {t('addClosedBuilding')}</Text>
+            <Text style={styles.fabMenuText}>🏠 {t('addClosedBuilding', 'Add Closed Building')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.fabMenuItem} onPress={() => { setFabOpen(false); onNavigate('FamilyRegistration'); }}>
-            <Text style={styles.fabMenuText}>📝 {t('newFamily')}</Text>
+            <Text style={styles.fabMenuText}>➕ {t('newFamily', 'Add Family')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.fabMenuItem} onPress={() => { setFabOpen(false); onNavigate('VitalEvents'); }}>
+            <Text style={styles.fabMenuText}>📝 {t('logVitalEvent', 'Log Vital Event')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -525,13 +556,14 @@ const DashboardScreen = ({ user, onNavigate }) => {
   );
 };
 
-const StatCard = ({ label, value, color = COLORS.primary, onPress }) => (
+const StatCard = ({ label, value, color = COLORS.primary, subText, onPress }) => (
   <TouchableOpacity 
     style={styles.statCard} 
     onPress={onPress}
     activeOpacity={0.7}
   >
     <Text style={[styles.statValue, { color }]}>{value}</Text>
+    {subText && <Text style={{ fontSize: 11, color: COLORS.error, fontWeight: '700', marginBottom: 4 }}>{subText}</Text>}
     <Text style={styles.statLabel}>{label}</Text>
   </TouchableOpacity>
 );

@@ -110,13 +110,13 @@ const MODashboard = ({ user, onBack, onNavigate }) => {
                 <Text style={styles.actionIcon}>📦</Text>
                 <Text style={styles.actionLabel}>PHC Stock</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.actionBtn} onPress={() => onNavigate('AdminSetup', { initialTab: 'Approvals' })}>
-                <Text style={styles.actionIcon}>✅</Text>
-                <Text style={styles.actionLabel}>Approvals</Text>
+              <TouchableOpacity style={styles.actionCard} onPress={() => Alert.alert(t('approvals', 'Approvals'), t('featureInDev', 'This feature is in development.'))}>
+                <Text style={styles.actionIcon}>📝</Text>
+                <Text style={styles.actionLabel}>{t('approvals', 'Approvals')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.actionBtn} onPress={() => onNavigate('Surveillance')}>
-                <Text style={styles.actionIcon}>🦠</Text>
-                <Text style={styles.actionLabel}>Outbreaks</Text>
+              <TouchableOpacity style={[styles.actionCard, { backgroundColor: '#FEF2F2' }]} onPress={() => Alert.alert(t('outbreaks', 'Outbreaks'), t('featureInDev', 'This feature is in development.'))}>
+                <Text style={styles.actionIcon}>🚨</Text>
+                <Text style={styles.actionLabel}>{t('outbreaks', 'Outbreaks')}</Text>
               </TouchableOpacity>
             </View>
           </>

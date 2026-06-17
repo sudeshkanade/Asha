@@ -112,6 +112,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
           const healthData = member.healthData || {};
           const completedTasks = (healthData.completedTasks || []).filter(tid => tid !== id);
           member.healthData = { ...healthData, completedTasks };
+          member.lastUpdatedAt = Date.now();
           await storage.save(STORAGE_KEYS.MEMBERS, member);
         }
       }
@@ -162,6 +163,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
         }
         
         member.healthData = { ...healthData, completedTasks };
+        member.lastUpdatedAt = Date.now(); // Update timestamp on mutation
         await storage.save(STORAGE_KEYS.MEMBERS, member);
         
         await storage.addToSyncQueue('task_completions', {
@@ -169,7 +171,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
           memberId: member.id,
           completedAt: new Date().toISOString(),
           reasoning: reasoningToSave,
-          image: isQuick ? null : completionData.image
+          image: isQuick ? null : data.image
         });
       }
       
@@ -220,6 +222,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
           const completedTasks = [...existingCompleted];
           
           member.healthData = { ...healthData, completedTasks };
+          member.lastUpdatedAt = Date.now();
           await storage.save(STORAGE_KEYS.MEMBERS, member);
           
           // Queue sync tasks for all completed items
@@ -290,10 +293,29 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
     Linking.openURL(`whatsapp://send?text=${encodeURIComponent(message)}`);
   };
 
-  const mockCaptureImage = (taskId) => {
-    const PLACEHOLDER_DATA_URI = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200"><rect width="300" height="200" fill="%23E2E8F0"/><text x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="16" fill="%2364748B">Visit Evidence</text></svg>';
-    const data = completionDataMap[taskId] || { reasoning: '', image: null };
-    setCompletionDataMap(prev => ({ ...prev, [taskId]: { ...data, image: PLACEHOLDER_DATA_URI } }));
+  const handleCaptureImage = (taskId) => {
+    // Cross-platform HTML5 Camera implementation (bypasses Vite/Expo dependency issues)
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment'; // Hint to open the rear camera on mobile
+    
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const imageUri = event.target.result;
+          setCompletionDataMap(prev => {
+            const existing = prev[taskId] || { reasoning: '', image: null };
+            return { ...prev, [taskId]: { ...existing, image: imageUri } };
+          });
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    
+    input.click();
   };
 
   const toggleHouseholdExpanded = (key) => {
@@ -455,11 +477,11 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
               <View style={styles.capturedImageContainer}>
                 <Image source={{ uri: data.image }} style={styles.capturedImage} />
                 <TouchableOpacity style={styles.retakeBtn} onPress={() => setCompletionDataMap(prev => ({ ...prev, [task.id]: { ...data, image: null } }))}>
-                  <Text style={styles.retakeBtnText}>Retake Photo</Text>
+                  <Text style={styles.retakeBtnText}>{t('retakePhoto', 'Retake Photo')}</Text>
                 </TouchableOpacity>
               </View>
             ) : (
-              <TouchableOpacity style={styles.cameraBtn} onPress={() => mockCaptureImage(task.id)}>
+              <TouchableOpacity style={styles.cameraBtn} onPress={() => handleCaptureImage(task.id)}>
                 <Text style={styles.cameraBtnText}>📷 Capture Evidence</Text>
               </TouchableOpacity>
             )}
@@ -472,7 +494,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
 
         {isExpanded && isCompleted && (
           <View style={styles.expandedTaskContent}>
-            <Text style={styles.label}>Visit Summary</Text>
+            <Text style={styles.label}>{t('visitSummary', 'Visit Summary')}</Text>
             <Text style={styles.summaryValueText}>{task.visitSummary}</Text>
             {task.visitImage && (
                <Image source={{ uri: task.visitImage }} style={styles.evidenceImage} />

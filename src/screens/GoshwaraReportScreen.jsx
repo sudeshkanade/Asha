@@ -249,7 +249,7 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
               >
                 <Text style={styles.statValue}>{item.value}</Text>
                 <Text style={styles.statLabel}>{item.label}</Text>
-                {item.drillKey && <Text style={styles.drillHint}>View List</Text>}
+                {item.drillKey && <Text style={styles.drillHint}>{t('viewList', 'View List')}</Text>}
               </TouchableOpacity>
             ))}
           </View>
@@ -271,10 +271,10 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
         {expanded && (
           <View>
             <View style={styles.tableHeader}>
-              <Text style={[styles.cell, { flex: 2 }]}>Age Group</Text>
-              <Text style={styles.cell}>Male</Text>
-              <Text style={styles.cell}>Female</Text>
-              <Text style={styles.cell}>Total</Text>
+              <Text style={[styles.cell, { flex: 2 }]}>{t('ageGroup', 'Age Group')}</Text>
+              <Text style={styles.cell}>{t('male', 'Male')}</Text>
+              <Text style={styles.cell}>{t('female', 'Female')}</Text>
+              <Text style={styles.cell}>{t('total', 'Total')}</Text>
             </View>
             {rows.map((row, idx) => (
               <View key={idx} style={styles.tableRow}>
@@ -423,7 +423,7 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
         {showBuilder && (
           <View style={styles.builderSection}>
             <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
-              <Text style={styles.sectionHeader}>Dynamic Report Builder</Text>
+              <Text style={styles.sectionHeader}>{t('dynamicReportBuilder', 'Dynamic Report Builder')}</Text>
               <TouchableOpacity onPress={() => setShowBuilder(false)}>
                 <Text style={{color: COLORS.textSecondary, fontSize: 20}}>×</Text>
               </TouchableOpacity>

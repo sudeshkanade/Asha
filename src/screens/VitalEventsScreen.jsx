@@ -367,7 +367,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
                 <Text style={styles.label}>{t('childName')} <Text style={styles.required}>*</Text></Text>
                 <TextInput style={styles.input} value={formData.name}
                   onChangeText={(t) => setFormData({ ...formData, name: t })}
-                  placeholder="Newborn Name" placeholderTextColor={COLORS.textSecondary} />
+                  placeholder={t('newbornName', 'Newborn Name')} placeholderTextColor={COLORS.textSecondary} />
               </View>
 
               <View style={styles.inputGroup}>

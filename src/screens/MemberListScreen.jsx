@@ -72,12 +72,19 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
           return m.healthData?.malnutritionStatus === 'SAM' || m.healthData?.malnutritionStatus === 'high_risk';
         });
       } else if (type === 'eligible_couple') {
-        filtered = scopedMembers.filter(mem => 
-          mem.gender === 'Female' && 
-          parseInt(mem.age) >= 15 && 
-          parseInt(mem.age) <= 49 &&
-          (mem.maritalStatus === 'Married' || mem.relationToHead === 'Wife' || mem.relation === 'Wife' || mem.relationToHead === 'Daughter-in-law' || mem.relation === 'Daughter-in-law')
-        );
+        filtered = scopedMembers.filter(mem => {
+          if (mem.gender !== 'Female') return false;
+          const isTargetRel = mem.maritalStatus === 'Married' || mem.relationToHead === 'Wife' || mem.relation === 'Wife' || mem.relationToHead === 'Daughter-in-law' || mem.relation === 'Daughter-in-law';
+          if (!isTargetRel) return false;
+          
+          const ageInt = parseInt(mem.age);
+          if (!isNaN(ageInt)) {
+            return ageInt >= 15 && ageInt <= 49;
+          }
+          // Fallback: If age is corrupted but they are explicitly a wife/daughter-in-law, include them in the register
+          // so the worker can fix their data rather than hiding them completely.
+          return true;
+        });
       } else if (type === 'pnc_cases' || type === 'pnc') {
         filtered = scopedMembers.filter(m => 
           m.healthData?.pncStatus === 'Pending' || 
@@ -99,10 +106,15 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
         filtered = scopedMembers.filter(m => bplFamilyIds.has(m.familyId));
       } else if (type === 'ncd' || type === 'ncd_screening') {
         // BUG-05 FIX: 'NCD' filter was missing — DashboardScreen navigates with filterType:'NCD'
-        filtered = scopedMembers.filter(m =>
-          parseInt(m.age) >= 30 &&
-          (m.healthData?.bpSystolic || m.healthData?.sugarLevel || m.healthData?.hasNcd)
-        );
+        filtered = scopedMembers.filter(m => {
+          const hasNcdData = m.healthData?.bpSystolic || m.healthData?.sugarLevel || m.healthData?.hasNcd;
+          const ageInt = parseInt(m.age);
+          if (!isNaN(ageInt)) {
+            return ageInt >= 30 && hasNcdData;
+          }
+          // Fallback: Include if they have NCD data even if age is corrupted
+          return hasNcdData;
+        });
       }
     }
 
@@ -340,7 +352,7 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
 
       {isExpanded && (
         <View style={styles.expandedPanel}>
-          <Text style={styles.panelTitle}>Quick Vitals</Text>
+          <Text style={styles.panelTitle}>{t('quickVitals', 'Quick Vitals')}</Text>
           <View style={styles.vitalsRow}>
             <View style={styles.vitalInputGroup}>
               <Text style={styles.vitalLabel}>Weight (kg)</Text>
@@ -356,7 +368,7 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
             </View>
           </View>
           <TouchableOpacity style={styles.saveVitalsBtn} onPress={() => handleSaveQuickVitals(item)}>
-            <Text style={styles.saveVitalsBtnText}>Save Quick Vitals</Text>
+            <Text style={styles.saveVitalsBtnText}>{t('saveQuickVitals', 'Save Quick Vitals')}</Text>
           </TouchableOpacity>
 
           <View style={styles.quickActionsRow}>
