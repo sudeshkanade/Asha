@@ -8,6 +8,7 @@ import * as XLSX from 'xlsx';
 const ParityReportScreen = ({ user, onNavigate, onBack }) => {
   const { t } = useTranslation();
   const [members, setMembers] = useState([]);
+  const [villages, setVillages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedBucket, setSelectedBucket] = useState(null);
 
@@ -19,6 +20,8 @@ const ParityReportScreen = ({ user, onNavigate, onBack }) => {
     setLoading(true);
     try {
       const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
+      const allVillages = await storage.getAll(STORAGE_KEYS.VILLAGES) || [];
+      setVillages(allVillages);
       
       // Filter members to current user scope
       let scopedMembers = allMembers;
@@ -71,6 +74,7 @@ const ParityReportScreen = ({ user, onNavigate, onBack }) => {
         const womanLastName = String(woman.lastName || '').trim().toLowerCase();
 
         let childCount = 0;
+        const childrenList = [];
 
         familyMembers.forEach(m => {
           if (m.id === woman.id) return;
@@ -102,12 +106,19 @@ const ParityReportScreen = ({ user, onNavigate, onBack }) => {
             const mAge = parseInt(m.age);
             const wAge = parseInt(woman.age);
             if (!isNaN(mAge) && !isNaN(wAge)) {
-               if (wAge - mAge >= 12) childCount++;
+               if (wAge - mAge >= 12) {
+                  childCount++;
+                  childrenList.push(m);
+               }
             } else {
                childCount++; // If ages are missing, default to accepting the relation
+               childrenList.push(m);
             }
           }
         });
+
+        // Sort children by age descending
+        childrenList.sort((a, b) => parseInt(b.age || 0) - parseInt(a.age || 0));
 
         let bucket = '3+';
         if (childCount === 0) bucket = 0;
@@ -117,7 +128,8 @@ const ParityReportScreen = ({ user, onNavigate, onBack }) => {
         counts[bucket]++;
         mothersInBuckets[bucket].push({
           ...woman,
-          computedChildren: childCount
+          computedChildren: childCount,
+          childrenList: childrenList
         });
       });
     });
@@ -146,17 +158,46 @@ const ParityReportScreen = ({ user, onNavigate, onBack }) => {
   const handleDownload = () => {
     try {
       const rows = [];
+      let maxChildrenInAnyBucket = 0;
+
+      // First pass to determine max children to create consistent columns
       ['0', '1', '2', '3+'].forEach(bucket => {
         parityData.mothersInBuckets[bucket].forEach(mother => {
-          rows.push({
+           if (mother.childrenList && mother.childrenList.length > maxChildrenInAnyBucket) {
+             maxChildrenInAnyBucket = mother.childrenList.length;
+           }
+        });
+      });
+
+      ['0', '1', '2', '3+'].forEach(bucket => {
+        parityData.mothersInBuckets[bucket].forEach(mother => {
+          let villageName = mother.villageName;
+          if (!villageName) {
+             const v = villages.find(v => v.id === mother.villageId);
+             if (v) villageName = v.name;
+          }
+          villageName = villageName || mother.villageId || '';
+
+          const row = {
             'Family ID': mother.familyId || '',
             'Mother Name': `${mother.firstName || ''} ${mother.middleName || ''} ${mother.lastName || ''}`.trim(),
             'Age': mother.age || '',
             'Husband Name': mother.middleName || '',
-            'Village': mother.villageName || mother.villageId || '',
+            'Village': villageName,
             'Number of Children': mother.computedChildren,
             'Category (Bucket)': bucket
-          });
+          };
+
+          // Fill out children columns up to the max found
+          for (let i = 0; i < maxChildrenInAnyBucket; i++) {
+            const num = i + 1;
+            const child = mother.childrenList ? mother.childrenList[i] : null;
+            row[`Child ${num} Name`] = child ? `${child.firstName || ''} ${child.middleName || ''} ${child.lastName || ''}`.trim() : '';
+            row[`Child ${num} Age`] = child ? (child.age || '') : '';
+            row[`Child ${num} DOB`] = child ? (child.dob || '') : '';
+          }
+
+          rows.push(row);
         });
       });
 
@@ -166,7 +207,13 @@ const ParityReportScreen = ({ user, onNavigate, onBack }) => {
       }
 
       const ws = XLSX.utils.json_to_sheet(rows);
-      ws['!cols'] = [ { wch: 15 }, { wch: 30 }, { wch: 10 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 15 } ];
+      
+      const colWidths = [ { wch: 15 }, { wch: 30 }, { wch: 10 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 15 } ];
+      for (let i = 0; i < maxChildrenInAnyBucket; i++) {
+         colWidths.push({ wch: 25 }, { wch: 10 }, { wch: 15 }); // Name, Age, DOB for each child
+      }
+      ws['!cols'] = colWidths;
+      
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Parity Report");
 
