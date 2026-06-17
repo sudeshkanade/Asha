@@ -436,18 +436,24 @@ export const cloudSyncManager = {
                 // Run all village-batch queries + ashaId query in parallel
                 const ashaQueries = [];
                 batches.forEach(batch => {
-                  if (lastPullTimestamp > 0) {
-                    ashaQueries.push(getDocs(query(collection(db, col.table), where('villageId', 'in', batch), where('lastUpdatedAt', '>', lastPullTimestamp))));
-                  } else {
-                    ashaQueries.push(getDocs(query(collection(db, col.table), where('villageId', 'in', batch))));
-                  }
+                  const queryPromise = (lastPullTimestamp > 0)
+                    ? getDocs(query(collection(db, col.table), where('villageId', 'in', batch), where('lastUpdatedAt', '>', lastPullTimestamp)))
+                    : getDocs(query(collection(db, col.table), where('villageId', 'in', batch)));
+                    
+                  ashaQueries.push(queryPromise.catch(err => {
+                    console.warn(`⚠️ CloudSync ASHA batch error on ${col.table} (Index missing?). Click link to create index:`, err.message);
+                    return { forEach: () => {} }; // Dummy empty snapshot
+                  }));
                 });
 
-                if (lastPullTimestamp > 0) {
-                  ashaQueries.push(getDocs(query(collection(db, col.table), where('ashaId', '==', user.id || 'FORCE_BLOCK'), where('lastUpdatedAt', '>', lastPullTimestamp))));
-                } else {
-                  ashaQueries.push(getDocs(query(collection(db, col.table), where('ashaId', '==', user.id || 'FORCE_BLOCK'))));
-                }
+                const ashaIdPromise = (lastPullTimestamp > 0)
+                  ? getDocs(query(collection(db, col.table), where('ashaId', '==', user.id || 'FORCE_BLOCK'), where('lastUpdatedAt', '>', lastPullTimestamp)))
+                  : getDocs(query(collection(db, col.table), where('ashaId', '==', user.id || 'FORCE_BLOCK')));
+                  
+                ashaQueries.push(ashaIdPromise.catch(err => {
+                  console.warn(`⚠️ CloudSync ASHA id query error on ${col.table} (Index missing?). Click link to create index:`, err.message);
+                  return { forEach: () => {} }; // Dummy empty snapshot
+                }));
 
                 const batchSnapshots = await Promise.all(ashaQueries);
 
@@ -489,7 +495,7 @@ export const cloudSyncManager = {
           // QUOTA FIX: Delta sync — filter by lastUpdatedAt to only fetch changed records.
           // On first pull (lastPullTimestamp=0), fetches everything. Subsequent pulls fetch only changes.
           let querySnapshot;
-          if (lastPullTimestamp > 0 && !force) {
+          if (lastPullTimestamp > 0) {
             try {
               const deltaQ = query(q, where('lastUpdatedAt', '>', lastPullTimestamp));
               querySnapshot = await getDocs(deltaQ);
@@ -497,7 +503,7 @@ export const cloudSyncManager = {
               // If composite index is missing for role-based filters + lastUpdatedAt,
               // fallback to fetching everything for this collection to prevent data loss.
               if (err.message && err.message.includes('index')) {
-                console.warn(`⚠️ CloudSync: Missing index for delta sync on ${col.table}, falling back to full fetch.`);
+                console.warn(`⚠️ CloudSync: Missing index for delta sync on ${col.table}, falling back to full fetch. Click link to create index:`, err.message);
                 querySnapshot = await getDocs(q);
               } else {
                 throw err;
