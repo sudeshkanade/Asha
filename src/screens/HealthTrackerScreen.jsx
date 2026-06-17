@@ -649,7 +649,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
                     style={[styles.chip, tracker.bloodGroup === bg && styles.chipActive]}
                     onPress={() => setTracker({ ...tracker, bloodGroup: bg })}
                   >
-                    <Text style={[styles.chipText, tracker.bloodGroup === bg && styles.chipTextActive]}>{bg}</Text>
+                    <Text style={[styles.chipText, tracker.bloodGroup === bg && styles.chipTextActive]}>{t(bg, bg)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -664,7 +664,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
                     style={[styles.chip, tracker.hivScreening === opt && styles.chipActive]}
                     onPress={() => setTracker({ ...tracker, hivScreening: opt })}
                   >
-                    <Text style={[styles.chipText, tracker.hivScreening === opt && styles.chipTextActive]}>{opt}</Text>
+                    <Text style={[styles.chipText, tracker.hivScreening === opt && styles.chipTextActive]}>{t(opt, opt)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -679,7 +679,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
                     style={[styles.chip, tracker.vdrlScreening === opt && styles.chipActive]}
                     onPress={() => setTracker({ ...tracker, vdrlScreening: opt })}
                   >
-                    <Text style={[styles.chipText, tracker.vdrlScreening === opt && styles.chipTextActive]}>{opt}</Text>
+                    <Text style={[styles.chipText, tracker.vdrlScreening === opt && styles.chipTextActive]}>{t(opt, opt)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -694,7 +694,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
                     style={[styles.chip, tracker.tshScreening === opt && styles.chipActive]}
                     onPress={() => setTracker({ ...tracker, tshScreening: opt })}
                   >
-                    <Text style={[styles.chipText, tracker.tshScreening === opt && styles.chipTextActive]}>{opt}</Text>
+                    <Text style={[styles.chipText, tracker.tshScreening === opt && styles.chipTextActive]}>{t(opt, opt)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -709,7 +709,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
                     style={[styles.chip, tracker.urineRoutine === opt && styles.chipActive]}
                     onPress={() => setTracker({ ...tracker, urineRoutine: opt })}
                   >
-                    <Text style={[styles.chipText, tracker.urineRoutine === opt && styles.chipTextActive]}>{opt}</Text>
+                    <Text style={[styles.chipText, tracker.urineRoutine === opt && styles.chipTextActive]}>{t(opt, opt)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -743,7 +743,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
                     style={[styles.chip, tracker.tdVaccine === opt && styles.chipActive]}
                     onPress={() => setTracker({ ...tracker, tdVaccine: opt })}
                   >
-                    <Text style={[styles.chipText, tracker.tdVaccine === opt && styles.chipTextActive]}>{opt}</Text>
+                    <Text style={[styles.chipText, tracker.tdVaccine === opt && styles.chipTextActive]}>{t(opt, opt)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -767,7 +767,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
                       style={[styles.chip, tracker.usgAnomalies === opt && styles.chipActive]}
                       onPress={() => setTracker({ ...tracker, usgAnomalies: opt })}
                     >
-                      <Text style={[styles.chipText, tracker.usgAnomalies === opt && styles.chipTextActive]}>{opt}</Text>
+                      <Text style={[styles.chipText, tracker.usgAnomalies === opt && styles.chipTextActive]}>{t(opt, opt)}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -788,7 +788,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
                         style={[styles.chip, tracker.motherPncSigns === opt && styles.chipActive]}
                         onPress={() => setTracker({ ...tracker, motherPncSigns: opt })}
                       >
-                        <Text style={[styles.chipText, tracker.motherPncSigns === opt && styles.chipTextActive]}>{opt}</Text>
+                        <Text style={[styles.chipText, tracker.motherPncSigns === opt && styles.chipTextActive]}>{t(opt, opt)}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -803,7 +803,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
                         style={[styles.chip, tracker.babyPncSigns === opt && styles.chipActive]}
                         onPress={() => setTracker({ ...tracker, babyPncSigns: opt })}
                       >
-                        <Text style={[styles.chipText, tracker.babyPncSigns === opt && styles.chipTextActive]}>{opt}</Text>
+                        <Text style={[styles.chipText, tracker.babyPncSigns === opt && styles.chipTextActive]}>{t(opt, opt)}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -822,7 +822,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
                     style={[styles.chip, tracker.gestationalComplication === opt && styles.chipActive]}
                     onPress={() => setTracker({ ...tracker, gestationalComplication: opt })}
                   >
-                    <Text style={[styles.chipText, tracker.gestationalComplication === opt && styles.chipTextActive]}>{opt}</Text>
+                    <Text style={[styles.chipText, tracker.gestationalComplication === opt && styles.chipTextActive]}>{t(opt, opt)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -889,7 +889,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
                       style={[styles.chip, tracker.childMilestones === ms && styles.chipActive]}
                       onPress={() => setTracker({ ...tracker, childMilestones: ms })}
                     >
-                      <Text style={[styles.chipText, tracker.childMilestones === ms && styles.chipTextActive]}>{ms}</Text>
+                      <Text style={[styles.chipText, tracker.childMilestones === ms && styles.chipTextActive]}>{t(ms, ms)}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -911,7 +911,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
                       style={[styles.chip, tracker.vitaminADose === dose && styles.chipActive]}
                       onPress={() => setTracker({ ...tracker, vitaminADose: dose })}
                     >
-                      <Text style={[styles.chipText, tracker.vitaminADose === dose && styles.chipTextActive]}>{dose}</Text>
+                      <Text style={[styles.chipText, tracker.vitaminADose === dose && styles.chipTextActive]}>{t(dose, dose)}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -1137,7 +1137,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
             <View style={styles.pickerContainer}>
               {['0', '1', '2', '3+'].map((opt) => (
                 <TouchableOpacity key={opt} style={[styles.chip, tracker.fpContraceptiveHistory === opt && styles.chipActive]} onPress={() => setTracker({ ...tracker, fpContraceptiveHistory: opt })}>
-                  <Text style={[styles.chipText, tracker.fpContraceptiveHistory === opt && styles.chipTextActive]}>{opt}</Text>
+                  <Text style={[styles.chipText, tracker.fpContraceptiveHistory === opt && styles.chipTextActive]}>{t(opt, opt)}</Text>
                 </TouchableOpacity>
               ))}
             </View>

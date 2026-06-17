@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { useTranslation } from 'react-i18next';
+import * as XLSX from 'xlsx';
 
 const ParityReportScreen = ({ user, onNavigate, onBack }) => {
   const { t } = useTranslation();
@@ -71,22 +72,42 @@ const ParityReportScreen = ({ user, onNavigate, onBack }) => {
 
         let childCount = 0;
 
-        if (womanHusbandName) {
-          familyMembers.forEach(m => {
-            // Must be a child logically (Age < Woman's age, and matching names)
-            // Or explicitly check relation (Son, Daughter, Grandson, Granddaughter)
-            const isChildRelation = ['Son', 'Daughter', 'Grandson', 'Granddaughter'].includes(m.relationToHead || m.relation);
-            
-            if (isChildRelation) {
-               const childMiddle = String(m.middleName || '').trim().toLowerCase();
-               const childLast = String(m.lastName || '').trim().toLowerCase();
-               
-               if (childMiddle === womanHusbandName && childLast === womanLastName) {
-                 childCount++;
-               }
+        familyMembers.forEach(m => {
+          if (m.id === woman.id) return;
+
+          const mRel = String(m.relationToHead || m.relation).trim().toLowerCase();
+          const wRel = String(woman.relationToHead || woman.relation).trim().toLowerCase();
+          
+          let isHerChild = false;
+
+          // 1. Direct Relation Mapping (Robust for Head / Wife of Head)
+          if (wRel === 'wife' || wRel === 'self (head)' || wRel === 'head') {
+            if (mRel === 'son' || mRel === 'daughter') {
+              isHerChild = true;
             }
-          });
-        }
+          }
+          
+          // 2. Middle Name Matching (Robust for joint families like Daughter-in-law)
+          if (!isHerChild && womanHusbandName) {
+            const isChildRelation = ['son', 'daughter', 'grandson', 'granddaughter', 'child'].includes(mRel);
+            const childMiddle = String(m.middleName || '').trim().toLowerCase();
+            
+            if (isChildRelation && childMiddle === womanHusbandName) {
+               isHerChild = true;
+            }
+          }
+
+          if (isHerChild) {
+            // Sanity check on age (mother should be at least 12 years older)
+            const mAge = parseInt(m.age);
+            const wAge = parseInt(woman.age);
+            if (!isNaN(mAge) && !isNaN(wAge)) {
+               if (wAge - mAge >= 12) childCount++;
+            } else {
+               childCount++; // If ages are missing, default to accepting the relation
+            }
+          }
+        });
 
         let bucket = '3+';
         if (childCount === 0) bucket = 0;
@@ -122,6 +143,42 @@ const ParityReportScreen = ({ user, onNavigate, onBack }) => {
     );
   };
 
+  const handleDownload = () => {
+    try {
+      const rows = [];
+      ['0', '1', '2', '3+'].forEach(bucket => {
+        parityData.mothersInBuckets[bucket].forEach(mother => {
+          rows.push({
+            'Family ID': mother.familyId || '',
+            'Mother Name': `${mother.firstName || ''} ${mother.middleName || ''} ${mother.lastName || ''}`.trim(),
+            'Age': mother.age || '',
+            'Husband Name': mother.middleName || '',
+            'Village': mother.villageName || mother.villageId || '',
+            'Number of Children': mother.computedChildren,
+            'Category (Bucket)': bucket
+          });
+        });
+      });
+
+      if (rows.length === 0) {
+        Alert.alert(t('error'), t('noDataToExport', 'No data available to export.'));
+        return;
+      }
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [ { wch: 15 }, { wch: 30 }, { wch: 10 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 15 } ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Parity Report");
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      const fileName = `Parity_Report_${dateStr}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (e) {
+      console.error('Export failed', e);
+      Alert.alert(t('error'), 'Export failed: ' + e.message);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -129,7 +186,9 @@ const ParityReportScreen = ({ user, onNavigate, onBack }) => {
           <Text style={styles.backBtnText}>←</Text>
         </TouchableOpacity>
         <Text style={styles.title}>{t('parityReport', 'Parity Report (Mother & Children)')}</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity style={styles.downloadBtn} onPress={handleDownload}>
+          <Text style={styles.downloadBtnText}>⬇️</Text>
+        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -189,6 +248,8 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 8 },
   backBtnText: { fontSize: 24, color: COLORS.text, fontWeight: '600' },
+  downloadBtn: { padding: 8, backgroundColor: '#E2E8F0', borderRadius: 8 },
+  downloadBtnText: { fontSize: 18, color: COLORS.primary, fontWeight: '600' },
   title: { fontSize: 20, fontWeight: '700', color: COLORS.primary },
   content: { padding: 16 },
   description: {

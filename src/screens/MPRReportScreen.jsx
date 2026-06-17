@@ -146,6 +146,11 @@ const MPRReportScreen = ({ user, onBack }) => {
 
     setKpiStats({
       totalFamilies: families.length,
+      bplFamilies: families.filter(f => f.isBPL).length,
+      pwdMembers: members.filter(m => m.isPwd).length,
+      totalMembers: members.length,
+      vhndSessions: vhndSessions.length,
+      pncCases: members.filter(m => m.healthData?.pncStatus === 'Pending' || m.healthData?.pncStatus === 'Active' || m.healthData?.pncStatus === 'active').length,
       syncQueueCount: events.length,
       lowStockAlerts: lowStockItems.length,
       vitalEventsCount: vitalEvents.length
@@ -395,10 +400,10 @@ const MPRReportScreen = ({ user, onBack }) => {
             </TouchableOpacity>
 
             <ReportSection title={t('specialRegisters', 'Special Registers & Master')}>
-              <ReportRow label={t('pwdMembers', 'PWD Members')} value="" onDownload={() => handleDownload('PWD')} loading={exporting === 'PWD'} />
-              <ReportRow label={t('bplFamilies', 'BPL Families')} value="" onDownload={() => handleDownload('BPL_FAMILIES')} loading={exporting === 'BPL_FAMILIES'} />
-              <ReportRow label={t('vhndSessionLog', 'VHND Session Log')} value="" onDownload={() => handleDownload('VHND_SESSIONS')} loading={exporting === 'VHND_SESSIONS'} />
-              <ReportRow label={t('masterPopulation', 'Master Population')} value="" onDownload={() => handleDownload(null)} loading={exporting === null && loading} />
+              <ReportRow label={t('pwdMembers', 'PWD Members')} value={kpiStats.pwdMembers || 0} onDownload={() => handleDownload('PWD')} loading={exporting === 'PWD'} />
+              <ReportRow label={t('bplFamilies', 'BPL Families')} value={kpiStats.bplFamilies || 0} onDownload={() => handleDownload('BPL_FAMILIES')} loading={exporting === 'BPL_FAMILIES'} />
+              <ReportRow label={t('vhndSessionLog', 'VHND Session Log')} value={kpiStats.vhndSessions || 0} onDownload={() => handleDownload('VHND_SESSIONS')} loading={exporting === 'VHND_SESSIONS'} />
+              <ReportRow label={t('masterPopulation', 'Master Population')} value={kpiStats.totalMembers || 0} onDownload={() => handleDownload(null)} loading={exporting === null && loading} />
             </ReportSection>
           </View>
         )}
@@ -410,7 +415,7 @@ const MPRReportScreen = ({ user, onBack }) => {
             <ReportRow label={t('permanent', 'Permanent Methods')} value={report.fp.sterilization} onDownload={() => handleDownload('FP_PERMANENT')} loading={exporting === 'FP_PERMANENT'} />
             <ReportRow label={t('temporary', 'Temporary Methods')} value={report.fp.spacing} onDownload={() => handleDownload('FP_SPACING')} loading={exporting === 'FP_SPACING'} />
             <ReportRow label={t('noMethodUnmet', 'Unmet Need / No Method')} value={report.fp.none} isAlert={report.fp.none > 0} onDownload={() => handleDownload('FP_NONE')} loading={exporting === 'FP_NONE'} />
-            <ReportRow label={t('fpRegisterDownload', 'FP Register')} value="" onDownload={() => handleDownload('FP_REGISTER')} loading={exporting === 'FP_REGISTER'} />
+            <ReportRow label={t('fpRegisterDownload', 'FP Register')} value={report.fp.totalEC} onDownload={() => handleDownload('FP_REGISTER')} loading={exporting === 'FP_REGISTER'} />
           </ReportSection>
         )}
 
@@ -423,7 +428,7 @@ const MPRReportScreen = ({ user, onBack }) => {
               <ReportRow label={t('hospDel', 'Hospital Deliveries')} value={report.maternal.hospitalDeliveries} onDownload={() => handleDownload('HOSPITAL_DELIVERIES')} loading={exporting === 'HOSPITAL_DELIVERIES'} />
               <ReportRow label={t('homeDel', 'Home Deliveries')} value={report.maternal.homeDeliveries} onDownload={() => handleDownload('HOME_DELIVERIES')} loading={exporting === 'HOME_DELIVERIES'} />
               <ReportRow label={t('pendingAncFollowup', 'Pending ANC Followup')} value={report.maternal.pendingANC} isAlert={report.maternal.pendingANC > 0} onDownload={() => handleDownload('PENDING_ANC')} loading={exporting === 'PENDING_ANC'} />
-              <ReportRow label={t('pncCases', 'PNC Cases')} value="" onDownload={() => handleDownload('PNC_CASES')} loading={exporting === 'PNC_CASES'} />
+              <ReportRow label={t('pncCases', 'PNC Cases')} value={kpiStats.pncCases || 0} onDownload={() => handleDownload('PNC_CASES')} loading={exporting === 'PNC_CASES'} />
             </ReportSection>
 
             <ReportSection title={t('childHealthNutrition', 'Child Health & Nutrition')}>

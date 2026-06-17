@@ -377,7 +377,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
                     <TouchableOpacity key={g}
                       style={[styles.chip, formData.gender === g && styles.chipActive]}
                       onPress={() => setFormData({ ...formData, gender: g })}>
-                      <Text style={[styles.chipText, formData.gender === g && styles.chipTextActive]}>{g}</Text>
+                      <Text style={[styles.chipText, formData.gender === g && styles.chipTextActive]}>{t(g.toLowerCase(), g)}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
