@@ -37,31 +37,26 @@ const FamilyRegistrationScreen = ({ user, onSave, onBack, existingFamily }) => {
   }, []);
 
   const loadVillages = async () => {
+    const allVillages = await storage.getAll(STORAGE_KEYS.VILLAGES);
     let scopedVillages = [];
     if (user?.role === 'ASHA') {
       const assigned = user.assignedVillages || [];
       scopedVillages = assigned.map(v => {
-        if (typeof v === 'string') {
-          return { id: v, name: v === user.villageId ? (user.village || v) : v };
-        } else if (v && typeof v === 'object') {
-          return {
-            id: v.id || v.villageId || v.value || '',
-            name: v.name || v.villageName || v.label || v.id || ''
-          };
-        }
-        return null;
-      }).filter(v => v && v.id);
+        const vId = typeof v === 'string' ? v : (v.id || v.villageId || v.value);
+        const actualVillage = allVillages.find(vil => vil.id === vId);
+        return actualVillage ? { id: actualVillage.id, name: actualVillage.name, ward: actualVillage.ward } : null;
+      }).filter(Boolean);
 
       if (scopedVillages.length === 0 && user.villageId) {
-        scopedVillages.push({ id: user.villageId, name: user.village || 'My Village' });
+        const primaryVil = allVillages.find(vil => vil.id === user.villageId);
+        scopedVillages.push({ id: user.villageId, name: primaryVil ? primaryVil.name : (user.village || 'My Village') });
       }
     } else {
-      const v = await storage.getAll(STORAGE_KEYS.VILLAGES);
-      scopedVillages = v;
+      scopedVillages = allVillages;
       if (user?.role === 'ANM' && user?.subCenterId) {
-        scopedVillages = v.filter(vil => vil.subCenterId === user.subCenterId);
+        scopedVillages = allVillages.filter(vil => vil.subCenterId === user.subCenterId);
       } else if (user?.role === 'MO' && user?.phcId) {
-        scopedVillages = v.filter(vil => vil.phcId === user.phcId);
+        scopedVillages = allVillages.filter(vil => vil.phcId === user.phcId);
       }
     }
     setVillages(scopedVillages);

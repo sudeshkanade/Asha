@@ -909,7 +909,13 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
                     ) : (
                       <Text style={styles.listSubText}>{t('username')}: {u.username}</Text>
                     )}
-                    <Text style={styles.listSubText}>{t('village')}: {u.villageName || t('na')}</Text>
+                    <Text style={styles.listSubText}>
+                      {t('village')}: {
+                        u.assignedVillages && u.assignedVillages.length > 0 
+                          ? u.assignedVillages.map(vId => villages.find(v => v.id === vId)?.name || vId).filter(Boolean).join(', ') 
+                          : (u.villageName || t('na'))
+                      }
+                    </Text>
                     <Text style={styles.listSubText}>{t('status')}: <Text style={{fontWeight:'700', color: u.approvalStatus === 'rejected' ? COLORS.error : (u.approvalStatus === 'approved' ? COLORS.success : '#EAB308')}}>{t(u.approvalStatus || 'pending').toUpperCase()}</Text></Text>
                   </View>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>

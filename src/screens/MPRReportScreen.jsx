@@ -62,19 +62,14 @@ const MPRReportScreen = ({ user, onBack }) => {
     if (user?.role === 'ASHA') {
       const assigned = user.assignedVillages || [];
       finalVillages = assigned.map(v => {
-        if (typeof v === 'string') {
-          return { id: v, name: v === user.villageId ? (user.village || v) : v };
-        } else if (v && typeof v === 'object') {
-          return {
-            id: v.id || v.villageId || v.value || '',
-            name: v.name || v.villageName || v.label || v.id || ''
-          };
-        }
-        return null;
-      }).filter(v => v && v.id);
+        const vId = typeof v === 'string' ? v : (v.id || v.villageId || v.value);
+        const actualVillage = allVillages.find(vil => vil.id === vId);
+        return actualVillage ? { id: actualVillage.id, name: actualVillage.name } : null;
+      }).filter(Boolean);
 
       if (finalVillages.length === 0 && user.villageId) {
-        finalVillages.push({ id: user.villageId, name: user.village || 'My Village' });
+        const primaryVil = allVillages.find(vil => vil.id === user.villageId);
+        finalVillages.push({ id: user.villageId, name: primaryVil ? primaryVil.name : (user.village || 'My Village') });
       }
     } else if (user?.role === 'ANM' || user?.role === 'MPW' || user?.role === 'CHO') {
       finalVillages = allVillages.filter(v => v.subCenterId === user.subCenterId);

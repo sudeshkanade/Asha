@@ -16,7 +16,7 @@ import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { db, auth } from '../database/firebaseConfig';
 import { collection, doc, getDoc, setDoc, getDocs, query, where, serverTimestamp, deleteDoc, writeBatch } from 'firebase/firestore';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { useTranslation } from 'react-i18next';
 import { cloudSyncManager } from '../database/cloudSync';
 
@@ -47,6 +47,8 @@ const LoginScreen = ({ onLogin }) => {
   const [migrationEmail, setMigrationEmail] = useState('');
   const [userToMigrate, setUserToMigrate] = useState(null);
   const [inlineError, setInlineError] = useState('');
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
 
   useEffect(() => {
     loadHierarchy();
@@ -293,6 +295,25 @@ const LoginScreen = ({ onLogin }) => {
       }
       setInlineError(errorMsg);
       Alert.alert(t('error'), errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!forgotEmail || !forgotEmail.includes('@')) {
+      Alert.alert(t('error'), t('invalidEmail', 'Please enter a valid email address.'));
+      return;
+    }
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, forgotEmail.trim());
+      Alert.alert(t('success'), t('passwordResetSent', 'Password reset email sent. Please check your inbox.'));
+      setShowForgotModal(false);
+      setForgotEmail('');
+    } catch (error) {
+      console.error("Forgot Password Error:", error);
+      Alert.alert(t('error'), error.message || t('passwordResetFailed', 'Failed to send password reset email.'));
     } finally {
       setLoading(false);
     }
@@ -642,6 +663,17 @@ const LoginScreen = ({ onLogin }) => {
           {!isRegister && (
             <TouchableOpacity 
               style={[styles.switchBtn, { marginTop: 15 }]} 
+              onPress={() => setShowForgotModal(true)}
+            >
+              <RNText style={{ color: COLORS.secondary, fontSize: 13, fontWeight: '700' }}>
+                {t('forgotPassword', 'Forgot Password?')}
+              </RNText>
+            </TouchableOpacity>
+          )}
+
+          {!isRegister && (
+            <TouchableOpacity 
+              style={[styles.switchBtn, { marginTop: 15 }]} 
               onPress={async () => {
                 setLoading(true);
                 await cloudSyncManager.pullFromCloud(null, true);
@@ -724,6 +756,47 @@ const LoginScreen = ({ onLogin }) => {
                 onPress={handleMigrateUser}
               >
                 <RNText style={styles.modalBtnText}>{t('upgrade', 'Upgrade')}</RNText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showForgotModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowForgotModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <RNText style={styles.modalTitle}>🔑 {t('resetPassword', 'Reset Password')}</RNText>
+            <RNText style={styles.modalDescription}>
+              {t('enterEmailToReset', 'Enter your email address to receive a password reset link.')}
+            </RNText>
+            
+            <TextInput
+              style={styles.input}
+              placeholder={t('email', 'Email')}
+              value={forgotEmail}
+              onChangeText={setForgotEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoFocus
+            />
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+              <TouchableOpacity 
+                style={[styles.mainBtn, { flex: 1, backgroundColor: '#64748B', marginTop: 0 }]} 
+                onPress={() => setShowForgotModal(false)}
+              >
+                <RNText style={styles.mainBtnText}>{t('cancel')}</RNText>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.mainBtn, { flex: 1, backgroundColor: COLORS.primary, marginTop: 0 }]} 
+                onPress={handleForgotPassword}
+              >
+                <RNText style={styles.mainBtnText}>{t('send', 'Send')}</RNText>
               </TouchableOpacity>
             </View>
           </View>

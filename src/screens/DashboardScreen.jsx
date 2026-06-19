@@ -19,6 +19,8 @@ import { useTranslation } from 'react-i18next';
 import { cloudSyncManager } from '../database/cloudSync';
 import { Alert, Platform } from 'react-native';
 import ClosedBuildingModal from '../components/ClosedBuildingModal';
+import { auth } from '../database/firebaseConfig';
+import { updatePassword } from 'firebase/auth';
 
 // BUG-H1 / OPT-3: Memoized task generation cache.
 // generateAllTasks is O(members * schedule_items) — expensive on 500+ member datasets.
@@ -56,6 +58,36 @@ const DashboardScreen = ({ user, onNavigate }) => {
   const [stockLoaded, setStockLoaded] = React.useState(false);
   const [showClosedModal, setShowClosedModal] = React.useState(false);
   const [showSpecialRegisters, setShowSpecialRegisters] = React.useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = React.useState(false);
+  const [newPassword, setNewPassword] = React.useState('');
+  const [isChangingPassword, setIsChangingPassword] = React.useState(false);
+
+  const handleChangePassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      Alert.alert(t('error'), t('passwordTooShort', 'Password must be at least 6 characters long.'));
+      return;
+    }
+    setIsChangingPassword(true);
+    try {
+      if (auth.currentUser) {
+        await updatePassword(auth.currentUser, newPassword);
+        Alert.alert(t('success'), t('passwordUpdated', 'Password updated successfully.'));
+        setShowChangePasswordModal(false);
+        setNewPassword('');
+      } else {
+        Alert.alert(t('error'), t('authRequired', 'You must be logged in with email to change your password.'));
+      }
+    } catch (e) {
+      console.error("Change Password Error:", e);
+      if (e.code === 'auth/requires-recent-login') {
+        Alert.alert(t('error'), t('recentLoginRequired', 'This operation is sensitive and requires recent authentication. Please log out and log in again before changing your password.'));
+      } else {
+        Alert.alert(t('error'), e.message || t('passwordUpdateFailed', 'Failed to update password.'));
+      }
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   const handleMasterExport = async () => {
     setExporting(true);
@@ -133,27 +165,6 @@ const DashboardScreen = ({ user, onNavigate }) => {
         });
       }
 
-      // Determine local villages list for ASHA
-      let localVillages = [];
-      if (user?.role === 'ASHA') {
-        const assigned = user.assignedVillages || [];
-        localVillages = assigned.map(v => {
-          if (typeof v === 'string') {
-            return { id: v, name: v === user.villageId ? (user.village || v) : v };
-          } else if (v && typeof v === 'object') {
-            return {
-              id: v.id || v.villageId || v.value || '',
-              name: v.name || v.villageName || v.label || v.id || ''
-            };
-          }
-          return null;
-        }).filter(v => v && v.id);
-
-        if (localVillages.length === 0 && user.villageId) {
-          localVillages.push({ id: user.villageId, name: user.village || 'My Village' });
-        }
-      }
-
       // BACKGROUND: Perform deep scan only if necessary or on a throttle
       // OPTIMIZATION: Fetch storage tables in parallel to prevent blocking calls
       const [allMembers, vEvents, vhndSessions, events, allVillages] = await Promise.all([
@@ -161,8 +172,24 @@ const DashboardScreen = ({ user, onNavigate }) => {
         storage.getAll(STORAGE_KEYS.VITAL_EVENTS),
         storage.getAll(STORAGE_KEYS.VHND_SESSIONS),
         storage.getAll(STORAGE_KEYS.SYNC_QUEUE),
-        user?.role === 'ASHA' ? Promise.resolve([]) : storage.getAll(STORAGE_KEYS.VILLAGES)
+        storage.getAll(STORAGE_KEYS.VILLAGES)
       ]);
+
+      // Determine local villages list for ASHA
+      let localVillages = [];
+      if (user?.role === 'ASHA') {
+        const assigned = user.assignedVillages || [];
+        localVillages = assigned.map(v => {
+          const vId = typeof v === 'string' ? v : (v.id || v.villageId || v.value);
+          const actualVillage = allVillages.find(vil => vil.id === vId);
+          return actualVillage ? { id: actualVillage.id, name: actualVillage.name } : null;
+        }).filter(Boolean);
+
+        if (localVillages.length === 0 && user.villageId) {
+          const primaryVil = allVillages.find(vil => vil.id === user.villageId);
+          localVillages.push({ id: user.villageId, name: primaryVil ? primaryVil.name : (user.village || 'My Village') });
+        }
+      }
 
       let finalVillages = user?.role === 'ASHA' ? localVillages : allVillages;
       if (user?.role === 'ANM') {
@@ -331,6 +358,12 @@ const DashboardScreen = ({ user, onNavigate }) => {
           <TouchableOpacity style={styles.langBtn} onPress={() => i18n.changeLanguage(i18n.language === 'en' ? 'mr' : 'en')}>
             <Text style={styles.langBtnText}>{i18n.language === 'en' ? 'मराठी' : 'EN'}</Text>
           </TouchableOpacity>
+
+          {auth.currentUser && (
+            <TouchableOpacity style={styles.syncContainer} onPress={() => setShowChangePasswordModal(true)}>
+              <Text style={styles.syncText}>🔑</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity style={styles.syncContainer} onPress={() => onNavigate('Login')}>
             <Text style={styles.syncText}>🚪</Text>
@@ -541,6 +574,39 @@ const DashboardScreen = ({ user, onNavigate }) => {
                 </TouchableOpacity>
               ))}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showChangePasswordModal} animationType="slide" transparent={true} onRequestClose={() => setShowChangePasswordModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center'}}>
+              <Text style={styles.modalTitle}>🔑 {t('changePassword', 'Change Password')}</Text>
+              <TouchableOpacity onPress={() => setShowChangePasswordModal(false)}>
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ marginBottom: 20 }}>
+              <TextInput
+                style={styles.widgetInput}
+                placeholder={t('newPassword', 'New Password')}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+              />
+              <TouchableOpacity 
+                style={[styles.widgetBtn, isChangingPassword && { opacity: 0.7 }]} 
+                onPress={handleChangePassword}
+                disabled={isChangingPassword}
+              >
+                {isChangingPassword ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <Text style={styles.widgetBtnText}>{t('updatePassword', 'Update Password')}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
