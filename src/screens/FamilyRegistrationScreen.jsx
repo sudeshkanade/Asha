@@ -43,13 +43,17 @@ const FamilyRegistrationScreen = ({ user, onSave, onBack, existingFamily }) => {
       const assigned = user.assignedVillages || [];
       scopedVillages = assigned.map(v => {
         const vId = typeof v === 'string' ? v : (v.id || v.villageId || v.value);
-        const actualVillage = allVillages.find(vil => vil.id === vId || vil.name?.toLowerCase().trim() === vId?.toLowerCase().trim());
+        const actualVillage = allVillages.find(vil => vil.id === vId || vil.name?.toLowerCase().trim() === String(vId).toLowerCase().trim());
         return actualVillage ? { id: actualVillage.id, name: actualVillage.name, ward: actualVillage.ward } : null;
       }).filter(Boolean);
 
       if (scopedVillages.length === 0 && user.villageId) {
-        const primaryVil = allVillages.find(vil => vil.id === user.villageId);
-        scopedVillages.push({ id: user.villageId, name: primaryVil ? primaryVil.name : (user.village || 'My Village') });
+        const primaryVil = allVillages.find(vil => vil.id === user.villageId || vil.name?.toLowerCase().trim() === String(user.villageId).toLowerCase().trim());
+        if (primaryVil) {
+          scopedVillages.push({ id: primaryVil.id, name: primaryVil.name, ward: primaryVil.ward });
+        } else {
+          scopedVillages.push({ id: user.villageId, name: user.village || 'My Village' });
+        }
       }
     } else {
       scopedVillages = allVillages;

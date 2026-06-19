@@ -63,13 +63,17 @@ const MPRReportScreen = ({ user, onBack }) => {
       const assigned = user.assignedVillages || [];
       finalVillages = assigned.map(v => {
         const vId = typeof v === 'string' ? v : (v.id || v.villageId || v.value);
-        const actualVillage = allVillages.find(vil => vil.id === vId || vil.name?.toLowerCase().trim() === vId?.toLowerCase().trim());
+        const actualVillage = allVillages.find(vil => vil.id === vId || vil.name?.toLowerCase().trim() === String(vId).toLowerCase().trim());
         return actualVillage ? { id: actualVillage.id, name: actualVillage.name } : null;
       }).filter(Boolean);
 
       if (finalVillages.length === 0 && user.villageId) {
-        const primaryVil = allVillages.find(vil => vil.id === user.villageId);
-        finalVillages.push({ id: user.villageId, name: primaryVil ? primaryVil.name : (user.village || 'My Village') });
+        const primaryVil = allVillages.find(vil => vil.id === user.villageId || vil.name?.toLowerCase().trim() === String(user.villageId).toLowerCase().trim());
+        if (primaryVil) {
+          finalVillages.push({ id: primaryVil.id, name: primaryVil.name });
+        } else {
+          finalVillages.push({ id: user.villageId, name: user.village || 'My Village' });
+        }
       }
     } else if (user?.role === 'ANM' || user?.role === 'MPW' || user?.role === 'CHO') {
       finalVillages = allVillages.filter(v => v.subCenterId === user.subCenterId);

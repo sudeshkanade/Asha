@@ -181,13 +181,17 @@ const DashboardScreen = ({ user, onNavigate }) => {
         const assigned = user.assignedVillages || [];
         localVillages = assigned.map(v => {
           const vId = typeof v === 'string' ? v : (v.id || v.villageId || v.value);
-          const actualVillage = allVillages.find(vil => vil.id === vId || vil.name?.toLowerCase().trim() === vId?.toLowerCase().trim());
+          const actualVillage = allVillages.find(vil => vil.id === vId || vil.name?.toLowerCase().trim() === String(vId).toLowerCase().trim());
           return actualVillage ? { id: actualVillage.id, name: actualVillage.name } : { id: vId, name: vId };
         }).filter(Boolean);
 
         if (localVillages.length === 0 && user.villageId) {
-          const primaryVil = allVillages.find(vil => vil.id === user.villageId);
-          localVillages.push({ id: user.villageId, name: primaryVil ? primaryVil.name : (user.village || 'My Village') });
+          const primaryVil = allVillages.find(vil => vil.id === user.villageId || vil.name?.toLowerCase().trim() === String(user.villageId).toLowerCase().trim());
+          if (primaryVil) {
+            localVillages.push({ id: primaryVil.id, name: primaryVil.name });
+          } else {
+            localVillages.push({ id: user.villageId, name: user.village || 'My Village' });
+          }
         }
       }
 
