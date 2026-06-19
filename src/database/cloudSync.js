@@ -440,8 +440,16 @@ export const cloudSyncManager = {
                     ? getDocs(query(collection(db, col.table), where('villageId', 'in', batch), where('lastUpdatedAt', '>', lastPullTimestamp)))
                     : getDocs(query(collection(db, col.table), where('villageId', 'in', batch)));
                     
-                  ashaQueries.push(queryPromise.catch(err => {
-                    console.warn(`⚠️ CloudSync ASHA batch error on ${col.table} (Index missing?). Click link to create index:`, err.message);
+                  ashaQueries.push(queryPromise.catch(async err => {
+                    if (err.message && err.message.includes('index')) {
+                      console.warn(`⚠️ CloudSync ASHA batch error on ${col.table} (Index missing), falling back to full fetch.`, err.message);
+                      try {
+                        return await getDocs(query(collection(db, col.table), where('villageId', 'in', batch)));
+                      } catch (fallbackErr) {
+                        return { forEach: () => {} };
+                      }
+                    }
+                    console.warn(`⚠️ CloudSync ASHA batch error on ${col.table}:`, err.message);
                     return { forEach: () => {} }; // Dummy empty snapshot
                   }));
                 });
@@ -450,8 +458,16 @@ export const cloudSyncManager = {
                   ? getDocs(query(collection(db, col.table), where('ashaId', '==', user.id || 'FORCE_BLOCK'), where('lastUpdatedAt', '>', lastPullTimestamp)))
                   : getDocs(query(collection(db, col.table), where('ashaId', '==', user.id || 'FORCE_BLOCK')));
                   
-                ashaQueries.push(ashaIdPromise.catch(err => {
-                  console.warn(`⚠️ CloudSync ASHA id query error on ${col.table} (Index missing?). Click link to create index:`, err.message);
+                ashaQueries.push(ashaIdPromise.catch(async err => {
+                  if (err.message && err.message.includes('index')) {
+                    console.warn(`⚠️ CloudSync ASHA id query index missing on ${col.table}, falling back.`, err.message);
+                    try {
+                      return await getDocs(query(collection(db, col.table), where('ashaId', '==', user.id || 'FORCE_BLOCK')));
+                    } catch (e) {
+                      return { forEach: () => {} };
+                    }
+                  }
+                  console.warn(`⚠️ CloudSync ASHA id query error on ${col.table}:`, err.message);
                   return { forEach: () => {} }; // Dummy empty snapshot
                 }));
 
