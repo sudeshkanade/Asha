@@ -148,7 +148,13 @@ export const storage = {
             const matchedV = villages.find(v => v.name?.toLowerCase().trim() === vName);
             if (matchedV) {
               villageId = matchedV.id;
-              subCenterId = subCenterId || matchedV.subCenterId;
+            }
+          }
+
+          if (villageId && !subCenterId) {
+            const matchedV = villages.find(v => v.id === villageId);
+            if (matchedV) {
+              subCenterId = matchedV.subCenterId;
             }
           }
 
@@ -205,9 +211,12 @@ export const storage = {
 
       if (key === STORAGE_KEYS.FAMILIES) {
         let villages = [];
+        let subCenters = [];
         try {
           const vValue = await AsyncStorage.getItem(STORAGE_KEYS.VILLAGES);
           villages = vValue ? JSON.parse(vValue) : [];
+          const scValue = await AsyncStorage.getItem(STORAGE_KEYS.SUB_CENTERS);
+          subCenters = scValue ? JSON.parse(scValue) : [];
         } catch (e) {}
 
         const mappedFamilies = parsed.map(f => {
@@ -220,7 +229,20 @@ export const storage = {
             const matchedV = villages.find(v => v.name?.toLowerCase().trim() === vName);
             if (matchedV) {
               villageId = matchedV.id;
-              subCenterId = subCenterId || matchedV.subCenterId;
+            }
+          }
+
+          if (villageId && !subCenterId) {
+            const matchedV = villages.find(v => v.id === villageId);
+            if (matchedV) {
+              subCenterId = matchedV.subCenterId;
+            }
+          }
+
+          if (subCenterId && !phcId) {
+            const matchedSC = subCenters.find(sc => sc.id === subCenterId);
+            if (matchedSC) {
+              phcId = matchedSC.phcId;
             }
           }
 
