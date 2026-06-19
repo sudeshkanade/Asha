@@ -43,6 +43,17 @@ const WorkplanScreen = ({ user, onBack, onNavigate }) => {
       members = allMembers.filter(m => m.subCenterId === user.subCenterId);
     }
 
+    const allVillages = await storage.getAll(STORAGE_KEYS.VILLAGES);
+    const villagesMap = new Map(allVillages.map(v => [v.id || v.villageId, v]));
+
+    // Inject actual village name into members if missing
+    members = members.map(m => {
+      if (!m.villageName && m.villageId && villagesMap.has(m.villageId)) {
+        return { ...m, villageName: villagesMap.get(m.villageId).name };
+      }
+      return m;
+    });
+
     const allTasks = generateAllTasks(members);
     
     // Filter for "Today" (or due before today and not done)

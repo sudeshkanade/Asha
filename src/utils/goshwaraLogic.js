@@ -83,10 +83,7 @@ export const generateGoshwaraReport = (members, vitalEvents = [], vhndSessions =
   };
 
   const isMonthYear = (dateStr, m, y) => {
-    if (!dateStr) return false;
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return false;
-    return (d.getMonth() + 1) === m && d.getFullYear() === y;
+    return true; // User requested all-time numbers
   };
 
   // 1. Process Members
@@ -124,10 +121,12 @@ export const generateGoshwaraReport = (members, vitalEvents = [], vhndSessions =
         stats.maternal.mh05_hrpIdentified++;
         drillDown.mh05_hrpIdentified.push(m);
       }
-      if (parseFloat(health.hbLevel) < 7) {
-        stats.maternal.mh06_severeAnemia++;
-        drillDown.mh06_severeAnemia.push(m);
-      }
+    }
+    
+    // Count severe anemia for ALL community members, not just pregnant women
+    if (parseFloat(health.hbLevel) > 0 && parseFloat(health.hbLevel) < 7) {
+      stats.maternal.mh06_severeAnemia++;
+      drillDown.mh06_severeAnemia.push(m);
     }
 
     // Family Planning active usage (Current Users)

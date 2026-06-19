@@ -458,8 +458,8 @@ export const generateAllTasks = (members) => {
       malStatus = getMalnutritionStatus(weight, ageMonths, member.gender);
     }
     
-    const isSam = (muac > 0 && muac < 11.5) || malStatus === 'SAM';
-    const isMam = (muac >= 11.5 && muac < 12.5) || malStatus === 'MAM';
+    const isSam = (!isNaN(muac) && muac > 0 && muac < 11.5) || malStatus === 'SAM';
+    const isMam = (!isNaN(muac) && muac >= 11.5 && muac < 12.5) || malStatus === 'MAM';
 
     // SAFETY-2 FIX: WHO SAM/MAM classification applies to children 6-59 months (under 5 years).
     // Using age < 5 (strictly less than) instead of age <= 5 to match the WHO definition.

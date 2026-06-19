@@ -311,7 +311,7 @@ const VitalEventsScreen = ({ user, onBack }) => {
     // Reset form
     setFormData({
       date: new Date().toISOString().split('T')[0], name: '', gender: 'Male', place: 'Hospital',
-      motherName: '', birthWeight: '', deliveryType: 'Normal', causeOfDeath: '', ageAtDeath: '', hospitalName: '',
+      motherName: '', birthWeight: '', deliveryType: 'Normal', isSBA: false, causeOfDeath: '', ageAtDeath: '', hospitalName: '',
     });
     setSelectedMemberId(null);
     setSearchQuery('');
@@ -526,8 +526,8 @@ const VitalEventsScreen = ({ user, onBack }) => {
         {events.length > 0 && (
           <View style={[styles.card, { marginTop: 16 }]}>
             <Text style={styles.sectionTitle}>{t('recentEvents')}</Text>
-            {events.slice(-5).reverse().map((e, i) => (
-              <View key={i} style={styles.eventRow}>
+            {events.slice(0, 5).map((e) => (
+              <View key={e.id} style={styles.eventRow}>
                 <Text style={styles.eventIcon}>{e.type === 'Birth' ? '👶' : '🕊️'}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.eventName}>{e.memberName || e.name}</Text>

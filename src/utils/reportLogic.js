@@ -11,13 +11,9 @@ export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], p
   const currentMonth = selectedMonth !== null ? selectedMonth : now.getMonth();
   const currentYear = selectedYear !== null ? selectedYear : now.getFullYear();
 
-  // Filter helper: Only records from the selected calendar month and year
+  // Filter helper: User requested to show all numbers, not monthly
   const isCurrentMonth = (dateStr) => {
-    if (!dateStr) return false;
-    const ts = typeof dateStr === 'number' ? dateStr : Date.parse(dateStr);
-    if (isNaN(ts)) return false;
-    const date = new Date(ts);
-    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+    return true;
   };
 
   // 1. Maternal Stats
@@ -49,9 +45,12 @@ export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], p
         maternalStats.newANC++;
         if (health.isHighRisk) maternalStats.highRiskTotal++; // Monthly for MPR Report
       }
-      if (parseFloat(health.hbLevel) > 0 && parseFloat(health.hbLevel) < 7) {
-        maternalStats.severeAnemia++;
       }
+    }
+    
+    // Count severe anemia for ALL community members
+    if (parseFloat(health.hbLevel) > 0 && parseFloat(health.hbLevel) < 7) {
+      maternalStats.severeAnemia++;
     }
   });
 

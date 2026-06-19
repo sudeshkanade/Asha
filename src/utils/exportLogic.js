@@ -222,11 +222,11 @@ export const exportMasterPopulation = async (user, filterType = null, additional
           case 'NEW_ANC':
             return !!health.edd || health.isPregnant || health.ancStatus === 'active';
           case 'HIGH_RISK_ANC':
-            return !!health.isHighRisk;
+            return !!health.isHighRisk && (!!health.edd || health.isPregnant || health.ancStatus === 'active' || health.ancStatus === 'registered');
           case 'SEVERE_ANEMIA':
             return parseFloat(health.hbLevel) > 0 && parseFloat(health.hbLevel) < 7;
           case 'SAM_CHILDREN':
-            return health.malnutritionStatus === 'high_risk' || health.malnutritionStatus === 'SAM';
+            return health.malnutritionStatus === 'SAM';
           case 'NCD_SCREENING':
             return age >= 30 && (health.bpSystolic || health.sugarLevel || health.hasNcd);
           case 'ELIGIBLE_COUPLE':

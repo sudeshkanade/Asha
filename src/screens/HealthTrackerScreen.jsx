@@ -10,6 +10,7 @@ import {
   Alert,
   Switch,
   Platform,
+  Modal
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { calculateChildSchedule, shouldShowMaternalFields, ANC_RISK_FACTORS, calculateVaccinationSchedule } from '../utils/healthLogic';
@@ -136,6 +137,8 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
   if (isEC) tabs.push('FP');
 
   const [activeTab, setActiveTab] = useState(initialTab && tabs.includes(initialTab) ? initialTab : (tabs[0] || 'NCD'));
+  const [showDowngradeModal, setShowDowngradeModal] = useState(false);
+  const [downgradeReason, setDowngradeReason] = useState('');
 
   const fpMethods = [
     { label: t('none'), value: 'none' },
@@ -486,16 +489,8 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
     const isDowngrade = member?.healthData?.isHighRisk === true && finalIsHighRisk === false;
 
     if (isDowngrade) {
-      if (Platform.OS === 'web') {
-        const reason = window.prompt(t('governanceAlertPrompt', "⚠️ Governance Alert: You are marking a High-Risk case as NORMAL. Please enter clinical justification:"));
-        if (!reason) {
-          Alert.alert(t('required', 'Required'), t('justificationMandatory', 'Justification is mandatory for risk downgrades.'));
-          return;
-        }
-        persistData(reason);
-      } else {
-        Alert.alert(t('governanceRequired', 'Governance Required'), t('justifyDowngrade', 'Please justify the risk downgrade in the clinical notes before saving.'));
-      }
+      setDowngradeReason('');
+      setShowDowngradeModal(true);
       return;
     }
 
@@ -513,6 +508,30 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
       }
     } else {
       persistData();
+    }
+  };
+
+  const handleConfirmDowngrade = () => {
+    if (!downgradeReason.trim()) {
+      Alert.alert(t('required', 'Required'), t('justificationMandatory', 'Justification is mandatory for risk downgrades.'));
+      return;
+    }
+    setShowDowngradeModal(false);
+
+    const redFlags = checkRedFlags();
+    if (redFlags.length > 0) {
+      if (Platform.OS === 'web') {
+        if (window.confirm('🚨 ' + t('clinicalAlert') + '\n\n' + redFlags.join('\n\n') + '\n\n' + t('ackAndSaveConfirm'))) {
+          persistData(downgradeReason);
+        }
+      } else {
+        Alert.alert('🚨 ' + t('clinicalAlert'), redFlags.join('\n\n'), [
+          { text: t('cancel'), style: 'cancel' },
+          { text: t('ackAndSave'), onPress: () => persistData(downgradeReason) }
+        ]);
+      }
+    } else {
+      persistData(downgradeReason);
     }
   };
 
@@ -1152,10 +1171,38 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
           </View>
         )}
 
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveButtonText}>{t('saveContinue')}</Text>
+        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+          <Text style={styles.saveBtnText}>{t('saveRecords', 'Save Records')}</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Downgrade Justification Modal */}
+      <Modal visible={showDowngradeModal} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={[styles.modalTitle, { color: COLORS.error }]}>⚠️ {t('governanceAlert', 'Governance Alert')}</Text>
+            <Text style={styles.modalText}>{t('governanceAlertDesc', 'You are marking a High-Risk case as NORMAL. Please enter clinical justification:')}</Text>
+            
+            <TextInput 
+              style={[styles.input, { height: 80, textAlignVertical: 'top', marginTop: 12 }]} 
+              multiline
+              numberOfLines={3}
+              placeholder={t('enterJustification', 'Clinical reasoning...')}
+              value={downgradeReason} 
+              onChangeText={setDowngradeReason} 
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowDowngradeModal(false)}>
+                <Text style={styles.modalCancelText}>{t('cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalSaveBtn} onPress={handleConfirmDowngrade}>
+                <Text style={styles.modalSaveText}>{t('confirm', 'Confirm')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -1195,13 +1242,29 @@ const styles = StyleSheet.create({
   visitDate: { fontSize: 13, fontWeight: '600', color: COLORS.primary },
   vaccineList: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2, fontStyle: 'italic' },
   emptyText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', padding: 20 },
-  saveButton: { height: 52, backgroundColor: COLORS.primary, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
-  saveButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-  pickerContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  chip: { paddingHorizontal: 16, paddingVertical: 12, minHeight: 44, borderRadius: 22, borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
+  pickerContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    paddingHorizontal: 16, paddingVertical: 12, minHeight: 44, borderRadius: 22,
+    borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#FFF',
+    justifyContent: 'center', alignItems: 'center',
+  },
   chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   chipText: { fontSize: 13, color: COLORS.textSecondary },
-  chipTextActive: { color: '#FFF', fontWeight: '700' },
+  chipTextActive: { color: '#FFF', fontWeight: '600' },
+  checkboxLabel: { fontSize: 16, color: COLORS.text, flex: 1 },
+  saveBtn: {
+    backgroundColor: COLORS.primary, padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 24, marginBottom: 40,
+  },
+  saveBtnText: { color: '#FFF', fontSize: 18, fontWeight: '700' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
+  modalContent: { backgroundColor: '#FFF', borderRadius: 16, padding: 20 },
+  modalTitle: { fontSize: 18, fontWeight: '800', marginBottom: 8, color: COLORS.text },
+  modalText: { fontSize: 14, color: COLORS.textSecondary },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 16 },
+  modalCancelBtn: { paddingVertical: 10, paddingHorizontal: 16 },
+  modalCancelText: { color: COLORS.textSecondary, fontWeight: '700' },
+  modalSaveBtn: { backgroundColor: COLORS.error, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8 },
+  modalSaveText: { color: '#FFF', fontWeight: '700' },
 });
 
 export default HealthTrackerScreen;

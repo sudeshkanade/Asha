@@ -43,7 +43,7 @@ const FamilyRegistrationScreen = ({ user, onSave, onBack, existingFamily }) => {
       const assigned = user.assignedVillages || [];
       scopedVillages = assigned.map(v => {
         const vId = typeof v === 'string' ? v : (v.id || v.villageId || v.value);
-        const actualVillage = allVillages.find(vil => vil.id === vId);
+        const actualVillage = allVillages.find(vil => vil.id === vId || vil.name?.toLowerCase().trim() === vId?.toLowerCase().trim());
         return actualVillage ? { id: actualVillage.id, name: actualVillage.name, ward: actualVillage.ward } : null;
       }).filter(Boolean);
 

@@ -181,8 +181,8 @@ const DashboardScreen = ({ user, onNavigate }) => {
         const assigned = user.assignedVillages || [];
         localVillages = assigned.map(v => {
           const vId = typeof v === 'string' ? v : (v.id || v.villageId || v.value);
-          const actualVillage = allVillages.find(vil => vil.id === vId);
-          return actualVillage ? { id: actualVillage.id, name: actualVillage.name } : null;
+          const actualVillage = allVillages.find(vil => vil.id === vId || vil.name?.toLowerCase().trim() === vId?.toLowerCase().trim());
+          return actualVillage ? { id: actualVillage.id, name: actualVillage.name } : { id: vId, name: vId };
         }).filter(Boolean);
 
         if (localVillages.length === 0 && user.villageId) {
@@ -305,7 +305,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
         <View style={{ flex: 1, marginRight: 8 }}>
           <Text style={styles.headerTitle} numberOfLines={1}>{user?.role === 'ASHA' ? t('asha') : user?.role} {t('dashboard', 'Dashboard')}</Text>
           <Text style={styles.headerSubtitle} numberOfLines={1}>
-            {user?.role === 'ASHA' ? `${user.village} (${t('ward')} ${user.ward || t('na')})` : user?.name}
+            {user?.role === 'ASHA' ? `${villages.find(v => v.id === user.villageId)?.name || user.village} (${t('ward')} ${user.ward || t('na')})` : user?.name}
           </Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -507,6 +507,14 @@ const DashboardScreen = ({ user, onNavigate }) => {
             <TouchableOpacity style={[styles.shortcutCard, { backgroundColor: '#F0FDF4' }]} onPress={() => onNavigate('Workplan')}>
               <Text style={styles.shortcutIcon}>📅</Text>
               <Text style={styles.shortcutLabel}>{t('workplan')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.shortcutCard, { backgroundColor: '#FFF7ED' }]} onPress={() => onNavigate('Logistics')}>
+              <Text style={styles.shortcutIcon}>📦</Text>
+              <Text style={styles.shortcutLabel}>{t('stockManagement', 'Logistics & Stock')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.shortcutCard, { backgroundColor: '#FFF1F2' }]} onPress={() => onNavigate('Surveillance')}>
+              <Text style={styles.shortcutIcon}>🦟</Text>
+              <Text style={styles.shortcutLabel}>{t('idspSurveillance', 'Surveillance')}</Text>
             </TouchableOpacity>
             {user?.role !== 'ASHA' && (
               <TouchableOpacity style={[styles.shortcutCard, { backgroundColor: '#F1F5F9' }]} onPress={() => onNavigate('AdminSetup')}>

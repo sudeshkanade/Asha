@@ -10,7 +10,8 @@ import {
   Alert,
   TextInput,
   ActivityIndicator,
-  Platform
+  Platform,
+  Modal
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
@@ -22,6 +23,8 @@ const LogisticsScreen = ({ user, onBack }) => {
   const [stock, setStock] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tempLogs, setTempLogs] = useState([]);
+  const [showTempModal, setShowTempModal] = useState(false);
+  const [tempInput, setTempInput] = useState('');
 
   useEffect(() => {
     loadData();
@@ -37,20 +40,27 @@ const LogisticsScreen = ({ user, onBack }) => {
   };
 
   const handleUpdateStock = async (item, change) => {
+    const currentQty = item.currentQuantity ?? 0;
     const updatedItem = { 
       ...item, 
-      currentQuantity: Math.max(0, item.currentQuantity + change) 
+      currentQuantity: Math.max(0, currentQty + change) 
     };
     
     setStock(prev => prev.map(i => i.id === item.id ? updatedItem : i));
     await storage.save(STORAGE_KEYS.STOCK, updatedItem);
+    // BUG-LOG-1 FIX: Add to sync queue so stock changes are pushed to cloud
+    await storage.addToSyncQueue(STORAGE_KEYS.STOCK, updatedItem);
   };
 
-  const handleLogTemp = async () => {
-    // RUTHLESS FIX: Native Crash Prevention
-    const temp = Platform.OS === 'web' ? window.prompt(t('enterIlrTemp')) : null;
+  const handleLogTemp = () => {
+    setTempInput('');
+    setShowTempModal(true);
+  };
+
+  const saveTempLog = async () => {
+    const temp = tempInput;
     if (!temp || isNaN(temp)) {
-      if (Platform.OS !== 'web') Alert.alert(t('featureNotice'), t('tempFeatureWebOnly'));
+      Alert.alert(t('error'), t('invalidInput', 'Please enter a valid temperature'));
       return;
     }
 
@@ -66,14 +76,18 @@ const LogisticsScreen = ({ user, onBack }) => {
     const updatedLogs = [newLog, ...tempLogs];
     setTempLogs(updatedLogs);
     await storage.save(STORAGE_KEYS.COLD_CHAIN, newLog);
+    setShowTempModal(false);
     
     if (newLog.status === 'Critical') {
       Alert.alert(t('tempAlertTitle'), t('tempAlertMsg', { temp }));
+    } else {
+      Alert.alert(t('success'), t('temperatureLogged', 'Temperature logged successfully'));
     }
   };
 
   const renderStockItem = ({ item }) => {
-    const isLow = item.currentQuantity <= item.minThreshold;
+    // BUG-LOG-2 FIX: Guard against undefined minThreshold/currentQuantity
+    const isLow = (item.minThreshold !== undefined) && ((item.currentQuantity ?? 0) <= item.minThreshold);
     return (
       <View style={styles.stockCard}>
         <View style={styles.stockHeader}>
@@ -178,6 +192,33 @@ const LogisticsScreen = ({ user, onBack }) => {
           </View>
         )}
       </View>
+
+      {/* Temperature Logging Modal */}
+      <Modal visible={showTempModal} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>{t('logTemperature', 'Log ILR Temperature')}</Text>
+            
+            <Text style={styles.modalLabel}>{t('enterIlrTemp', 'Enter Temperature (°C)')}</Text>
+            <TextInput 
+              style={styles.modalInput} 
+              keyboardType="numeric" 
+              value={tempInput} 
+              onChangeText={setTempInput} 
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowTempModal(false)}>
+                <Text style={styles.modalCancelText}>{t('cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalSaveBtn} onPress={saveTempLog}>
+                <Text style={styles.modalSaveText}>{t('save')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 };
@@ -227,7 +268,17 @@ const styles = StyleSheet.create({
   logUser: { fontSize: 14, fontWeight: '600', color: COLORS.text },
   logTemp: { fontSize: 20, fontWeight: '900' },
   logStatus: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
-  emptyText: { textAlign: 'center', marginTop: 40, color: COLORS.textSecondary },
+  emptyText: { textAlign: 'center', marginTop: 40, color: COLORS.textSecondary, fontSize: 16 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
+  modalContent: { backgroundColor: '#FFF', borderRadius: 16, padding: 20 },
+  modalTitle: { fontSize: 18, fontWeight: '800', marginBottom: 16, color: COLORS.text },
+  modalLabel: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 8 },
+  modalInput: { borderWidth: 1, borderColor: '#CCC', borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 16, backgroundColor: '#FAFAFA' },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
+  modalCancelBtn: { paddingVertical: 10, paddingHorizontal: 16 },
+  modalCancelText: { color: COLORS.error, fontWeight: '700' },
+  modalSaveBtn: { backgroundColor: COLORS.primary, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8 },
+  modalSaveText: { color: '#FFF', fontWeight: '700' },
   indentRow: {
     flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12,
     borderBottomWidth: 1, borderBottomColor: '#EEE',

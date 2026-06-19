@@ -138,7 +138,7 @@ export const storage = {
           subCenters = scValue ? JSON.parse(scValue) : [];
         } catch (e) {}
 
-        return parsed.map(m => {
+        const mappedMembers = parsed.map(m => {
           let villageId = m.villageId;
           let subCenterId = m.subCenterId;
           let phcId = m.phcId;
@@ -199,6 +199,8 @@ export const storage = {
             healthData
           };
         });
+        _cacheSet(key, mappedMembers);
+        return mappedMembers;
       }
 
       if (key === STORAGE_KEYS.FAMILIES) {
@@ -208,7 +210,7 @@ export const storage = {
           villages = vValue ? JSON.parse(vValue) : [];
         } catch (e) {}
 
-        return parsed.map(f => {
+        const mappedFamilies = parsed.map(f => {
           let villageId = f.villageId;
           let subCenterId = f.subCenterId;
           let phcId = f.phcId;
@@ -229,6 +231,8 @@ export const storage = {
             phcId
           };
         });
+        _cacheSet(key, mappedFamilies);
+        return mappedFamilies;
       }
 
       // OPT-1: Cache the result for hot collections
