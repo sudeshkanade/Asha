@@ -71,6 +71,13 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
     let scopedFamilies = f;
     if (user?.role === 'ASHA') {
       scopedFamilies = f.filter(fam => assignedIds.has(fam.villageId) || !fam.villageId || fam.ashaId === user.id);
+      
+      // Temporary debug alert to diagnose the 0 families issue
+      if (Platform.OS === 'web') {
+        window.alert(`Debug: f.length=${f.length}, scopedFamilies=${scopedFamilies.length}, assignedIds=${Array.from(assignedIds).join(',')}`);
+      } else {
+        Alert.alert('Debug', `f.length=${f.length}, scopedFamilies=${scopedFamilies.length}, assignedIds=${Array.from(assignedIds).join(',')}`);
+      }
     } else if (user?.role === 'ANM') {
       scopedFamilies = f.filter(fam => fam.subCenterId === user.subCenterId || !fam.subCenterId);
     } else if (user?.role === 'MO') {
