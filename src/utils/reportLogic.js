@@ -45,7 +45,6 @@ export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], p
         maternalStats.newANC++;
         if (health.isHighRisk) maternalStats.highRiskTotal++; // Monthly for MPR Report
       }
-      }
     }
     
     // Count severe anemia for ALL community members

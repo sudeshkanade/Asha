@@ -203,7 +203,6 @@ const SurveillanceScreen = ({ user, onBack }) => {
               <Text style={styles.featureDesc}>{t('contactTracingDesc')}</Text>
             </View>
           </View>
-          </View>
         )}
       </ScrollView>
 
