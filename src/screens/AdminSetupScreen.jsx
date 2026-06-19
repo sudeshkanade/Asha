@@ -36,6 +36,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
   const [newSubCenter, setNewSubCenter] = useState({ name: '', phcId: isAdmin ? '' : user?.phcId });
   const [newVillage, setNewVillage] = useState({ name: '', subCenterId: '', ward: '' });
   const [editingItem, setEditingItem] = useState(null); // { type, id }
+  const [editUserData, setEditUserData] = useState({ phcId: '', subCenterId: '', villageId: '', assignedVillages: [], role: '' });
 
   useEffect(() => {
     loadData();
@@ -188,14 +189,64 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
       setLoading(false);
     }
   };
+
+  const handleUpdateUser = async () => {
+    if (!editingItem || editingItem.type !== 'users') return;
+    
+    try {
+      setLoading(true);
+      await storage.update(STORAGE_KEYS.USERS, (usersList) => {
+        const idx = usersList.findIndex(u => u.id === editingItem.id);
+        if (idx >= 0) {
+          const selectedPHC = phcs.find(p => p.id === editUserData.phcId);
+          const selectedSC = subCenters.find(sc => sc.id === editUserData.subCenterId);
+          const primaryVillageId = editUserData.assignedVillages.length > 0 ? editUserData.assignedVillages[0] : editUserData.villageId;
+          const selectedVillage = villages.find(v => v.id === primaryVillageId);
+
+          usersList[idx] = {
+            ...usersList[idx],
+            phcId: editUserData.phcId || '',
+            subCenterId: editUserData.subCenterId || '',
+            villageId: primaryVillageId || '',
+            assignedVillages: editUserData.assignedVillages || [],
+            phcName: selectedPHC?.name || '',
+            subCenterName: selectedSC?.name || '',
+            villageName: selectedVillage?.name || '',
+            village: selectedVillage?.name || '',
+            syncStatus: 'pending',
+            lastUpdatedAt: Date.now()
+          };
+        }
+        return usersList;
+      });
+
+      const updatedUser = (await storage.getAll(STORAGE_KEYS.USERS)).find(u => u.id === editingItem.id);
+      if (updatedUser) await storage.addToSyncQueue(STORAGE_KEYS.USERS, updatedUser);
+      
+      await cloudSyncManager.startBackgroundSync();
+      Alert.alert(t('success'), t('userUpdated', 'User updated successfully.'));
+      setEditingItem(null);
+      await loadData();
+    } catch (e) {
+      Alert.alert(t('error'), t('updateUserFailed', 'Failed to update user.'));
+    } finally {
+      setLoading(false);
+    }
+  };
   const handleEditStart = (type, item) => {
     setEditingItem({ type, id: item.id });
     if (type === 'phcs') setNewPhc({ name: item.name, block: item.block });
     if (type === 'sc') setNewSubCenter({ name: item.name, phcId: item.phcId });
     if (type === 'villages') setNewVillage({ name: item.name, subCenterId: item.subCenterId, ward: item.ward });
-    
-    // Scroll to top to see the form
-    // Note: ScrollView ref would be better but this works for focus
+    if (type === 'users') {
+      setEditUserData({
+        phcId: item.phcId || '',
+        subCenterId: item.subCenterId || '',
+        villageId: item.villageId || '',
+        assignedVillages: item.assignedVillages || (item.villageId ? [item.villageId] : []),
+        role: item.role
+      });
+    }
   };
 
   const handleCancelEdit = () => {
@@ -203,6 +254,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
     setNewPhc({ name: '', block: '' });
     setNewSubCenter({ name: '', phcId: isAdmin ? '' : user?.phcId });
     setNewVillage({ name: '', subCenterId: '', ward: '' });
+    setEditUserData({ phcId: '', subCenterId: '', villageId: '', assignedVillages: [], role: '' });
   };
 
   const handleDeletePhc = async (id, name) => {
@@ -752,14 +804,88 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
         )}
         {activeTab === 'users' && (
           <View>
-            <View style={styles.infoBox}>
-              <Text style={styles.infoLabel}>{t('roleBasedControl')}:</Text>
-              <Text style={styles.infoValue}>
-                {isAdmin ? t('fullAdmin') : 
-                 user.role === 'MO' ? `${t('phcSupervisor')} (${user.phcName})` : 
-                 `${t('scSupervisor')} (${user.subCenterName})`}
-              </Text>
-            </View>
+            {editingItem?.type === 'users' ? (
+              <View style={styles.formCard}>
+                <Text style={styles.cardTitle}>{t('editUser', 'Edit User Assignment')}</Text>
+                
+                {isAdmin && (
+                  <>
+                    <Text style={styles.label}>{t('phc')}</Text>
+                    <View style={styles.chipGrid}>
+                      {phcs.map(p => (
+                        <TouchableOpacity 
+                          key={p.id}
+                          style={[styles.chip, editUserData.phcId === p.id && styles.activeChip]}
+                          onPress={() => setEditUserData({...editUserData, phcId: p.id, subCenterId: '', assignedVillages: []})}
+                        >
+                          <Text style={[styles.chipText, editUserData.phcId === p.id && styles.activeChipText]}>{p.name}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                {(editUserData.role === 'ASHA' || editUserData.role === 'ANM') && editUserData.phcId && (
+                  <>
+                    <Text style={styles.label}>{t('subCenter')}</Text>
+                    <View style={styles.chipGrid}>
+                      {subCenters.filter(sc => sc.phcId === editUserData.phcId).map(sc => (
+                        <TouchableOpacity 
+                          key={sc.id}
+                          style={[styles.chip, editUserData.subCenterId === sc.id && styles.activeChip]}
+                          onPress={() => setEditUserData({...editUserData, subCenterId: sc.id, assignedVillages: []})}
+                        >
+                          <Text style={[styles.chipText, editUserData.subCenterId === sc.id && styles.activeChipText]}>{sc.name}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                {editUserData.role === 'ASHA' && editUserData.subCenterId && (
+                  <>
+                    <Text style={styles.label}>{t('assignedVillages', 'Assigned Villages')}</Text>
+                    <View style={styles.chipGrid}>
+                      {villages.filter(v => v.subCenterId === editUserData.subCenterId).map(v => {
+                        const isAssigned = editUserData.assignedVillages.includes(v.id);
+                        return (
+                          <TouchableOpacity 
+                            key={v.id}
+                            style={[styles.chip, isAssigned && styles.activeChip]}
+                            onPress={() => {
+                              const newAssigned = isAssigned 
+                                ? editUserData.assignedVillages.filter(id => id !== v.id)
+                                : [...editUserData.assignedVillages, v.id];
+                              setEditUserData({...editUserData, assignedVillages: newAssigned});
+                            }}
+                          >
+                            <Text style={[styles.chipText, isAssigned && styles.activeChipText]}>{v.name}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
+
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 15 }}>
+                  <TouchableOpacity style={[styles.saveBtn, { flex: 1 }]} onPress={handleUpdateUser}>
+                    <Text style={styles.saveBtnText}>{t('update', 'Update')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: '#64748B' }]} onPress={handleCancelEdit}>
+                    <Text style={styles.saveBtnText}>{t('cancel')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.infoBox}>
+                <Text style={styles.infoLabel}>{t('roleBasedControl')}:</Text>
+                <Text style={styles.infoValue}>
+                  {isAdmin ? t('fullAdmin') : 
+                   user.role === 'MO' ? `${t('phcSupervisor')} (${user.phcName})` : 
+                   `${t('scSupervisor')} (${user.subCenterName})`}
+                </Text>
+              </View>
+            )}
 
             {users
               .filter(u => {
@@ -809,6 +935,22 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
                         onPress={() => handleResetPassword(u.id, u.name)}
                       >
                         <Text style={styles.approveBtnText}>🔑 {t('resetPassword', 'Reset Password')}</Text>
+                      </TouchableOpacity>
+                    )}
+                    {isAdmin && (
+                      <TouchableOpacity 
+                        style={[styles.approveBtn, { backgroundColor: '#F59E0B' }]} 
+                        onPress={() => handleEditStart('users', u)}
+                      >
+                        <Text style={styles.approveBtnText}>✎ {t('edit', 'Edit')}</Text>
+                      </TouchableOpacity>
+                    )}
+                    {isAdmin && (
+                      <TouchableOpacity 
+                        style={[styles.approveBtn, { backgroundColor: '#EF4444' }]} 
+                        onPress={() => handleDeleteUser(u.id, u.name, u.role)}
+                      >
+                        <Text style={styles.approveBtnText}>✕ {t('delete', 'Delete')}</Text>
                       </TouchableOpacity>
                     )}
                   </View>
