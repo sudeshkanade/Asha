@@ -135,6 +135,12 @@ const LoginScreen = ({ onLogin }) => {
           if (user) {
             if (user.approvalStatus === 'approved') {
               try {
+                const lastUserId = await storage.getRaw('LAST_LOGGED_IN_USER_ID');
+                if (lastUserId !== user.id) {
+                  await storage.saveRaw('LAST_CLOUD_PULL_AT', '0');
+                  await storage.saveRaw('LAST_LOGGED_IN_USER_ID', user.id);
+                }
+                
                 await storage.purgeOrphanedData(user);
                 await cloudSyncManager.pullFromCloud(user, true);
                 await cloudSyncManager.startBackgroundSync();
@@ -263,6 +269,12 @@ const LoginScreen = ({ onLogin }) => {
 
       if (updatedUser.approvalStatus === 'approved') {
         try {
+          const lastUserId = await storage.getRaw('LAST_LOGGED_IN_USER_ID');
+          if (lastUserId !== updatedUser.id) {
+            await storage.saveRaw('LAST_CLOUD_PULL_AT', '0');
+            await storage.saveRaw('LAST_LOGGED_IN_USER_ID', updatedUser.id);
+          }
+
           await storage.purgeOrphanedData(updatedUser);
           await cloudSyncManager.pullFromCloud(updatedUser, true);
           await cloudSyncManager.startBackgroundSync();
