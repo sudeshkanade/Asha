@@ -152,8 +152,9 @@ export const storage = {
           }
 
           if (villageId && !subCenterId) {
-            const matchedV = villages.find(v => v.id === villageId);
+            const matchedV = villages.find(v => v.id === villageId || v.name?.toLowerCase().trim() === String(villageId).toLowerCase().trim());
             if (matchedV) {
+              villageId = matchedV.id;
               subCenterId = matchedV.subCenterId;
             }
           }
@@ -233,8 +234,9 @@ export const storage = {
           }
 
           if (villageId && !subCenterId) {
-            const matchedV = villages.find(v => v.id === villageId);
+            const matchedV = villages.find(v => v.id === villageId || v.name?.toLowerCase().trim() === String(villageId).toLowerCase().trim());
             if (matchedV) {
+              villageId = matchedV.id;
               subCenterId = matchedV.subCenterId;
             }
           }
