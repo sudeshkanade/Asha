@@ -16,6 +16,7 @@ import {
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { incentiveManager } from '../utils/incentiveManager';
+import { generateAlert } from '../utils/alertLogic';
 import { useTranslation } from 'react-i18next';
 
 const VitalEventsScreen = ({ user, onBack }) => {
@@ -304,6 +305,18 @@ const VitalEventsScreen = ({ user, onBack }) => {
 
         await storage.save(STORAGE_KEYS.MEMBERS, updatedMember);
         await storage.save(STORAGE_KEYS.VITAL_EVENTS, deathEvent);
+        
+        // Generate alert for Maternal/Infant mortality
+        if (user?.role === 'ASHA' && ['maternalDeath', 'infantDeath'].includes(formData.causeOfDeath)) {
+          await generateAlert({
+            type: 'MORTALITY',
+            message: `Mortality Logged (${t(formData.causeOfDeath)}): ${member.firstName} ${member.lastName}`,
+            user: user,
+            memberId: member.id,
+            severity: 'Critical',
+            targetRoles: ['ANM', 'CHO', 'MO']
+          });
+        }
         
         Alert.alert(t('success'), `${t('death')} ${t('success')}`);
       }

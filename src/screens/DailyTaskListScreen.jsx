@@ -14,6 +14,7 @@ import {
   Linking,
   Platform,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { calculateMaternalSchedule, calculateChildSchedule, calculateVaccinationSchedule, calculateAge } from '../utils/healthLogic';
@@ -293,29 +294,35 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
     Linking.openURL(`whatsapp://send?text=${encodeURIComponent(message)}`);
   };
 
-  const handleCaptureImage = (taskId) => {
-    // Cross-platform HTML5 Camera implementation (bypasses Vite/Expo dependency issues)
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.capture = 'environment'; // Hint to open the rear camera on mobile
-    
-    input.onchange = (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const imageUri = event.target.result;
-          setCompletionDataMap(prev => {
-            const existing = prev[taskId] || { reasoning: '', image: null };
-            return { ...prev, [taskId]: { ...existing, image: imageUri } };
-          });
-        };
-        reader.readAsDataURL(file);
+  const handleCaptureImage = async (taskId) => {
+    try {
+      // Request permissions
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (permissionResult.granted === false) {
+        Alert.alert(t('error', 'Error'), t('cameraPermissionRequired', 'Camera permission is required to capture evidence.'));
+        return;
       }
-    };
-    
-    input.click();
+
+      // Launch camera
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.5,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const imageUri = result.assets[0].uri;
+        setCompletionDataMap(prev => {
+          const existing = prev[taskId] || { reasoning: '', image: null };
+          return { ...prev, [taskId]: { ...existing, image: imageUri } };
+        });
+      }
+    } catch (e) {
+      console.error('Camera error:', e);
+      Alert.alert(t('error', 'Error'), 'Failed to open camera.');
+    }
   };
 
   const toggleHouseholdExpanded = (key) => {

@@ -16,6 +16,7 @@ import {
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { useTranslation } from 'react-i18next';
+import { generateAlert } from '../utils/alertLogic';
 
 const LogisticsScreen = ({ user, onBack }) => {
   const { t } = useTranslation();
@@ -83,6 +84,41 @@ const LogisticsScreen = ({ user, onBack }) => {
     } else {
       Alert.alert(t('success'), t('temperatureLogged', 'Temperature logged successfully'));
     }
+  };
+
+  const handleSubmitIndent = async () => {
+    const itemsToIndent = stock.filter(i => (i.currentQuantity ?? 0) <= (i.minThreshold ?? 0));
+    if (itemsToIndent.length === 0) {
+      Alert.alert(t('info', 'Info'), t('noIndentNeeded', 'No items require indenting right now.'));
+      return;
+    }
+
+    const newIndent = {
+      id: storage.generateId('indent', user.id),
+      timestamp: new Date().toISOString(),
+      items: itemsToIndent.map(i => ({
+        itemId: i.id,
+        name: i.name,
+        requestedQty: (i.maxCapacity ?? 100) - (i.currentQuantity ?? 0)
+      })),
+      status: 'Pending PHC Approval',
+      user: user.name,
+      villageId: user.villageId
+    };
+
+    await storage.addToSyncQueue('stock_indents', newIndent);
+    
+    // Generate alert for Stock Indent
+    if (user?.role === 'ASHA') {
+      await generateAlert({
+        type: 'STOCK_INDENT',
+        message: `Stock Indent Submitted by ${user.name} (${itemsToIndent.length} items)`,
+        user: user,
+        targetRoles: ['ANM', 'MPW']
+      });
+    }
+
+    Alert.alert(t('success', 'Success'), t('indentSubmitted', 'Stock indent submitted successfully!'));
   };
 
   const renderStockItem = ({ item }) => {
@@ -180,13 +216,13 @@ const LogisticsScreen = ({ user, onBack }) => {
         ) : (
           <View>
             <Text style={styles.sectionTitle}>{t('suggestedIndent', 'Suggested Indent')}</Text>
-            {stock.filter(i => i.currentQuantity <= i.minThreshold).map(item => (
+            {stock.filter(i => (i.currentQuantity ?? 0) <= (i.minThreshold ?? 0)).map(item => (
               <View key={item.id} style={styles.indentRow}>
                 <Text style={styles.indentName}>{item.name}</Text>
-                <Text style={styles.indentQty}>{item.maxCapacity - item.currentQuantity} {item.unit}</Text>
+                <Text style={styles.indentQty}>{(item.maxCapacity ?? 100) - (item.currentQuantity ?? 0)} {item.unit}</Text>
               </View>
             ))}
-            <TouchableOpacity style={styles.submitIndentBtn}>
+            <TouchableOpacity style={styles.submitIndentBtn} onPress={handleSubmitIndent}>
               <Text style={styles.submitIndentText}>{t('submitIndent', 'Submit Indent to PHC')}</Text>
             </TouchableOpacity>
           </View>

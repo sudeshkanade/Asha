@@ -16,6 +16,17 @@ export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], p
     return true;
   };
 
+  const demographicsStats = {
+    age_0_12m: { m: 0, f: 0 },
+    age_13_24m: { m: 0, f: 0 },
+    age_5_6y: { m: 0, f: 0 },
+    age_10_11y: { m: 0, f: 0 },
+    age_16_17y: { m: 0, f: 0 },
+    age_17_19y: { m: 0, f: 0 },
+    age_40_60y: { m: 0, f: 0 },
+    age_60plus: { m: 0, f: 0 },
+  };
+
   // 1. Maternal Stats
   const maternalStats = {
     newANC: 0,
@@ -30,6 +41,19 @@ export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], p
 
   members.forEach(m => {
     const health = m.healthData || {};
+    const genderKey = m.gender === 'Male' ? 'm' : 'f';
+    const age = parseInt(m.age);
+    
+    // Demographic Segments
+    if (age <= 1) demographicsStats.age_0_12m[genderKey]++;
+    else if (age <= 2) demographicsStats.age_13_24m[genderKey]++;
+    else if (age >= 5 && age <= 6) demographicsStats.age_5_6y[genderKey]++;
+    else if (age >= 10 && age <= 11) demographicsStats.age_10_11y[genderKey]++;
+    else if (age >= 16 && age <= 16) demographicsStats.age_16_17y[genderKey]++;
+    else if (age >= 17 && age <= 19) demographicsStats.age_17_19y[genderKey]++;
+    else if (age >= 40 && age <= 60) demographicsStats.age_40_60y[genderKey]++;
+    else if (age > 60) demographicsStats.age_60plus[genderKey]++;
+
     const isPregnantRecord = health.edd || health.ancStatus === 'active' || health.ancStatus === 'registered' || health.isPregnant;
 
     if (isPregnantRecord) {
@@ -199,6 +223,7 @@ export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], p
     ncd: ncdStats,
     disease: diseaseStats,
     fp: fpStats,
+    demographics: demographicsStats,
     monthName: new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long' }),
     year: currentYear
   };

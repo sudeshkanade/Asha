@@ -61,6 +61,8 @@ const DashboardScreen = ({ user, onNavigate }) => {
   const [showChangePasswordModal, setShowChangePasswordModal] = React.useState(false);
   const [newPassword, setNewPassword] = React.useState('');
   const [isChangingPassword, setIsChangingPassword] = React.useState(false);
+  const [alerts, setAlerts] = React.useState([]);
+  const [showActiveAlertsModal, setShowActiveAlertsModal] = React.useState(false);
 
   const handleChangePassword = async () => {
     if (!newPassword || newPassword.length < 6) {
@@ -167,12 +169,13 @@ const DashboardScreen = ({ user, onNavigate }) => {
 
       // BACKGROUND: Perform deep scan only if necessary or on a throttle
       // OPTIMIZATION: Fetch storage tables in parallel to prevent blocking calls
-      const [allMembers, vEvents, vhndSessions, events, allVillages] = await Promise.all([
+      const [allMembers, vEvents, vhndSessions, events, allVillages, allAlerts] = await Promise.all([
         storage.getAll(STORAGE_KEYS.MEMBERS),
         storage.getAll(STORAGE_KEYS.VITAL_EVENTS),
         storage.getAll(STORAGE_KEYS.VHND_SESSIONS),
         storage.getAll(STORAGE_KEYS.SYNC_QUEUE),
-        storage.getAll(STORAGE_KEYS.VILLAGES)
+        storage.getAll(STORAGE_KEYS.VILLAGES),
+        storage.getAll(STORAGE_KEYS.ALERTS)
       ]);
 
       // Determine local villages list for ASHA
@@ -257,6 +260,18 @@ const DashboardScreen = ({ user, onNavigate }) => {
           total: members.length
         }
       }));
+
+      // Filter Alerts based on role
+      if (user && user.role !== 'ASHA') {
+        let roleAlerts = allAlerts.filter(a => a.status === 'Unread' && a.targetRoles?.includes(user.role));
+        if (user.role === 'ANM') {
+          roleAlerts = roleAlerts.filter(a => a.subCenterId === user.subCenterId);
+        } else if (user.role === 'MO') {
+          roleAlerts = roleAlerts.filter(a => a.phcId === user.phcId);
+        }
+        setAlerts(roleAlerts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
+      }
+
       setLoading(false);
     } catch (e) {
       console.error('Dashboard Stats Error:', e);
@@ -407,6 +422,19 @@ const DashboardScreen = ({ user, onNavigate }) => {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Active Alerts Banner for ANM/CHO/MO */}
+      {alerts.length > 0 && (
+        <TouchableOpacity
+          style={{ backgroundColor: '#FFFBEB', borderLeftWidth: 4, borderLeftColor: '#F59E0B', padding: 12, margin: 12, borderRadius: 8, elevation: 2, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+          onPress={() => setShowActiveAlertsModal(true)}
+        >
+          <Text style={{ color: '#D97706', fontWeight: '800', fontSize: 14 }}>
+            🔔 {alerts.length} Active Alert{alerts.length > 1 ? 's' : ''} from ASHA Workers
+          </Text>
+          <Text style={{ color: '#D97706', fontSize: 18, fontWeight: '300' }}>›</Text>
+        </TouchableOpacity>
+      )}
 
       {stats?.criticalCount > 0 && (
         <TouchableOpacity
@@ -619,6 +647,47 @@ const DashboardScreen = ({ user, onNavigate }) => {
                 )}
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Alerts Modal */}
+      <Modal visible={showActiveAlertsModal} animationType="slide" transparent={true} onRequestClose={() => setShowActiveAlertsModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '80%' }]}>
+            <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center'}}>
+              <Text style={styles.modalTitle}>🔔 Active Alerts</Text>
+              <TouchableOpacity onPress={() => setShowActiveAlertsModal(false)}>
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {alerts.length === 0 ? (
+                <Text style={{ textAlign: 'center', color: COLORS.textSecondary, marginTop: 20 }}>No active alerts.</Text>
+              ) : (
+                alerts.map(alert => (
+                  <View key={alert.id} style={{ backgroundColor: alert.severity === 'Critical' ? '#FEF2F2' : '#F8FAFC', padding: 16, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: alert.severity === 'Critical' ? '#FCA5A5' : COLORS.border }}>
+                    <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginBottom: 4 }}>
+                      {new Date(alert.timestamp).toLocaleString()} • {alert.sourceUserName}
+                    </Text>
+                    <Text style={{ fontSize: 15, color: COLORS.text, fontWeight: '600', marginBottom: 12 }}>
+                      {alert.message}
+                    </Text>
+                    <TouchableOpacity 
+                      style={{ alignSelf: 'flex-start', backgroundColor: COLORS.success, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 }}
+                      onPress={async () => {
+                        const updatedAlert = { ...alert, status: 'Acknowledged' };
+                        await storage.save(STORAGE_KEYS.ALERTS, updatedAlert);
+                        setAlerts(prev => prev.filter(a => a.id !== alert.id));
+                        if (alerts.length === 1) setShowActiveAlertsModal(false);
+                      }}
+                    >
+                      <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 12 }}>Acknowledge</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
+            </ScrollView>
           </View>
         </View>
       </Modal>

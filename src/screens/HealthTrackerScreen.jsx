@@ -16,6 +16,7 @@ import { COLORS } from '../constants/colors';
 import { calculateChildSchedule, shouldShowMaternalFields, ANC_RISK_FACTORS, calculateVaccinationSchedule } from '../utils/healthLogic';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { incentiveManager } from '../utils/incentiveManager';
+import { generateAlert } from '../utils/alertLogic';
 import { useTranslation } from 'react-i18next';
 
 const RenderInput = ({ label, value, onChange, placeholder, keyboardType = 'default' }) => (
@@ -219,6 +220,33 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
 
     await storage.save(STORAGE_KEYS.MEMBERS, updatedMember);
     
+    // Alert logic for ANM/CHO
+    if (user?.role === 'ASHA') {
+      if (finalIsHighRisk) {
+        let msg = `High Risk Case Updated: ${member.firstName} ${member.lastName}`;
+        if (parseFloat(tracker.hbLevel) > 0 && parseFloat(tracker.hbLevel) < 7) {
+          msg = `Severe Anemia (Hb < 7) Detected: ${member.firstName} ${member.lastName}`;
+        }
+        await generateAlert({
+          type: 'HIGH_RISK_ANC',
+          message: msg,
+          user: user,
+          memberId: member.id,
+          targetRoles: ['ANM', 'CHO', 'MO']
+        });
+      }
+
+      if (memberAge <= 5 && parseFloat(tracker.muac) > 0 && parseFloat(tracker.muac) < 11.5) {
+        await generateAlert({
+          type: 'SAM_CHILD',
+          message: `SAM Child Detected (MUAC < 11.5): ${member.firstName} ${member.lastName}`,
+          user: user,
+          memberId: member.id,
+          targetRoles: ['ANM', 'CHO', 'MO']
+        });
+      }
+    }
+
     // RED TEAM FIX: Trigger atomic incentive generation
     if (user?.role === 'ASHA') {
       await incentiveManager.processMemberTriggers(updatedMember, user);

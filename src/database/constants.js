@@ -24,6 +24,9 @@ export const STORAGE_KEYS = {
   HWC_ACTIVITY: '@rural_health_hwc',
   WATER_QUALITY: '@rural_health_water',
   COLD_CHAIN: '@rural_health_cold_chain',
+  CUSTOM_FORM_SCHEMAS: '@rural_health_custom_schemas',
+  CUSTOM_EVENTS: '@rural_health_custom_events',
+  ALERTS: '@rural_health_alerts',
   // BUG-M1 FIX: Named constant prevents magic string repetition across files
   PHC_SUMMARY: 'PHC_SUMMARY',
 };
@@ -40,5 +43,7 @@ export const CLINICAL_KEYS = [
   STORAGE_KEYS.TASK_COMPLETIONS,
   STORAGE_KEYS.VHND_SESSIONS,
   STORAGE_KEYS.STOCK,
+  STORAGE_KEYS.CUSTOM_EVENTS,
+  STORAGE_KEYS.ALERTS,
 ];
 

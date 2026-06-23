@@ -159,6 +159,49 @@ const VHNDScreen = ({ user, onBack }) => {
     };
 
     await storage.save(STORAGE_KEYS.VHND_SESSIONS, session);
+    
+    // Deduct from central stock
+    const allStock = await storage.getAll(STORAGE_KEYS.STOCK);
+    let stockAlerts = [];
+    let stockUpdated = false;
+
+    const deductMap = {
+      'ifa': session.ifaDistributed,
+      'ors': session.orsDistributed,
+      'condom': session.condomsDistributed,
+      'ocp': session.ocpDistributed,
+      'ecp': session.ecpDistributed
+    };
+
+    const updatedStock = allStock.map(item => {
+      let deducted = false;
+      let newQty = item.currentQuantity || 0;
+      
+      Object.keys(deductMap).forEach(key => {
+        if (deductMap[key] > 0 && (String(item.id).toLowerCase().includes(key) || String(item.name).toLowerCase().includes(key))) {
+          newQty = Math.max(0, newQty - deductMap[key]);
+          deducted = true;
+          deductMap[key] = 0; 
+        }
+      });
+
+      if (deducted) {
+        stockUpdated = true;
+        const minThresh = item.minThreshold !== undefined ? item.minThreshold : 10;
+        if (newQty <= minThresh) {
+          stockAlerts.push(`${item.name || key} is running low (${newQty} remaining).`);
+        }
+      }
+      return { ...item, currentQuantity: newQty };
+    });
+
+    if (stockUpdated) {
+      await storage.saveAll(STORAGE_KEYS.STOCK, updatedStock);
+      for (const item of updatedStock) {
+        await storage.addToSyncQueue(STORAGE_KEYS.STOCK, item);
+      }
+    }
+
     // Auto-generate VHND_SESSION incentive claim for ASHA workers
     if (user?.role === 'ASHA') {
       await incentiveManager.processEventTriggers(session, user);
@@ -174,12 +217,18 @@ const VHNDScreen = ({ user, onBack }) => {
     };
 
     if (Platform.OS === 'web') {
+      if (stockAlerts.length > 0) {
+        window.alert(t('warning') + ':\n' + stockAlerts.join('\n'));
+      }
       if (window.confirm(t('vhndSuccessNotify'))) {
         notifySupervisor();
       } else {
         onBack();
       }
     } else {
+      if (stockAlerts.length > 0) {
+        Alert.alert(t('warning', 'Low Stock Alert'), stockAlerts.join('\n'));
+      }
       Alert.alert(t('success'), t('vhndSuccessNotify'), [
         { text: t('no'), onPress: onBack, style: 'cancel' },
         { text: t('notifyWhatsApp'), onPress: notifySupervisor }

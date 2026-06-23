@@ -101,6 +101,12 @@ const AdminDashboard = ({ user, onBack, onNavigate }) => {
                 desc={t('actionHistorySyncLogs')} 
                 onPress={() => Alert.alert(t('auditLogs'), t('featureComingSoon'))}
               />
+              <ToolItem 
+                title={t('customEventBuilder', 'Custom Form Builder')} 
+                icon="📝" 
+                desc={t('customEventBuilderDesc', 'Create dynamic survey forms')} 
+                onPress={() => onNavigate('CustomEventBuilder')}
+              />
             </View>
 
             <View style={styles.maintenanceCard}>

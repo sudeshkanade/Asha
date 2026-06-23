@@ -17,7 +17,8 @@ import {
   exportVitalEvents, 
   exportVHNDSessions, 
   exportFPRegister, 
-  exportMPRSummary 
+  exportMPRSummary,
+  exportParentChildMapping
 } from '../utils/exportLogic';
 import { useTranslation } from 'react-i18next';
 
@@ -38,9 +39,18 @@ const MPRReportScreen = ({ user, onBack }) => {
   
   // New States for Dynamic UI
   const [filtersExpanded, setFiltersExpanded] = useState(false);
-  const [selectedRiskLevel, setSelectedRiskLevel] = useState('all');
+  const [selectedVillageName, setSelectedVillageName] = useState('All Villages');
+  
   const [previewData, setPreviewData] = useState([]);
   const [previewTitle, setPreviewTitle] = useState('');
+
+  // States for Dynamic Builder and Previews
+  const [builderType, setBuilderType] = useState('MASTER');
+  const [minAge, setMinAge] = useState('');
+  const [maxAge, setMaxAge] = useState('');
+  const [gender, setGender] = useState('All');
+  const [showBuilder, setShowBuilder] = useState(false);
+  const [fullData, setFullData] = useState({ families: [], syncQueue: [], stock: [], vitalEvents: [] });
 
   useEffect(() => {
     generateReport();
@@ -159,6 +169,7 @@ const MPRReportScreen = ({ user, onBack }) => {
     const stats = generateMPRStats(members, vitalEvents, vhndSessions, events, selectedMonth, selectedYear);
     setReport(stats);
     setAshaName(currentAshaName);
+    setFullData({ families, syncQueue: events, stock, vitalEvents });
     setLoading(false);
   };
 
@@ -205,16 +216,101 @@ const MPRReportScreen = ({ user, onBack }) => {
     setExporting(null);
   };
 
+  const REPORT_TYPES = [
+    { value: 'MASTER', label: 'Master Population' },
+    { value: 'NEW_ANC', label: 'All ANC Register' },
+    { value: 'PENDING_ANC', label: 'Pending ANC Register' },
+    { value: 'HRP', label: 'High Risk ANC' },
+    { value: 'ANEMIA', label: 'Severe Anemia' },
+    { value: 'SAM', label: 'SAM Children' },
+    { value: 'FULLY_IMMUNIZED', label: 'Fully Immunized' },
+    { value: 'NCD_SCREENING', label: 'NCD Screenings' },
+    { value: 'PNC_CASES', label: 'PNC Register' },
+    { value: 'FP_REGISTER', label: 'FP Register' },
+    { value: 'FP_PERMANENT', label: 'FP Permanent Method' },
+    { value: 'FP_SPACING', label: 'FP Spacing Method' },
+    { value: 'FP_NONE', label: 'No FP Method' },
+    { value: 'TB_SUSPECTS', label: 'TB Suspects' },
+    { value: 'MALARIA_SUSPECTS', label: 'Malaria Suspects' },
+    { value: 'LEPROSY_SUSPECTS', label: 'Leprosy Suspects' },
+    { value: 'PARENT_CHILD', label: 'Parent-Child Mapping' },
+    { value: 'PWD', label: 'PwD List' },
+    { value: 'BPL_FAMILIES', label: 'BPL Families' },
+  ];
+
+  const handleDynamicDownload = async () => {
+    setExporting('DYNAMIC');
+    try {
+      const filters = {
+        gender: gender,
+        minAge: minAge ? parseInt(minAge) : undefined,
+        maxAge: maxAge ? parseInt(maxAge) : undefined,
+      };
+      
+      const backendType = builderType === 'HRP' ? 'HIGH_RISK_ANC' :
+                          builderType === 'ANEMIA' ? 'SEVERE_ANEMIA' :
+                          builderType === 'SAM' ? 'SAM_CHILDREN' : builderType;
+      
+      let success;
+      if (backendType === 'PARENT_CHILD') {
+        success = await exportParentChildMapping(user);
+      } else {
+        success = await exportMasterPopulation(user, backendType, filters);
+      }
+      if (success) Alert.alert(t('success'), 'Report downloaded successfully!');
+      else Alert.alert(t('error'), 'Failed to generate report.');
+    } catch (e) {
+      Alert.alert(t('error'), e.message);
+    }
+    setExporting(null);
+  };
+
   const showPreview = (type, title) => {
     setPreviewTitle(title);
-    // Generate a simple preview based on the type (mocking actual data extraction for UI)
     let data = [];
-    if (type === 'FAMILIES') data = [{ id: 1, name: 'Family A', status: 'Active' }, { id: 2, name: 'Family B', status: 'Active' }];
-    else if (type === 'SYNC') data = [{ id: 1, type: 'Vital Event', status: 'Pending' }, { id: 2, type: 'Member Reg', status: 'Pending' }];
-    else if (type === 'STOCK') data = [{ id: 1, item: 'ORS', qty: 20 }, { id: 2, item: 'IFA', qty: 150 }];
-    else if (type === 'VITAL') data = [{ id: 1, event: 'Birth', date: '2026-06-10' }, { id: 2, event: 'Death', date: '2026-06-12' }];
+    if (type === 'FAMILIES') {
+      data = fullData.families.slice(0, 5).map(f => ({ id: f.id, name: f.headName || 'Unnamed Family', status: f.isBPL ? 'BPL' : 'APL' }));
+    } else if (type === 'SYNC') {
+      data = fullData.syncQueue.slice(0, 5).map(e => ({ id: e.id, type: e.tableName, status: 'Pending' }));
+    } else if (type === 'STOCK') {
+      const lowStock = fullData.stock.filter(s => (s.quantity || 0) < 50);
+      data = lowStock.slice(0, 5).map(s => ({ id: s.id, item: s.name, qty: s.quantity }));
+    } else if (type === 'VITAL') {
+      data = fullData.vitalEvents.slice(0, 5).map(v => ({ id: v.id, event: v.type, date: v.date || v.timestamp }));
+    }
     setPreviewData(data);
-    // In a real implementation, you'd extract the actual 5 rows from the respective filtered array
+  };
+
+  const RenderTable = ({ title, rows, defaultExpanded = false }) => {
+    const [expanded, setExpanded] = useState(defaultExpanded);
+    return (
+      <View style={styles.sectionCard}>
+        <TouchableOpacity style={styles.sectionHeaderRow} onPress={() => setExpanded(!expanded)}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={styles.sectionTitle}>{title}</Text>
+            <Text style={{ marginLeft: 8, color: COLORS.textSecondary }}>{expanded ? '▼' : '▶'}</Text>
+          </View>
+        </TouchableOpacity>
+        {expanded && (
+          <View>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.cell, { flex: 2 }]}>{t('ageGroup', 'Age Group')}</Text>
+              <Text style={styles.cell}>{t('male', 'Male')}</Text>
+              <Text style={styles.cell}>{t('female', 'Female')}</Text>
+              <Text style={styles.cell}>{t('total', 'Total')}</Text>
+            </View>
+            {rows.map((row, idx) => (
+              <View key={idx} style={styles.tableRow}>
+                <Text style={[styles.cell, { flex: 2, fontWeight: '700' }]}>{row.label}</Text>
+                <Text style={styles.cell}>{row.m}</Text>
+                <Text style={styles.cell}>{row.f}</Text>
+                <Text style={[styles.cell, { fontWeight: '800' }]}>{row.m + row.f}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    );
   };
 
   if (loading) {
@@ -408,14 +504,115 @@ const MPRReportScreen = ({ user, onBack }) => {
         )}
 
         {activeTab === 'Demographics' && (
-          <ReportSection title={t('demographics', 'Demographics & Family Planning')}>
-            <ReportRow label={t('children05yrs', 'Children (0-5 Years)')} value={report.child.samChildren + report.child.mamChildren + report.child.fullyImmunized} onDownload={() => handleDownload('CHILDREN_0_5')} loading={exporting === 'CHILDREN_0_5'} />
-            <ReportRow label={t('eligibleCouples', 'Eligible Couples')} value={report.fp.totalEC} onDownload={() => handleDownload('ELIGIBLE_COUPLE')} loading={exporting === 'ELIGIBLE_COUPLE'} />
-            <ReportRow label={t('permanent', 'Permanent Methods')} value={report.fp.sterilization} onDownload={() => handleDownload('FP_PERMANENT')} loading={exporting === 'FP_PERMANENT'} />
-            <ReportRow label={t('temporary', 'Temporary Methods')} value={report.fp.spacing} onDownload={() => handleDownload('FP_SPACING')} loading={exporting === 'FP_SPACING'} />
-            <ReportRow label={t('noMethodUnmet', 'Unmet Need / No Method')} value={report.fp.none} isAlert={report.fp.none > 0} onDownload={() => handleDownload('FP_NONE')} loading={exporting === 'FP_NONE'} />
-            <ReportRow label={t('fpRegisterDownload', 'FP Register')} value={report.fp.totalEC} onDownload={() => handleDownload('FP_REGISTER')} loading={exporting === 'FP_REGISTER'} />
-          </ReportSection>
+          <View>
+            <RenderTable 
+              title={t('popAbstract', 'Population Abstract (Demographics)')}
+              defaultExpanded={true}
+              rows={[
+                { label: t('0_12m', '0-12 Months'), ...report.demographics.age_0_12m },
+                { label: t('13_24m', '13-24 Months'), ...report.demographics.age_13_24m },
+                { label: t('5_6y', '5-6 Years'), ...report.demographics.age_5_6y },
+                { label: t('10_11y', '10-11 Years'), ...report.demographics.age_10_11y },
+                { label: t('16_17y', '16-17 Years'), ...report.demographics.age_16_17y },
+                { label: t('17_19y', '17-19 Years'), ...report.demographics.age_17_19y },
+                { label: t('40_60y', '40-60 Years'), ...report.demographics.age_40_60y },
+                { label: t('60plus', '60+ Years'), ...report.demographics.age_60plus },
+              ]}
+            />
+            <View style={{height: 20}} />
+            <ReportSection title={t('demographics', 'Demographics & Family Planning')}>
+              <ReportRow label={t('children05yrs', 'Children (0-5 Years)')} value={report.child.samChildren + report.child.mamChildren + report.child.fullyImmunized} onDownload={() => handleDownload('CHILDREN_0_5')} loading={exporting === 'CHILDREN_0_5'} />
+              <ReportRow label={t('eligibleCouples', 'Eligible Couples')} value={report.fp.totalEC} onDownload={() => handleDownload('ELIGIBLE_COUPLE')} loading={exporting === 'ELIGIBLE_COUPLE'} />
+              <ReportRow label={t('permanent', 'Permanent Methods')} value={report.fp.sterilization} onDownload={() => handleDownload('FP_PERMANENT')} loading={exporting === 'FP_PERMANENT'} />
+              <ReportRow label={t('temporary', 'Temporary Methods')} value={report.fp.spacing} onDownload={() => handleDownload('FP_SPACING')} loading={exporting === 'FP_SPACING'} />
+              <ReportRow label={t('noMethodUnmet', 'Unmet Need / No Method')} value={report.fp.none} isAlert={report.fp.none > 0} onDownload={() => handleDownload('FP_NONE')} loading={exporting === 'FP_NONE'} />
+              <ReportRow label={t('fpRegisterDownload', 'FP Register')} value={report.fp.totalEC} onDownload={() => handleDownload('FP_REGISTER')} loading={exporting === 'FP_REGISTER'} />
+            </ReportSection>
+            
+            <TouchableOpacity 
+              style={styles.advancedExportBtn}
+              onPress={() => setShowBuilder(true)}
+            >
+              <Text style={styles.advancedExportText}>⚙️ Advanced Report Builder</Text>
+            </TouchableOpacity>
+
+            {showBuilder && (
+              <View style={styles.builderSection}>
+                <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
+                  <Text style={styles.sectionTitle}>{t('dynamicReportBuilder', 'Dynamic Report Builder')}</Text>
+                  <TouchableOpacity onPress={() => setShowBuilder(false)}>
+                    <Text style={{color: COLORS.textSecondary, fontSize: 20}}>×</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <Text style={styles.label}>Select Report Type:</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                  {REPORT_TYPES.map(type => (
+                    <TouchableOpacity
+                      key={type.value}
+                      style={[styles.chip, builderType === type.value && styles.chipActive]}
+                      onPress={() => setBuilderType(type.value)}
+                    >
+                      <Text style={[styles.chipText, builderType === type.value && styles.chipTextActive]}>
+                        {type.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                <Text style={styles.label}>Filter by Gender:</Text>
+                <View style={styles.row}>
+                  {['All', 'Male', 'Female'].map(g => (
+                    <TouchableOpacity
+                      key={g}
+                      style={[styles.chip, gender === g && styles.chipActive]}
+                      onPress={() => setGender(g)}
+                    >
+                      <Text style={[styles.chipText, gender === g && styles.chipTextActive]}>{g}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <View style={styles.row}>
+                  <View style={{flex: 1, marginRight: 8}}>
+                    <Text style={styles.label}>Min Age:</Text>
+                    <TextInput
+                      style={styles.input}
+                      keyboardType="numeric"
+                      value={minAge}
+                      onChangeText={setMinAge}
+                      placeholder="0"
+                    />
+                  </View>
+                  <View style={{flex: 1, marginLeft: 8}}>
+                    <Text style={styles.label}>Max Age:</Text>
+                    <TextInput
+                      style={styles.input}
+                      keyboardType="numeric"
+                      value={maxAge}
+                      onChangeText={setMaxAge}
+                      placeholder="100"
+                    />
+                  </View>
+                </View>
+
+                <TouchableOpacity 
+                  style={styles.dynamicDownloadBtn}
+                  onPress={() => {
+                    handleDynamicDownload();
+                    setShowBuilder(false);
+                  }}
+                  disabled={exporting !== null}
+                >
+                  {exporting === 'DYNAMIC' ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Text style={styles.dynamicDownloadText}>📥 Build & Download Report</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         )}
 
         {activeTab === 'Health Metrics' && (
@@ -719,6 +916,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12,
   },
   masterExportText: { color: '#FFF', fontSize: 13, fontWeight: '700' },
+  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  tableHeader: { flexDirection: 'row', paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: '#F1F5F9', marginBottom: 8 },
+  tableRow: { flexDirection: 'row', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
+  cell: { flex: 1, fontSize: 12, color: '#475569', textAlign: 'center' },
+  builderSection: { backgroundColor: '#FFF', borderRadius: 20, padding: 20, marginBottom: 20, borderWidth: 1, borderColor: '#E2E8F0' },
+  label: { fontSize: 13, fontWeight: '700', color: '#475569', marginTop: 16, marginBottom: 8 },
+  chipScroll: { flexDirection: 'row', marginBottom: 8 },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, padding: 12, fontSize: 15, color: '#1E293B' },
+  dynamicDownloadBtn: { backgroundColor: COLORS.primary, padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 24, elevation: 2 },
+  dynamicDownloadText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
+  advancedExportBtn: { backgroundColor: '#E2E8F0', padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 20 },
+  advancedExportText: { color: '#475569', fontSize: 14, fontWeight: '700' },
 });
 
 export default MPRReportScreen;
