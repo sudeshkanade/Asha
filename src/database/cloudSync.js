@@ -31,6 +31,14 @@ const COLLECTION_MAP = {
   [STORAGE_KEYS.TASK_COMPLETIONS]: 'task_completions',
   // DATA-3 FIX: Add missing collections that were never syncing to Firestore
   [STORAGE_KEYS.STOCK]: 'stock',
+  [STORAGE_KEYS.IDSP_SURVEILLANCE]: 'idsp_surveillance',
+  [STORAGE_KEYS.VECTOR_SURVEYS]: 'vector_surveys',
+  [STORAGE_KEYS.HWC_ACTIVITY]: 'hwc_activity',
+  [STORAGE_KEYS.WATER_QUALITY]: 'water_quality',
+  [STORAGE_KEYS.COLD_CHAIN]: 'cold_chain',
+  [STORAGE_KEYS.CUSTOM_FORM_SCHEMAS]: 'custom_form_schemas',
+  [STORAGE_KEYS.CUSTOM_EVENTS]: 'custom_events',
+  [STORAGE_KEYS.ALERTS]: 'alerts',
   'governance_logs': 'governance_logs',
   'dlq_forensics': 'dlq_forensics',
   // Fallbacks for direct string usage
@@ -79,6 +87,15 @@ export const cloudSyncManager = {
       { key: STORAGE_KEYS.VHND_SESSIONS, table: 'vhnd_sessions' },
       { key: STORAGE_KEYS.TASKS, table: 'tasks' },
       { key: STORAGE_KEYS.TASK_COMPLETIONS, table: 'task_completions' },
+      { key: STORAGE_KEYS.STOCK, table: 'stock' },
+      { key: STORAGE_KEYS.IDSP_SURVEILLANCE, table: 'idsp_surveillance' },
+      { key: STORAGE_KEYS.VECTOR_SURVEYS, table: 'vector_surveys' },
+      { key: STORAGE_KEYS.HWC_ACTIVITY, table: 'hwc_activity' },
+      { key: STORAGE_KEYS.WATER_QUALITY, table: 'water_quality' },
+      { key: STORAGE_KEYS.COLD_CHAIN, table: 'cold_chain' },
+      { key: STORAGE_KEYS.CUSTOM_FORM_SCHEMAS, table: 'custom_form_schemas' },
+      { key: STORAGE_KEYS.CUSTOM_EVENTS, table: 'custom_events' },
+      { key: STORAGE_KEYS.ALERTS, table: 'alerts' },
     ];
 
     for (const col of collectionsToCheck) {
@@ -363,6 +380,15 @@ export const cloudSyncManager = {
         { key: STORAGE_KEYS.TASK_COMPLETIONS, table: 'task_completions' },
         { key: STORAGE_KEYS.LOCKED_PERIODS, table: 'locked_periods' },
         { key: STORAGE_KEYS.APP_CONFIG, table: 'app_config' },
+        { key: STORAGE_KEYS.STOCK, table: 'stock' },
+        { key: STORAGE_KEYS.IDSP_SURVEILLANCE, table: 'idsp_surveillance' },
+        { key: STORAGE_KEYS.VECTOR_SURVEYS, table: 'vector_surveys' },
+        { key: STORAGE_KEYS.HWC_ACTIVITY, table: 'hwc_activity' },
+        { key: STORAGE_KEYS.WATER_QUALITY, table: 'water_quality' },
+        { key: STORAGE_KEYS.COLD_CHAIN, table: 'cold_chain' },
+        { key: STORAGE_KEYS.CUSTOM_FORM_SCHEMAS, table: 'custom_form_schemas' },
+        { key: STORAGE_KEYS.CUSTOM_EVENTS, table: 'custom_events' },
+        { key: STORAGE_KEYS.ALERTS, table: 'alerts' },
       ];
 
       // RUTHLESS FIX: Shadow Sync (Fetch WITHOUT locking UI)
@@ -406,7 +432,7 @@ export const cloudSyncManager = {
             q = query(q, where('phcId', '==', user.phcId || 'FORCE_BLOCK'));
           }
 
-          if (['members', 'families', 'vital_events', 'claims', 'vhnd_sessions'].includes(col.table)) {
+          if (['members', 'families', 'vital_events', 'claims', 'vhnd_sessions', 'stock', 'idsp_surveillance', 'vector_surveys', 'hwc_activity', 'water_quality', 'cold_chain', 'custom_form_schemas', 'custom_events', 'alerts'].includes(col.table)) {
 
             switch (user.role) {
               case 'ASHA': {
