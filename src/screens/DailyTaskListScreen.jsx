@@ -372,46 +372,35 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
     return true;
   });
 
-  // 2. HIERARCHICAL GROUPING: Household -> Member -> Tasks
-  const groupedByHousehold = {};
+  // 2. CATEGORICAL GROUPING: Type -> Member -> Tasks
+  const groupedByType = {};
   filteredTasks.forEach(task => {
     const member = task.member || {};
-    const familyId = member.familyId || 'unknown';
-    const houseNo = task.houseNo || member.houseNo || 'N/A';
+    
+    // Group by Service Type instead of House Number
+    const typeKey = task.serviceType || 'Other Tasks';
 
-    const family = familiesMap[familyId] || {};
-    const headName = family.headName ? `${t('folder', 'Family Head')}: ${family.headName}` : `${t('house', 'House')} ${houseNo}`;
-    // UI-4 FIX: 'villageName' was being declared using itself in its own initializer
-    // (referencing the prop of the same name), a latent ReferenceError in strict mode.
-    // Renamed to 'resolvedVillageName' to avoid the self-referential assignment.
-    const resolvedVillageName = member.villageName || family.villageName || villageName || 'N/A';
-
-    const key = familyId !== 'unknown' ? familyId : `house-${houseNo}`;
-
-    if (!groupedByHousehold[key]) {
-      groupedByHousehold[key] = {
-        key,
-        familyId,
-        headName,
-        houseNo,
-        villageName: resolvedVillageName,
+    if (!groupedByType[typeKey]) {
+      groupedByType[typeKey] = {
+        key: typeKey,
+        headName: typeKey, // Repurposing headName for UI rendering
         hasHighRisk: false,
         pendingCount: 0,
         members: {}
       };
     }
 
-    const hh = groupedByHousehold[key];
+    const group = groupedByType[typeKey];
     if (task.priority === 'High') {
-      hh.hasHighRisk = true;
+      group.hasHighRisk = true;
     }
     if (task.status !== 'completed') {
-      hh.pendingCount += 1;
+      group.pendingCount += 1;
     }
 
     const memberId = task.memberId;
-    if (!hh.members[memberId]) {
-      hh.members[memberId] = {
+    if (!group.members[memberId]) {
+      group.members[memberId] = {
         memberId,
         memberName: task.memberName,
         age: member.age || (member.dob ? calculateAge(member.dob) : null),
@@ -419,20 +408,20 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
         tasks: []
       };
     }
-    hh.members[memberId].tasks.push(task);
+    group.members[memberId].tasks.push(task);
   });
 
   // Convert map to sorted array
-  const householdList = Object.values(groupedByHousehold).sort((a, b) => {
-    // High risk households first
+  const householdList = Object.values(groupedByType).sort((a, b) => {
+    // High risk first
     if (a.hasHighRisk && !b.hasHighRisk) return -1;
     if (!a.hasHighRisk && b.hasHighRisk) return 1;
     // Pending tasks count descending
     if (a.pendingCount !== b.pendingCount) {
       return b.pendingCount - a.pendingCount;
     }
-    // House Number alphabetical/numeric
-    return String(a.houseNo || '').localeCompare(String(b.houseNo || ''), undefined, { numeric: true, sensitivity: 'base' });
+    // Alphabetical by category name
+    return String(a.headName || '').localeCompare(String(b.headName || ''), undefined, { sensitivity: 'base' });
   });
 
   // Helper renderers
@@ -582,20 +571,19 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
           activeOpacity={0.8}
         >
           <View style={[styles.householdIconBox, { backgroundColor: hh.hasHighRisk ? '#FEE2E2' : '#EEF2FF' }]}>
-            <Text style={styles.householdIconText}>{hh.hasHighRisk ? '🚨' : '🏠'}</Text>
+            <Text style={styles.householdIconText}>{hh.hasHighRisk ? '🚨' : '📋'}</Text>
           </View>
           
           <View style={{ flex: 1, marginLeft: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-              <Text style={styles.householdTitle}>{t('houseNo', 'House')}: {hh.houseNo}</Text>
+              <Text style={styles.householdTitle}>{hh.headName}</Text>
               {hh.hasHighRisk && (
                 <View style={styles.highRiskBadge}>
                   <Text style={styles.highRiskBadgeText}>{t('highRisk', 'High Risk')}</Text>
                 </View>
               )}
             </View>
-            <Text style={styles.householdHead}>{hh.headName}</Text>
-            <Text style={styles.householdSubText}>{hh.villageName} • {hh.pendingCount} {t('pending', 'Pending')}</Text>
+            <Text style={styles.householdSubText}>{hh.pendingCount} {t('pending', 'Pending')}</Text>
           </View>
           
           <Text style={styles.expandIcon}>{isExpanded ? '▼' : '▶'}</Text>

@@ -9,7 +9,8 @@ import {
   ActivityIndicator, 
   SafeAreaView, 
   ScrollView, 
-  Modal 
+  Modal,
+  BackHandler
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LoginScreen from './src/screens/LoginScreen';
@@ -200,6 +201,19 @@ export default function App() {
     };
   // BUG-01 FIX: Run once on mount only. userRef keeps effects fresh without re-registering intervals.
   }, []);
+
+  useEffect(() => {
+    const onBackPress = () => {
+      if (navigationHistory.length > 1) {
+        handleGoBack();
+        return true;
+      }
+      return false;
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => backHandler.remove();
+  }, [navigationHistory]);
 
   if (initError) {
     return (
