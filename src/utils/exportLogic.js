@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import { storage, STORAGE_KEYS } from '../database/storage';
 // BUG-04 FIX: Static import prevents Vite from excluding this module at runtime
 import { REPORTS_CONFIG, INDICATOR_TARGETS, FP_INDICATORS } from './goshwaraConfig.js';
+import { isPncCase } from './healthLogic.js';
 
 /**
  * Rural Health Tracker — Comprehensive Export Engine
@@ -235,7 +236,7 @@ export const exportMasterPopulation = async (user, filterType = null, additional
           case 'CHILDREN_0_5':
             return age >= 0 && age <= 5;
           case 'PNC_CASES':
-            return health.pncStatus === 'Pending' || health.pncStatus === 'Active';
+            return isPncCase(m, members);
           case 'PWD':
             return m.isPwd === true;
           case 'BPL_FAMILIES':

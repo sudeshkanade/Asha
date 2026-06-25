@@ -14,6 +14,7 @@ import {
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { useTranslation } from 'react-i18next';
+import { isPncCase } from '../utils/healthLogic';
 
 const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNavigate, onBack }) => {
   const { t } = useTranslation();
@@ -86,11 +87,7 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
           return true;
         });
       } else if (type === 'pnc_cases' || type === 'pnc') {
-        filtered = scopedMembers.filter(m => 
-          m.healthData?.pncStatus === 'Pending' || 
-          m.healthData?.pncStatus === 'active' || 
-          (m.healthData?.lastDeliveryDate && (new Date() - new Date(m.healthData.lastDeliveryDate)) / (1000 * 60 * 60 * 24) <= 42)
-        );
+        filtered = scopedMembers.filter(m => isPncCase(m, scopedMembers));
       } else if (type === 'new_anc') {
         filtered = scopedMembers.filter(m => 
           m.healthData?.isPregnant || 

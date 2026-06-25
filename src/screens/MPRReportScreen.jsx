@@ -12,6 +12,7 @@ import {
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { generateMPRStats } from '../utils/reportLogic';
+import { isPncCase } from '../utils/healthLogic';
 import { 
   exportMasterPopulation, 
   exportVitalEvents, 
@@ -159,7 +160,7 @@ const MPRReportScreen = ({ user, onBack }) => {
       pwdMembers: members.filter(m => m.isPwd).length,
       totalMembers: members.length,
       vhndSessions: vhndSessions.length,
-      pncCases: members.filter(m => m.healthData?.pncStatus === 'Pending' || m.healthData?.pncStatus === 'Active' || m.healthData?.pncStatus === 'active').length,
+      pncCases: members.filter(m => isPncCase(m, members)).length,
       syncQueueCount: events.length,
       lowStockAlerts: lowStockItems.length,
       vitalEventsCount: vitalEvents.length

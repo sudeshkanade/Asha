@@ -49,6 +49,64 @@ export const calculatePncSchedule = (deliveryDate, isHomeBirth = false) => {
 };
 
 /**
+ * Standardized logic to determine if a member is a Post-Natal Care (PNC) case.
+ * A PNC case is active if:
+ * 1. pncStatus is explicitly 'Pending', 'active', or 'Active'
+ * 2. OR lastDeliveryDate is within the last 42 days (6 weeks)
+ * 3. OR the mother has a registered child whose DOB is within the last 42 days.
+ */
+export const isPncCase = (member, allMembers = []) => {
+  if (member.gender === 'Male' || member.gender === 'male') return false;
+
+  const health = member?.healthData || {};
+  const status = (health.pncStatus || '').toLowerCase();
+  
+  if (status === 'pending' || status === 'active') return true;
+  
+  if (health.lastDeliveryDate) {
+    const deliveryDate = new Date(health.lastDeliveryDate);
+    if (!isNaN(deliveryDate.getTime())) {
+      const daysSinceDelivery = (new Date() - deliveryDate) / (1000 * 60 * 60 * 24);
+      if (daysSinceDelivery >= 0 && daysSinceDelivery <= 42) return true;
+    }
+  }
+
+  // 3. Fallback: Check if she has a child less than 42 days old
+  if (allMembers && allMembers.length > 0) {
+    const familyMembers = allMembers.filter(m => m.familyId === member.familyId && m.id !== member.id);
+    
+    const husband = familyMembers.find(m => {
+      if (m.gender !== 'Male') return false;
+      const rel = (m.relationToHead || m.relation || '').toLowerCase();
+      return rel === 'self (head)' || rel === 'head' || rel === 'husband';
+    });
+    const fatherFirstName = (husband ? husband.firstName : member.middleName || '').trim().toLowerCase();
+
+    for (const child of familyMembers) {
+      if (!child.dob) continue;
+      
+      const relation = (child.relationToHead || child.relation || '').toLowerCase();
+      const isSonDaughter = ['son', 'daughter', 'child'].includes(relation);
+      const childMiddleName = (child.middleName || '').trim().toLowerCase();
+      const hasFatherMiddleName = fatherFirstName && childMiddleName === fatherFirstName;
+      
+      if (isSonDaughter || hasFatherMiddleName) {
+         const birthDate = new Date(child.dob);
+         if (!isNaN(birthDate.getTime())) {
+            const daysOld = (new Date() - birthDate) / (1000 * 60 * 60 * 24);
+            if (daysOld >= 0 && daysOld <= 42) {
+               return true;
+            }
+         }
+      }
+    }
+  }
+  
+  return false;
+};
+
+
+/**
  * 2. Newborn & Child Care (HBNC & HBYC)
  * @param {Date|string} dob 
  * @param {boolean} isHomeBirth 
