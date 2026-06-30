@@ -96,6 +96,7 @@ export const cloudSyncManager = {
       { key: STORAGE_KEYS.CUSTOM_FORM_SCHEMAS, table: 'custom_form_schemas' },
       { key: STORAGE_KEYS.CUSTOM_EVENTS, table: 'custom_events' },
       { key: STORAGE_KEYS.ALERTS, table: 'alerts' },
+      { key: STORAGE_KEYS.CLAIMS, table: 'claims' },
     ];
 
     for (const col of collectionsToCheck) {
@@ -295,6 +296,14 @@ export const cloudSyncManager = {
               console.error('🚫 Critical: Could not save to DLQ table.');
             }
           }
+          
+          // Abort early if we hit a timeout or network issue, to prevent blocking the app
+          if (err.message?.includes('Item Timeout') || err.message?.includes('network') || err.message?.includes('offline') || err.message?.includes('Failed to fetch')) {
+             console.warn('🛑 Network/Timeout detected. Aborting remainder of queue to save time.');
+             const unprocessedItems = queue.slice(i + 1);
+             remainingQueue.push(...unprocessedItems);
+             break;
+          }
         }
       }
 
@@ -302,12 +311,25 @@ export const cloudSyncManager = {
       // which could collide when items are created in the same millisecond.
       const processedItemIds = new Set(
         queue
-          .filter(item => !remainingQueue.includes(item))
+          .filter(item => !remainingQueue.some(r => r.id === item.id))
           .map(item => item.id)
       );
       
       const latestQueue = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
-      const finalQueue = latestQueue.filter(item => !processedItemIds.has(item.id));
+      
+      // Preserve items that weren't processed in this sync run
+      let finalQueue = latestQueue.filter(item => !processedItemIds.has(item.id));
+      
+      // Re-insert remaining items with their updated retry counts
+      for (const remItem of remainingQueue) {
+        const idx = finalQueue.findIndex(q => q.id === remItem.id);
+        if (idx >= 0) {
+          finalQueue[idx] = remItem;
+        } else {
+          finalQueue.push(remItem);
+        }
+      }
+      
       await storage.saveAll(STORAGE_KEYS.SYNC_QUEUE, finalQueue);
 
       const elapsed = Date.now() - startTime;
@@ -432,7 +454,7 @@ export const cloudSyncManager = {
             q = query(q, where('phcId', '==', user.phcId || 'FORCE_BLOCK'));
           }
 
-          if (['members', 'families', 'vital_events', 'claims', 'vhnd_sessions', 'stock', 'idsp_surveillance', 'vector_surveys', 'hwc_activity', 'water_quality', 'cold_chain', 'custom_form_schemas', 'custom_events', 'alerts'].includes(col.table)) {
+          if (['members', 'families', 'vital_events', 'tasks', 'task_completions', 'claims', 'vhnd_sessions', 'stock', 'idsp_surveillance', 'vector_surveys', 'hwc_activity', 'water_quality', 'cold_chain', 'custom_form_schemas', 'custom_events', 'alerts'].includes(col.table)) {
 
             switch (user.role) {
               case 'ASHA': {
