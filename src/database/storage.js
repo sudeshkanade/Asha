@@ -1,7 +1,53 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import RNAsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { STORAGE_KEYS, CLINICAL_KEYS } from './constants';
 import { calculateAge } from '../utils/healthLogic';
+import localforage from 'localforage';
+
+if (Platform.OS === 'web') {
+  localforage.config({
+    name: 'RuralHealthTracker',
+    storeName: 'app_data',
+    description: 'Offline storage for RHT'
+  });
+}
+
+const AsyncStorage = {
+  getItem: async (key) => {
+    if (Platform.OS === 'web') {
+      const val = await localforage.getItem(key);
+      if (val === null) {
+        try {
+          const oldVal = await RNAsyncStorage.getItem(key);
+          if (oldVal !== null) {
+            await localforage.setItem(key, oldVal);
+            return oldVal;
+          }
+        } catch (e) {}
+      }
+      return val;
+    }
+    return await RNAsyncStorage.getItem(key);
+  },
+  setItem: async (key, value) => {
+    if (Platform.OS === 'web') {
+      return await localforage.setItem(key, value);
+    }
+    return await RNAsyncStorage.setItem(key, value);
+  },
+  removeItem: async (key) => {
+    if (Platform.OS === 'web') {
+      return await localforage.removeItem(key);
+    }
+    return await RNAsyncStorage.removeItem(key);
+  },
+  clear: async () => {
+    if (Platform.OS === 'web') {
+      return await localforage.clear();
+    }
+    return await RNAsyncStorage.clear();
+  }
+};
 
 /**
  * OPT-1: In-Memory Read Cache
