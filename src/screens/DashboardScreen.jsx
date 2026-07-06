@@ -326,6 +326,13 @@ const DashboardScreen = ({ user, onNavigate }) => {
       _lastDeepScanTime = Date.now();
     } catch (e) {
       console.error('Dashboard Stats Error:', e);
+      setStats({
+        maternal: { activeAnc: 0, highRisk: 0 },
+        demographics: { total: 0, ageGroups: { '0-5': 0 } },
+        child: { samChildren: 0 },
+        dueTodayCount: 0,
+        overdueCount: 0
+      });
       setLoading(false);
     }
   };

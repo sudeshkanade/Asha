@@ -75,7 +75,7 @@ export default function App() {
           restoredUser = JSON.parse(storedUserStr);
           setUser(restoredUser);
           userRef.current = restoredUser;
-          const homeScreen = restoredUser.role === 'Admin' ? 'AdminDashboard' : (restoredUser.role === 'MO' ? 'MODashboard' : 'Dashboard');
+          const homeScreen = restoredUser.role === 'Admin' ? 'Dashboard' : (restoredUser.role === 'MO' ? 'MODashboard' : 'Dashboard');
           setNavigationHistory([{ screen: homeScreen, data: null }]);
           setCurrentScreen(homeScreen);
         }
