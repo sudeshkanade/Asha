@@ -121,17 +121,25 @@ export default function App() {
 
       try {
         await storage.autoPrune();
-        // QUOTA FIX: Only pull once on startup (cooldown guard inside pullFromCloud prevents repeated calls).
-        // The periodic interval below handles subsequent refreshes at a safe 30-minute cadence.
-        await cloudSyncManager.pullFromCloud(restoredUser);
         
-        // Auto-heal missing IDs, orphaned family relationships, and corrupted DOBs/Ages
-        await DataRecoveryManager.runHeal(restoredUser);
-        
-        await cloudSyncManager.startBackgroundSync();
-        await storage.purgeOrphanedData(restoredUser);
+        // Wrap network sync and intensive recovery in a timeout to guarantee boot
+        const bootSyncSequence = async () => {
+          try {
+            await cloudSyncManager.pullFromCloud(restoredUser);
+            await DataRecoveryManager.runHeal(restoredUser);
+            await cloudSyncManager.startBackgroundSync();
+            await storage.purgeOrphanedData(restoredUser);
+          } catch (err) {
+            console.error("Background boot sync failed:", err);
+          }
+        };
+
+        await Promise.race([
+          bootSyncSequence(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Boot sync timed out")), 5000))
+        ]);
       } catch (syncError) {
-        console.error("Initial app load sequence failed, proceeding offline:", syncError);
+        console.warn("Initial app load sequence timed out or failed, proceeding offline:", syncError.message || syncError);
       } finally {
         setLoading(false);
       }
