@@ -366,8 +366,9 @@ export const cloudSyncManager = {
     }
 
     // QUOTA FIX: Cooldown guard — skip pull if last pull was within PULL_COOLDOWN_MS.
-    // Manual refresh (force=true) bypasses this. Periodic background pulls respect it.
-    if (!force) {
+    // Manual refresh (force=true) bypasses this. Admin users always bypass (they manage all data).
+    const isAdmin = user && user.role === 'Admin';
+    if (!force && !isAdmin) {
       try {
         const lastPullStr = await storage.getRaw('LAST_CLOUD_PULL_AT');
         const lastPull = lastPullStr ? parseInt(lastPullStr) : 0;
@@ -564,8 +565,9 @@ export const cloudSyncManager = {
 
           // QUOTA FIX: Delta sync — filter by lastUpdatedAt to only fetch changed records.
           // On first pull (lastPullTimestamp=0), fetches everything. Subsequent pulls fetch only changes.
+          // Admin always does a full pull to guarantee a complete view of all data.
           let querySnapshot;
-          if (lastPullTimestamp > 0) {
+          if (lastPullTimestamp > 0 && !isAdmin) {
             try {
               const deltaQ = query(q, where('lastUpdatedAt', '>', lastPullTimestamp));
               querySnapshot = await getDocs(deltaQ);
