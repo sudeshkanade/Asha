@@ -258,7 +258,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
         members = allMembers.filter(m => m.phcId === user.phcId);
       }
 
-      setSyncCount(events.length);
+      setSyncCount(events?.length || 0);
       
       // BUG-H1 / OPT-3 FIX: Use memoized task generation.
       // generateAllTasks is CPU-heavy (O(n * schedule_items)). We skip recompute
