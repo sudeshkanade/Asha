@@ -13,16 +13,17 @@ export const DataRecoveryManager = {
       let familiesUpdated = false;
       const updatedFamilies = allFamilies.map(f => {
         let changed = false;
-        if (!f.villageId && user.villageId) {
-          f.villageId = user.villageId;
+        const updatedF = { ...f };
+        if (!updatedF.villageId && user.villageId) {
+          updatedF.villageId = user.villageId;
           changed = true;
         }
-        if (!f.ashaId && user.id) {
-          f.ashaId = user.id;
+        if (!updatedF.ashaId && user.id) {
+          updatedF.ashaId = user.id;
           changed = true;
         }
         if (changed) familiesUpdated = true;
-        return f;
+        return changed ? updatedF : f;
       });
 
       if (familiesUpdated) {
@@ -32,53 +33,54 @@ export const DataRecoveryManager = {
       let membersUpdated = false;
       const updatedMembers = allMembers.map(m => {
         let changed = false;
+        const updatedM = { ...m };
 
         // 1. Heal Age and DOB
-        if (!m.dob || m.dob === 'NaN-NaN-NaN' || m.dob === 'undefined-undefined-undefined') {
-          if (m.age !== undefined && m.age !== null && !isNaN(m.age)) {
+        if (!updatedM.dob || updatedM.dob === 'NaN-NaN-NaN' || updatedM.dob === 'undefined-undefined-undefined') {
+          if (updatedM.age !== undefined && updatedM.age !== null && !isNaN(updatedM.age)) {
             // Infer DOB from age
-            const inferredYear = new Date().getFullYear() - parseInt(m.age);
-            m.dob = `${inferredYear}-01-01`;
+            const inferredYear = new Date().getFullYear() - parseInt(updatedM.age);
+            updatedM.dob = `${inferredYear}-01-01`;
             changed = true;
           }
         }
         
-        if (m.age === undefined || m.age === null || isNaN(m.age) || m.age < 0) {
-          if (m.dob && m.dob !== 'NaN-NaN-NaN') {
-            m.age = calculateAge(m.dob);
+        if (updatedM.age === undefined || updatedM.age === null || isNaN(updatedM.age) || updatedM.age < 0) {
+          if (updatedM.dob && updatedM.dob !== 'NaN-NaN-NaN') {
+            updatedM.age = calculateAge(updatedM.dob);
             changed = true;
           } else {
             // Unrecoverable age, default to 0
-            m.age = 0;
-            m.dob = `${new Date().getFullYear()}-01-01`;
+            updatedM.age = 0;
+            updatedM.dob = `${new Date().getFullYear()}-01-01`;
             changed = true;
           }
         }
 
         // 2. Heal Geographic Identifiers
-        if (!m.villageId && user.villageId) {
-          m.villageId = user.villageId;
+        if (!updatedM.villageId && user.villageId) {
+          updatedM.villageId = user.villageId;
           changed = true;
         }
-        if (!m.ashaId && user.id) {
-          m.ashaId = user.id;
+        if (!updatedM.ashaId && user.id) {
+          updatedM.ashaId = user.id;
           changed = true;
         }
 
         // 3. Heal Orphaned Members
-        if (!m.familyId || !familyIds.has(m.familyId)) {
+        if (!updatedM.familyId || !familyIds.has(updatedM.familyId)) {
           // If the family doesn't exist, we assign them to a system recovery family or just clear it.
           // For now, we set it to a special "RECOVERY" family ID so it doesn't break filters expecting a valid string.
-          m.familyId = `RECOVERY_FAM_${user.id}`;
+          updatedM.familyId = `RECOVERY_FAM_${user.id}`;
           changed = true;
         }
 
         if (changed) {
-          m.lastUpdatedAt = Date.now();
-          m.syncStatus = 'pending';
+          updatedM.lastUpdatedAt = Date.now();
+          updatedM.syncStatus = 'pending';
           membersUpdated = true;
         }
-        return m;
+        return changed ? updatedM : m;
       });
 
       if (membersUpdated) {

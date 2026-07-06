@@ -83,7 +83,10 @@ export const generateGoshwaraReport = (members, vitalEvents = [], vhndSessions =
   };
 
   const isMonthYear = (dateStr, m, y) => {
-    return true; // User requested all-time numbers
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return false;
+    return (d.getMonth() + 1) === m && d.getFullYear() === y;
   };
 
   // 1. Process Members
@@ -97,9 +100,8 @@ export const generateGoshwaraReport = (members, vitalEvents = [], vhndSessions =
     else if (age <= 2) stats.demographics.age_13_24m[genderKey]++;
     else if (age >= 5 && age <= 6) stats.demographics.age_5_6y[genderKey]++;
     else if (age >= 10 && age <= 11) stats.demographics.age_10_11y[genderKey]++;
-    // BUG-07 FIX: 16-17 band ends at 16, 17-19 starts at 17 — use strict ranges to avoid overlap
-    else if (age >= 16 && age <= 16) stats.demographics.age_16_17y[genderKey]++;
-    else if (age >= 17 && age <= 19) stats.demographics.age_17_19y[genderKey]++;
+    else if (age >= 16 && age <= 17) stats.demographics.age_16_17y[genderKey]++;
+    else if (age >= 18 && age <= 19) stats.demographics.age_17_19y[genderKey]++;
     else if (age >= 40 && age <= 60) stats.demographics.age_40_60y[genderKey]++;
     else if (age > 60) stats.demographics.age_60plus[genderKey]++;
 

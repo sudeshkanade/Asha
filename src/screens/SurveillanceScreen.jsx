@@ -87,6 +87,8 @@ const SurveillanceScreen = ({ user, onBack }) => {
       diarrheaCount: parseInt(diarrhea, 10),
       timestamp: new Date().toISOString(),
       villageId: user.villageId,
+      subCenterId: user.subCenterId,
+      phcId: user.phcId,
       ashaId: user.id
     };
     setIdspLogs(prev => [newLog, ...prev]);
@@ -111,6 +113,8 @@ const SurveillanceScreen = ({ user, onBack }) => {
       ...individualForm,
       timestamp: new Date().toISOString(),
       villageId: user.villageId,
+      subCenterId: user.subCenterId,
+      phcId: user.phcId,
       ashaId: user.id
     };
     setIndividualLogs(prev => [newLog, ...prev]);
@@ -156,6 +160,8 @@ const SurveillanceScreen = ({ user, onBack }) => {
       positiveHouses: parseInt(positive, 10) || 0,
       timestamp: new Date().toISOString(),
       villageId: user.villageId,
+      subCenterId: user.subCenterId,
+      phcId: user.phcId,
       ashaId: user.id
     };
     setVectorSurveys(prev => [newSurvey, ...prev]);
@@ -180,6 +186,8 @@ const SurveillanceScreen = ({ user, onBack }) => {
       ...tbForm,
       timestamp: new Date().toISOString(),
       villageId: user.villageId,
+      subCenterId: user.subCenterId,
+      phcId: user.phcId,
       ashaId: user.id
     };
     setTbLogs(prev => [newLog, ...prev]);

@@ -93,8 +93,8 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
       if (ageNum >= 0 && ageNum <= 150) {
         const today = new Date();
         const year = today.getFullYear() - ageNum;
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
+        const month = '01';
+        const day = '01';
         
         // Auto-set values for minors to reduce clicks
         const defaultMaritalStatus = ageNum < 18 ? 'Unmarried' : formData.maritalStatus;
@@ -376,7 +376,14 @@ const MemberRegistrationScreen = ({ familyHead, onSave, onBack, existingMember }
               />
               <View style={styles.ageBadge}>
                 <Text style={styles.ageBadgeLabel}>{t('age')}</Text>
-                <Text style={styles.ageBadgeValue}>{formData.age || '0'}</Text>
+                <TextInput
+                  style={[styles.ageBadgeValue, { padding: 0, minWidth: 30, textAlign: 'center' }]}
+                  value={formData.age}
+                  onChangeText={handleAgeChange}
+                  keyboardType="numeric"
+                  maxLength={3}
+                  placeholder="0"
+                />
               </View>
             </View>
           </View>
@@ -680,6 +687,25 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: COLORS.textSecondary,
     marginTop: 2,
+  },
+  ageBadge: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    padding: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 60,
+    height: 48,
+  },
+  ageBadgeLabel: {
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+  },
+  ageBadgeValue: {
+    fontSize: 15,
+    color: COLORS.text,
+    fontWeight: '700',
   },
 });
 

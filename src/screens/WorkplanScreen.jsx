@@ -7,7 +7,8 @@ import {
   SafeAreaView,
   TouchableOpacity,
   ActivityIndicator,
-  FlatList
+  FlatList,
+  Alert
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
@@ -65,13 +66,33 @@ const WorkplanScreen = ({ user, onBack, onNavigate }) => {
       return taskDate <= today && task.status !== 'completed';
     });
 
+    // Compute real completed today count from local database & sync queue
+    let completedCount = 0;
+    try {
+      const completions = await storage.getAll(STORAGE_KEYS.TASK_COMPLETIONS);
+      const syncQueue = await storage.getAll(STORAGE_KEYS.SYNC_QUEUE);
+      
+      const completedTodayIds = new Set();
+      completions.forEach(tc => {
+        if (new Date(tc.completedAt).toDateString() === today.toDateString()) {
+          completedTodayIds.add(tc.taskId);
+        }
+      });
+      syncQueue.forEach(q => {
+        if (q.tableName === STORAGE_KEYS.TASK_COMPLETIONS && 
+            new Date(q.timestamp || q.payload?.completedAt).toDateString() === today.toDateString()) {
+          completedTodayIds.add(q.payload?.taskId);
+        }
+      });
+      completedCount = completedTodayIds.size;
+    } catch (e) {
+      console.warn('WorkplanScreen stats load failed:', e);
+    }
+
     setTasks(dueTasks);
     setStats({
       due: dueTasks.length,
-      completed: allTasks.filter(t => 
-        t.status === 'completed' && 
-        new Date(t.member.healthData?.lastUpdatedAt || 0).toDateString() === today.toDateString()
-      ).length
+      completed: completedCount
     });
     setLoading(false);
   };
@@ -137,7 +158,10 @@ const WorkplanScreen = ({ user, onBack, onNavigate }) => {
         )}
       </View>
 
-      <TouchableOpacity style={styles.diaryBtn}>
+      <TouchableOpacity 
+        style={styles.diaryBtn}
+        onPress={() => Alert.alert(t('comingSoon', 'Coming Soon'), t('dailyDiaryAlert', 'The daily diary generation feature is coming soon.'))}
+      >
         <Text style={styles.diaryBtnText}>📔 {t('dailyDiary', 'Generate Daily Diary')}</Text>
       </TouchableOpacity>
     </SafeAreaView>

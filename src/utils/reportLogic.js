@@ -11,9 +11,12 @@ export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], p
   const currentMonth = selectedMonth !== null ? selectedMonth : now.getMonth();
   const currentYear = selectedYear !== null ? selectedYear : now.getFullYear();
 
-  // Filter helper: User requested to show all numbers, not monthly
-  const isCurrentMonth = (dateStr) => {
-    return true;
+  // Filter helper: check if date falls in current reporting month/year
+  const isCurrentMonth = (dateVal) => {
+    if (!dateVal) return false;
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return false;
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   };
 
   const demographicsStats = {
@@ -49,8 +52,8 @@ export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], p
     else if (age <= 2) demographicsStats.age_13_24m[genderKey]++;
     else if (age >= 5 && age <= 6) demographicsStats.age_5_6y[genderKey]++;
     else if (age >= 10 && age <= 11) demographicsStats.age_10_11y[genderKey]++;
-    else if (age >= 16 && age <= 16) demographicsStats.age_16_17y[genderKey]++;
-    else if (age >= 17 && age <= 19) demographicsStats.age_17_19y[genderKey]++;
+    else if (age >= 16 && age <= 17) demographicsStats.age_16_17y[genderKey]++;
+    else if (age >= 18 && age <= 19) demographicsStats.age_17_19y[genderKey]++;
     else if (age >= 40 && age <= 60) demographicsStats.age_40_60y[genderKey]++;
     else if (age > 60) demographicsStats.age_60plus[genderKey]++;
 
@@ -155,15 +158,7 @@ export const generateMPRStats = (members, vitalEvents = [], vhndSessions = [], p
       return age <= 5 && muac >= 11.5 && muac < 12.5;
     }).length,
     fullyImmunized: members.filter(m => {
-      const dobStr = m.dob;
-      if (!dobStr) return false;
-      const dob = new Date(dobStr);
-      if (isNaN(dob.getTime())) return false;
-      const ageInMonths = (now.getFullYear() - dob.getFullYear()) * 12 + (now.getMonth() - dob.getMonth());
-      if (ageInMonths < 12) return false;
-      
-      const memberVaccines = m.vaccines?.map(v => v.name) || [];
-      return mandatoryVaccines.every(v => memberVaccines.includes(v));
+      return m.healthData?.vaccinationStatus === 'Complete';
     }).length,
   };
 

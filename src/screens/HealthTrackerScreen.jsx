@@ -13,7 +13,7 @@ import {
   Modal
 } from 'react-native';
 import { COLORS } from '../constants/colors';
-import { calculateChildSchedule, shouldShowMaternalFields, ANC_RISK_FACTORS, calculateVaccinationSchedule } from '../utils/healthLogic';
+import { calculateChildSchedule, shouldShowMaternalFields, ANC_RISK_FACTORS, calculateVaccinationSchedule, calculateAge } from '../utils/healthLogic';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { incentiveManager } from '../utils/incentiveManager';
 import { generateAlert } from '../utils/alertLogic';
@@ -92,10 +92,10 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
 
   const hbncSchedule = member?.dob ? calculateChildSchedule(member.dob).hbnc : [];
   const vaccinationSchedule = member?.dob ? calculateVaccinationSchedule(member.dob) : [];
-  const memberAge = parseInt(member?.age) || 0;
+  const memberAge = member?.dob ? (calculateAge(member.dob) ?? parseInt(member.age) ?? 0) : (parseInt(member?.age) || 0);
   const showMaternal = member ? shouldShowMaternalFields(member.gender, memberAge) : true;
   const isEC = member?.gender === 'Female' && memberAge >= 15 && memberAge <= 49 && !member?.healthData?.isPregnant;
-  const isChild = memberAge < 17;
+  const isChild = memberAge < 18;
 
   const weightVal = parseFloat(tracker.weight) || (member?.healthData?.weight ? parseFloat(member.healthData.weight) : NaN);
   const heightVal = parseFloat(tracker.height) || (member?.healthData?.height ? parseFloat(member.healthData.height) : NaN);
@@ -176,8 +176,8 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
   const persistData = async (justification = '') => {
     const isRedFlag = (parseInt(tracker.bpSystolic) > 140 || parseInt(tracker.bpDiastolic) > 90) || 
                       (parseFloat(tracker.hbLevel) > 0 && parseFloat(tracker.hbLevel) < 7) || 
-                      (memberAge <= 5 && parseFloat(tracker.weight) > 0 && parseFloat(tracker.weight) < 10) ||
-                      (memberAge <= 5 && parseFloat(tracker.muac) > 0 && parseFloat(tracker.muac) < 11.5);
+                      (memberAge < 5 && parseFloat(tracker.weight) > 0 && parseFloat(tracker.weight) < 10) ||
+                      (memberAge < 5 && parseFloat(tracker.muac) > 0 && parseFloat(tracker.muac) < 11.5);
     const finalIsHighRisk = tracker.selectedRiskFactors.length > 0 || isRedFlag;
     
     // RUTHLESS FIX: Detect Downgrade for Audit
@@ -208,7 +208,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
 
     // Separate Governance Log for PHC Audit
     if (isDowngrade) {
-      await storage.save('governance_logs', {
+      await storage.save(STORAGE_KEYS.GOVERNANCE_LOGS, {
         id: storage.generateId('gov', user?.id),
         type: 'RISK_DOWNGRADE',
         targetMember: member.id,
@@ -236,7 +236,7 @@ const HealthTrackerScreen = ({ member, taskId, user, onSave, onBack, initialTab 
         });
       }
 
-      if (memberAge <= 5 && parseFloat(tracker.muac) > 0 && parseFloat(tracker.muac) < 11.5) {
+      if (memberAge < 5 && parseFloat(tracker.muac) > 0 && parseFloat(tracker.muac) < 11.5) {
         await generateAlert({
           type: 'SAM_CHILD',
           message: `SAM Child Detected (MUAC < 11.5): ${member.firstName} ${member.lastName}`,

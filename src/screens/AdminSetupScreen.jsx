@@ -518,7 +518,7 @@ const AdminSetupScreen = ({ user, initialTab, onBack }) => {
           style={styles.refreshBtn} 
           onPress={async () => {
             setLoading(true);
-            await cloudSyncManager.pullFromCloud();
+            await cloudSyncManager.pullFromCloud(user);
             await loadData();
             setLoading(false);
             Alert.alert(t('synced'), t('dataUpdated'));

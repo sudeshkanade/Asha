@@ -46,9 +46,9 @@ const MemberListScreen = ({ user, filterType, familyId, onMemberSelect, onNaviga
 
       scopedMembers = allMembers.filter(m => !m.villageId || m.ashaId === user.id || assignedIds.has(m.villageId));
     } else if (user?.role === 'ANM') {
-      scopedMembers = allMembers.filter(m => m.subCenterId === user.subCenterId || !m.subCenterId);
+      scopedMembers = allMembers.filter(m => m.subCenterId === user.subCenterId);
     } else if (user?.role === 'MO') {
-      scopedMembers = allMembers.filter(m => m.phcId === user.phcId || !m.phcId);
+      scopedMembers = allMembers.filter(m => m.phcId === user.phcId);
     }
 
     let filtered = scopedMembers;

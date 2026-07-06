@@ -12,6 +12,7 @@ import {
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { useTranslation } from 'react-i18next';
+import { generateAllTasks, calculateAge } from '../utils/healthLogic';
 
 const MODashboard = ({ user, onBack, onNavigate }) => {
   const { t } = useTranslation();
@@ -25,25 +26,43 @@ const MODashboard = ({ user, onBack, onNavigate }) => {
 
   const loadPHCData = async () => {
     setLoading(true);
-    // RUTHLESS FIX: Load pre-calculated PHC summary from AsyncStorage to prevent OOM
-    // In a real build, we'd also import AsyncStorage or use storage.getSummary()
+    const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
     const allSCs = await storage.getAll(STORAGE_KEYS.SUB_CENTERS);
     
-    const stats = allSCs.filter(sc => sc.parentPhcId === user.phcId).map(sc => ({
-      id: sc.id,
-      name: sc.name,
-      totalPop: '---', // Will be populated by aggregate sync
-      hrpCount: '---',
-      samCount: '---',
-      performance: 80 + Math.floor(Math.random() * 20)
-    }));
+    const stats = allSCs.filter(sc => sc.parentPhcId === user.phcId).map(sc => {
+      const scMembers = allMembers.filter(m => m.subCenterId === sc.id && m.status !== 'Deceased');
+      const hrpCount = scMembers.filter(m => m.healthData?.isHighRisk).length;
+      const samCount = scMembers.filter(m => {
+        const age = m.dob ? calculateAge(m.dob) : (parseInt(m.age) || 99);
+        const muac = parseFloat(m.healthData?.muac);
+        return age < 5 && !isNaN(muac) && muac < 11.5;
+      }).length;
+
+      const scTasks = generateAllTasks(scMembers);
+      const completed = scTasks.filter(t => t.status === 'completed').length;
+      const total = scTasks.length;
+      const performance = total > 0 ? Math.round((completed / total) * 100) : 100;
+
+      return {
+        id: sc.id,
+        name: sc.name,
+        totalPop: scMembers.length,
+        hrpCount,
+        samCount,
+        performance
+      };
+    });
 
     setScStats(stats);
     
     // Targeted Alert Fetch (Limited to top 5)
-    const allMembers = await storage.getAll(STORAGE_KEYS.MEMBERS);
     const criticalAlerts = allMembers
-      .filter(m => m.phcId === user.phcId && (m.healthData?.isHighRisk || m.healthData?.hbLevel < 7))
+      .filter(m => {
+        if (m.phcId !== user.phcId || m.status === 'Deceased') return false;
+        const hb = parseFloat(m.healthData?.hbLevel);
+        const isSevereAnemia = !isNaN(hb) && hb > 0 && hb < 7;
+        return m.healthData?.isHighRisk || isSevereAnemia;
+      })
       .slice(0, 5);
     
     setAlerts(criticalAlerts);

@@ -239,13 +239,14 @@ const VitalEventsScreen = ({ user, onBack }) => {
         ...mother,
         healthData: {
           ...mother.healthData,
+          isPregnant: false,
           ancStatus: 'Completed',
           pncStatus: 'Pending',
           lastDeliveryDate: formData.date,
           lastDeliveryPlace: formData.place,
           lastDeliveryHospital: formData.hospitalName,
           edd: null, // Clear pregnancy status
-          isHighRisk: false 
+          isHighRisk: mother.healthData?.isHighRisk || false
         }
       };
 

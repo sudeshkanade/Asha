@@ -12,9 +12,9 @@ import {
   Modal,
   BackHandler
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { storage, STORAGE_KEYS, AsyncStorage } from './src/database/storage';
 import LoginScreen from './src/screens/LoginScreen';
-import DashboardScreen from './src/screens/DashboardScreen';
+import DashboardScreen, { resetDashboardCache } from './src/screens/DashboardScreen';
 import DailyTaskListScreen from './src/screens/DailyTaskListScreen';
 import FamilyRegistrationScreen from './src/screens/FamilyRegistrationScreen';
 import MemberRegistrationScreen from './src/screens/MemberRegistrationScreen';
@@ -37,7 +37,6 @@ const AdminSetupScreen = React.lazy(() => import('./src/screens/AdminSetupScreen
 const AdminSettingsScreen = React.lazy(() => import('./src/screens/AdminSettingsScreen'));
 const MODashboard = React.lazy(() => import('./src/screens/MODashboard'));
 const AdminDashboard = React.lazy(() => import('./src/screens/AdminDashboard'));
-import { storage, STORAGE_KEYS } from './src/database/storage';
 import { cloudSyncManager } from './src/database/cloudSync';
 import { MemberPayload } from './src/utils/schema';
 import { DataRecoveryManager } from './src/utils/DataRecoveryManager';
@@ -264,6 +263,12 @@ export default function App() {
       setCurrentFilter(null);
       setFamilyIdFilter(null);
       setAdminSetupData(null);
+      try {
+        resetDashboardCache();
+        cloudSyncManager.resetSession();
+      } catch (e) {
+        console.warn('Cache/session reset failed on logout:', e);
+      }
       AsyncStorage.removeItem('LOGGED_IN_USER').catch(err => console.warn(err));
       setNavigationHistory([{ screen: 'Login', data: null }]);
       setCurrentScreen('Login');
@@ -325,6 +330,12 @@ export default function App() {
 
   const handleLogin = (userData) => {
     setUser(userData);
+    try {
+      resetDashboardCache();
+      cloudSyncManager.resetSession();
+    } catch (e) {
+      console.warn('Cache/session reset failed on login:', e);
+    }
     AsyncStorage.setItem('LOGGED_IN_USER', JSON.stringify(userData)).catch(err => console.warn(err));
     const homeScreen = userData.role === 'Admin' ? 'AdminDashboard' : (userData.role === 'MO' ? 'MODashboard' : 'Dashboard');
     setNavigationHistory([{ screen: homeScreen, data: null }]);
@@ -400,9 +411,20 @@ export default function App() {
                  onNavigate={handleNavigate} 
                />;
       case 'Tasks':
-        return <DailyTaskListScreen user={user} villageName={user?.village} onBack={handleGoBack} />;
+        return <DailyTaskListScreen 
+                  key={`tasks-${navigationHistory.length}`}
+                  user={user} 
+                  villageName={user?.village} 
+                  onBack={handleGoBack} 
+                  onNavigate={handleNavigate}
+               />;
       case 'FamilyFolder':
-        return <FamilyFolderScreen user={user} onNavigate={handleNavigate} onBack={handleGoBack} />;
+        return <FamilyFolderScreen 
+                  key={`fam-${navigationHistory.length}`}
+                  user={user} 
+                  onNavigate={handleNavigate} 
+                  onBack={handleGoBack} 
+               />;
       case 'FamilyRegistration':
         return <FamilyRegistrationScreen onSave={handleFamilySave} user={user} onBack={handleGoBack} existingFamily={selectedFamily} />;
       case 'MemberRegistration':
@@ -413,6 +435,7 @@ export default function App() {
         return <ParityReportScreen user={user} onNavigate={handleNavigate} onBack={handleGoBack} />;
       case 'MemberList':
         return <MemberListScreen 
+                  key={`members-${navigationHistory.length}`}
                   user={user}
                   filterType={currentFilter} 
                   familyId={familyIdFilter}

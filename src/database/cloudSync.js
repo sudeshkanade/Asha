@@ -39,12 +39,14 @@ const COLLECTION_MAP = {
   [STORAGE_KEYS.CUSTOM_FORM_SCHEMAS]: 'custom_form_schemas',
   [STORAGE_KEYS.CUSTOM_EVENTS]: 'custom_events',
   [STORAGE_KEYS.ALERTS]: 'alerts',
+  [STORAGE_KEYS.STOCK_INDENTS]: 'stock_indents',
   'governance_logs': 'governance_logs',
   'dlq_forensics': 'dlq_forensics',
   // Fallbacks for direct string usage
   'tasks': 'tasks',
   'claims': 'claims',
   'task_completions': 'task_completions',
+  'stock_indents': 'stock_indents',
 };
 
 /**
@@ -107,6 +109,7 @@ export const cloudSyncManager = {
             currentQueue.push({
               id: storage.generateId('sync_recover'),
               tableName: col.key,
+              docId: record.id,  // SYNC-FIX-2: was missing, caused _addToSyncQueue dedup to fail → duplicate queue entries
               payload: record,
               timestamp: record.lastUpdatedAt || Date.now(),
               type: 'save',
@@ -225,6 +228,9 @@ export const cloudSyncManager = {
                 // Remove the heavy base64/uri image to save cloud storage
                 delete finalPayload.image;
                 finalPayload.evidenceVerified = true;
+              }
+              if (collectionName === 'users') {
+                delete finalPayload.password;
               }
 
               await setDoc(doc(db, collectionName, docId), {
@@ -665,6 +671,10 @@ export const cloudSyncManager = {
       console.error('💥 CloudSync: Critical pull error:', e);
       return { success: false, message: e.message };
     }
+  },
+
+  resetSession: () => {
+    cloudSyncManager._sessionStaticPulled = false;
   },
 
   /**

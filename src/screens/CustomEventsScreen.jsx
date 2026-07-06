@@ -40,6 +40,22 @@ const CustomEventsScreen = ({ user, onBack }) => {
   };
 
   const handleSubmit = async () => {
+    // Validation
+    for (const field of activeSchema.fields) {
+      const val = formData[field.id];
+      const isRequired = field.required ?? true; // assume required by default for safety
+      if (field.type !== 'boolean' && isRequired && (val === undefined || val === null || String(val).trim() === '')) {
+        Alert.alert(t('error', 'Error'), `${field.label} is required.`);
+        return;
+      }
+      if (field.type === 'number' && val !== '' && val !== undefined && val !== null) {
+        if (isNaN(Number(val))) {
+          Alert.alert(t('error', 'Error'), `${field.label} must be a valid number.`);
+          return;
+        }
+      }
+    }
+
     const newEvent = {
       id: storage.generateId('custevt', user?.id),
       schemaId: activeSchema.id,

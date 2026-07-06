@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { DEFAULT_INCENTIVE_RATES } from '../utils/claimsLogic';
+import { cloudSyncManager } from '../database/cloudSync';
 
 const AdminSettingsScreen = ({ user, onBack }) => {
   const { t } = useTranslation();
@@ -49,6 +50,13 @@ const AdminSettingsScreen = ({ user, onBack }) => {
     };
     await storage.save(STORAGE_KEYS.APP_CONFIG, ratesConfig);
     setHasChanges(false);
+    
+    try {
+      await cloudSyncManager.startBackgroundSync();
+    } catch (e) {
+      console.warn('AdminSettings: background sync failed', e);
+    }
+    
     Alert.alert(t('success'), t('ratesUpdatedSuccess'));
   };
 

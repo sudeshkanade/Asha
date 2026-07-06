@@ -414,12 +414,28 @@ const LoginScreen = ({ onLogin }) => {
       setIsRegister(false);
     } catch (err) {
       console.error('Registration Error:', err);
-      let errorMsg = err.message || t('registrationFailed', 'Registration failed. Please check your connection.');
+      let errorMsg = t('registrationFailed', 'Registration failed. Please check your connection.');
       if (err.code === 'auth/email-already-in-use') {
         errorMsg = t('emailInUse', 'This email address is already in use. Please use a different email.');
       } else if (err.code === 'auth/weak-password') {
         errorMsg = t('weakPassword', 'Your password is too weak. Please use a stronger password.');
+      } else if (err.code === 'auth/invalid-email') {
+        errorMsg = t('invalidEmail', 'Invalid email address format.');
+      } else if (err.code === 'auth/network-request-failed') {
+        errorMsg = t('networkFailed', 'Network connection issue. Please check your internet connection and try again.');
+      } else if (err.message) {
+        errorMsg = err.message;
       }
+
+      // If we failed after creating Auth user, delete the Auth user to prevent orphan Auth accounts
+      if (auth.currentUser) {
+        try {
+          await auth.currentUser.delete();
+        } catch (delErr) {
+          console.warn("Could not delete orphan Auth user:", delErr);
+        }
+      }
+
       Alert.alert(t('error'), errorMsg);
     } finally {
       setLoading(false);

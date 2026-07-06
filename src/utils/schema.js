@@ -45,11 +45,12 @@ export class MemberPayload {
     const prevHealth = existingMember?.healthData || {};
     const newHealth = data.healthData || {};
     this.healthData = {
-      isPregnant: Boolean(newHealth.isPregnant),
-      hasNcd: Boolean(newHealth.hasNcd),
-      lmp: newHealth.isPregnant ? String(newHealth.lmp || '') : '',
-      edd: newHealth.isPregnant ? String(newHealth.edd || '') : '',
-      ancStatus: newHealth.isPregnant ? String(newHealth.ancStatus || 'active') : 'none',
+      ...prevHealth,
+      isPregnant: Boolean(newHealth.hasOwnProperty('isPregnant') ? newHealth.isPregnant : prevHealth.isPregnant),
+      hasNcd: Boolean(newHealth.hasOwnProperty('hasNcd') ? newHealth.hasNcd : prevHealth.hasNcd),
+      lmp: (newHealth.hasOwnProperty('isPregnant') ? newHealth.isPregnant : prevHealth.isPregnant) ? String(newHealth.lmp || prevHealth.lmp || '') : '',
+      edd: (newHealth.hasOwnProperty('isPregnant') ? newHealth.isPregnant : prevHealth.isPregnant) ? String(newHealth.edd || prevHealth.edd || '') : '',
+      ancStatus: (newHealth.hasOwnProperty('isPregnant') ? newHealth.isPregnant : prevHealth.isPregnant) ? String(newHealth.ancStatus || prevHealth.ancStatus || 'active') : 'none',
       completedTasks: Array.isArray(newHealth.completedTasks) ? newHealth.completedTasks : (prevHealth.completedTasks || [])
     };
   }

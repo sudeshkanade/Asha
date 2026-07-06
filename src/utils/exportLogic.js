@@ -61,7 +61,7 @@ const applyHierarchyFilter = (members, user) => {
       return null;
     }).filter(Boolean));
     if (user.villageId) assignedIds.add(user.villageId);
-    return members.filter(m => m.ashaId === user.id || assignedIds.has(m.villageId) || !m.villageId);
+    return members.filter(m => m.ashaId === user.id || assignedIds.has(m.villageId));
   }
   if (user.role === 'ANM') return members.filter(m => m.subCenterId === user.subCenterId);
   if (user.role === 'MO') return members.filter(m => m.phcId === user.phcId);

@@ -29,6 +29,8 @@ export const STORAGE_KEYS = {
   ALERTS: '@rural_health_alerts',
   // BUG-M1 FIX: Named constant prevents magic string repetition across files
   PHC_SUMMARY: 'PHC_SUMMARY',
+  STOCK_INDENTS: 'stock_indents',
+  GOVERNANCE_LOGS: 'governance_logs',
 };
 
 /**
@@ -51,5 +53,7 @@ export const CLINICAL_KEYS = [
   STORAGE_KEYS.HWC_ACTIVITY,
   STORAGE_KEYS.WATER_QUALITY,
   STORAGE_KEYS.COLD_CHAIN,
+  STORAGE_KEYS.STOCK_INDENTS,
+  STORAGE_KEYS.GOVERNANCE_LOGS,
 ];
 

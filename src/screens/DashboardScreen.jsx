@@ -27,6 +27,23 @@ import { updatePassword } from 'firebase/auth';
 // We cache the last result and only recompute when the member snapshot actually changes.
 let _lastTaskHash = null;
 let _cachedTasks = [];
+let _cachedStats = null;
+let _cachedSyncCount = 0;
+let _cachedPendingTasksCount = 0;
+let _cachedAlerts = [];
+let _cachedVillages = [];
+let _lastDeepScanTime = 0;
+
+export const resetDashboardCache = () => {
+  _lastTaskHash = null;
+  _cachedTasks = [];
+  _cachedStats = null;
+  _cachedSyncCount = 0;
+  _cachedPendingTasksCount = 0;
+  _cachedAlerts = [];
+  _cachedVillages = [];
+  _lastDeepScanTime = 0;
+};
 
 const _getTaskHash = (members) => {
   if (!members || members.length === 0) return '0';
@@ -108,10 +125,23 @@ const DashboardScreen = ({ user, onNavigate }) => {
   const [isSyncing, setIsSyncing] = React.useState(false);
 
   React.useEffect(() => {
-    loadLiveStats();
-    loadStockLevels(); // BUG-STOCK-01 FIX: hydrate stock widget from persistent storage
-    // Auto-sync on launch
-    cloudSyncManager.startBackgroundSync();
+    loadLiveStats(false);
+    loadStockLevels();
+    
+    // Auto-sync on launch with a 5-minute throttle
+    const autoSync = async () => {
+      try {
+        const lastAutoSync = await storage.getRaw('LAST_AUTO_SYNC_AT');
+        const now = Date.now();
+        if (!lastAutoSync || (now - parseInt(lastAutoSync)) > 5 * 60 * 1000) {
+          await storage.saveRaw('LAST_AUTO_SYNC_AT', now.toString());
+          cloudSyncManager.startBackgroundSync();
+        }
+      } catch (e) {
+        console.warn('DashboardScreen autoSync error:', e);
+      }
+    };
+    autoSync();
   }, []);
 
   // BUG-STOCK-01 FIX: Load persisted stock levels from storage on mount
@@ -151,13 +181,24 @@ const DashboardScreen = ({ user, onNavigate }) => {
     Alert.alert(t('success'), t('closedBuildingAdded'));
   };
 
-  const loadLiveStats = async () => {
+  const loadLiveStats = async (force = false) => {
     try {
-    // BUG-M1 FIX: Use STORAGE_KEYS.PHC_SUMMARY constant instead of raw magic string
+      const now = Date.now();
+      if (!force && _lastDeepScanTime > 0 && (now - _lastDeepScanTime) < 15000 && _cachedStats) {
+        setStats(_cachedStats);
+        setSyncCount(_cachedSyncCount);
+        setPendingTasksCount(_cachedPendingTasksCount);
+        setAlerts(_cachedAlerts);
+        setVillages(_cachedVillages);
+        setLoading(false);
+        return;
+      }
+
+      // BUG-M1 FIX: Use STORAGE_KEYS.PHC_SUMMARY constant instead of raw magic string
       const summaryStr = await storage.getRaw(STORAGE_KEYS.PHC_SUMMARY);
       const summary = summaryStr ? JSON.parse(summaryStr) : null;
       
-      if (summary) {
+      if (summary && !_cachedStats) {
         setStats({
           maternal: { activeAnc: summary.totalPregnant, highRisk: summary.totalHighRisk },
           demographics: { 
@@ -240,28 +281,29 @@ const DashboardScreen = ({ user, onNavigate }) => {
         dueDate.setHours(0,0,0,0);
         return dueDate.getTime() < today.getTime();
       }).length;
-      
-      const liveStats = generateMPRStats(members, vEvents, vhndSessions, events);
+            const liveStats = generateMPRStats(members, vEvents, vhndSessions, events);
 
-      setPendingTasksCount(pendingCount);
-      setStats(prev => ({
-        ...prev,
+      const finalStats = {
         ...liveStats,
         criticalCount,
         dueTodayCount,
         overdueCount,
         maternal: {
-          ...prev?.maternal,
-          ...liveStats?.maternal
+          activeAnc: liveStats.maternal?.activeAnc || 0,
+          highRisk: liveStats.maternal?.highRisk || 0
         },
         demographics: {
-          ...prev?.demographics,
-          ...liveStats?.demographics,
-          total: members.length
+          total: members.length,
+          ageGroups: {
+            '0-5': liveStats.demographics?.ageGroups?.['0-5'] || 0
+          }
         }
-      }));
+      };
 
-      // Filter Alerts based on role
+      setPendingTasksCount(pendingCount);
+      setStats(finalStats);
+
+      let resolvedAlerts = [];
       if (user && user.role !== 'ASHA') {
         let roleAlerts = allAlerts.filter(a => a.status === 'Unread' && a.targetRoles?.includes(user.role));
         if (user.role === 'ANM') {
@@ -269,10 +311,19 @@ const DashboardScreen = ({ user, onNavigate }) => {
         } else if (user.role === 'MO') {
           roleAlerts = roleAlerts.filter(a => a.phcId === user.phcId);
         }
-        setAlerts(roleAlerts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
+        resolvedAlerts = roleAlerts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        setAlerts(resolvedAlerts);
       }
 
       setLoading(false);
+
+      // Save to cache
+      _cachedStats = finalStats;
+      _cachedSyncCount = Math.max(events ? events.length : 0, pendingMembers + pendingVEvents + pendingSessions);
+      _cachedPendingTasksCount = pendingCount;
+      _cachedAlerts = resolvedAlerts;
+      _cachedVillages = finalVillages;
+      _lastDeepScanTime = Date.now();
     } catch (e) {
       console.error('Dashboard Stats Error:', e);
       setLoading(false);
@@ -293,7 +344,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
       const pullResult = await cloudSyncManager.pullFromCloud(user);
 
       if (pushResult.success || pullResult.success) {
-        await loadLiveStats();
+        await loadLiveStats(true);
         const msg = t('syncCompleteMsg') + (pushResult.syncedCount || 0) + ', ' + t('pulled') + ': ' + (pullResult.pulledCount || 0);
         if (Platform.OS === 'web') window.alert(msg);
         else Alert.alert(t('syncResult'), msg);

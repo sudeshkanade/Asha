@@ -173,26 +173,35 @@ const VHNDScreen = ({ user, onBack }) => {
       'ecp': session.ecpDistributed
     };
 
-    const updatedStock = allStock.map(item => {
-      let deducted = false;
-      let newQty = item.currentQuantity || 0;
-      
-      Object.keys(deductMap).forEach(key => {
-        if (deductMap[key] > 0 && (String(item.id).toLowerCase().includes(key) || String(item.name).toLowerCase().includes(key))) {
-          newQty = Math.max(0, newQty - deductMap[key]);
-          deducted = true;
-          deductMap[key] = 0; 
+    const updatedStock = allStock.map(item => ({ ...item }));
+    Object.keys(deductMap).forEach(key => {
+      let toDeduct = deductMap[key];
+      if (toDeduct <= 0) return;
+
+      const matchingItems = updatedStock.filter(item => 
+        String(item.id).toLowerCase().includes(key) || 
+        String(item.name).toLowerCase().includes(key)
+      );
+
+      matchingItems.forEach((item, idx) => {
+        if (toDeduct <= 0) return;
+        const currentQty = item.currentQuantity || 0;
+        const isLastItem = idx === matchingItems.length - 1;
+        const deduction = Math.min(toDeduct, currentQty);
+        const actualDeduction = isLastItem ? toDeduct : deduction;
+
+        const newQty = Math.max(0, currentQty - actualDeduction);
+        toDeduct -= actualDeduction;
+
+        if (actualDeduction > 0) {
+          item.currentQuantity = newQty;
+          stockUpdated = true;
+          const minThresh = item.minThreshold !== undefined ? item.minThreshold : 10;
+          if (newQty <= minThresh) {
+            stockAlerts.push(`${item.name} is running low (${newQty} remaining).`);
+          }
         }
       });
-
-      if (deducted) {
-        stockUpdated = true;
-        const minThresh = item.minThreshold !== undefined ? item.minThreshold : 10;
-        if (newQty <= minThresh) {
-          stockAlerts.push(`${item.name || key} is running low (${newQty} remaining).`);
-        }
-      }
-      return { ...item, currentQuantity: newQty };
     });
 
     if (stockUpdated) {

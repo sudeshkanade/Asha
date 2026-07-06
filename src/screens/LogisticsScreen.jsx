@@ -106,7 +106,7 @@ const LogisticsScreen = ({ user, onBack }) => {
       villageId: user.villageId
     };
 
-    await storage.addToSyncQueue('stock_indents', newIndent);
+    await storage.addToSyncQueue(STORAGE_KEYS.STOCK_INDENTS, newIndent);
     
     // Generate alert for Stock Indent
     if (user?.role === 'ASHA') {

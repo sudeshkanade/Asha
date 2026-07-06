@@ -2,13 +2,23 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
+const getEnvVar = (key, fallback) => {
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
+    return import.meta.env[key];
+  }
+  if (typeof process !== 'undefined' && process.env && process.env[key]) {
+    return process.env[key];
+  }
+  return fallback;
+};
+
 const firebaseConfig = {
-  apiKey: "AIzaSyBe6IGJ65GlpnmCnPTTbA4_uR9XQcuwZpI",
-  authDomain: "asha---rural-health-tracker.firebaseapp.com",
-  projectId: "asha---rural-health-tracker",
-  storageBucket: "asha---rural-health-tracker.firebasestorage.app",
-  messagingSenderId: "64546671948",
-  appId: "1:64546671948:web:779879326b1992a33953e9"
+  apiKey: getEnvVar('VITE_FIREBASE_API_KEY', ''),
+  authDomain: getEnvVar('VITE_FIREBASE_AUTH_DOMAIN', ''),
+  projectId: getEnvVar('VITE_FIREBASE_PROJECT_ID', ''),
+  storageBucket: getEnvVar('VITE_FIREBASE_STORAGE_BUCKET', ''),
+  messagingSenderId: getEnvVar('VITE_FIREBASE_MESSAGING_SENDER_ID', ''),
+  appId: getEnvVar('VITE_FIREBASE_APP_ID', '')
 };
 
 let app;

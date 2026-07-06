@@ -1,5 +1,6 @@
 import { storage, STORAGE_KEYS } from '../database/storage';
 import { DEFAULT_INCENTIVE_RATES, getActiveRates } from './claimsLogic';
+import { calculateAge } from './healthLogic';
 
 /**
  * Incentive Manager - Ensures atomic, unique, and traceable ASHA incentives.
@@ -79,7 +80,8 @@ export const incentiveManager = {
     }
 
     // Trigger 3: NCD Screening (Age 30+)
-    if ((parseInt(member.age) || 0) >= 30 && (health.bpSystolic || health.sugarLevel)) {
+    const effectiveAge = member.dob ? (calculateAge(member.dob) ?? parseInt(member.age) ?? 0) : (parseInt(member.age) || 0);
+    if (effectiveAge >= 30 && (health.bpSystolic || health.sugarLevel)) {
       await incentiveManager.recordClaim(member, 'NCD_SCREENING', user);
     }
   },

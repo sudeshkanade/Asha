@@ -45,7 +45,7 @@ export const calculateClaims = (members, events, rates = DEFAULT_INCENTIVE_RATES
   // 1. Calculate from members (ANC, Immunization, NCD)
   members.forEach(m => {
     const health = m.healthData || {};
-    const regDate = m.lastUpdatedAt ? new Date(m.lastUpdatedAt) : null;
+    const regDate = m.createdAt ? new Date(m.createdAt) : null;
     const isThisMonth = regDate && regDate.getMonth() === currentMonth && regDate.getFullYear() === currentYear;
 
     if (isThisMonth && health.edd) {

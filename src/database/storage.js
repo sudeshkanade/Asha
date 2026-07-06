@@ -12,7 +12,7 @@ if (Platform.OS === 'web') {
   });
 }
 
-const AsyncStorage = {
+export const AsyncStorage = {
   getItem: async (key) => {
     if (Platform.OS === 'web') {
       const val = await localforage.getItem(key);
@@ -159,7 +159,7 @@ export const storage = {
    */
   isPeriodLocked: async (month, year) => {
     const locked = await storage.getAll(STORAGE_KEYS.LOCKED_PERIODS);
-    return locked.some(p => p.id === `${month}-${year}`);
+    return locked.some(p => p.id === `${year}-${String(month).padStart(2, '0')}`);
   },
 
   /**
@@ -171,7 +171,12 @@ export const storage = {
     if (cached) return cached;
     try {
       const value = await AsyncStorage.getItem(key);
-      const parsed = value != null ? JSON.parse(value) : [];
+      // SYNC-FIX-1: localforage returns native JS objects on web (not strings).
+      // JSON.parse(object) would throw and silently return [], emptying the collection.
+      // If value is already an object/array, use it directly.
+      const parsed = value != null
+        ? (typeof value === 'string' ? JSON.parse(value) : value)
+        : [];
       if (!Array.isArray(parsed)) return [];
 
       if (key === STORAGE_KEYS.MEMBERS) {
@@ -179,9 +184,9 @@ export const storage = {
         let subCenters = [];
         try {
           const vValue = await AsyncStorage.getItem(STORAGE_KEYS.VILLAGES);
-          villages = vValue ? JSON.parse(vValue) : [];
+          villages = vValue ? (typeof vValue === 'string' ? JSON.parse(vValue) : vValue) : [];
           const scValue = await AsyncStorage.getItem(STORAGE_KEYS.SUB_CENTERS);
-          subCenters = scValue ? JSON.parse(scValue) : [];
+          subCenters = scValue ? (typeof scValue === 'string' ? JSON.parse(scValue) : scValue) : [];
         } catch (e) {}
 
         const mappedMembers = parsed.map(m => {
@@ -261,9 +266,9 @@ export const storage = {
         let subCenters = [];
         try {
           const vValue = await AsyncStorage.getItem(STORAGE_KEYS.VILLAGES);
-          villages = vValue ? JSON.parse(vValue) : [];
+          villages = vValue ? (typeof vValue === 'string' ? JSON.parse(vValue) : vValue) : [];
           const scValue = await AsyncStorage.getItem(STORAGE_KEYS.SUB_CENTERS);
-          subCenters = scValue ? JSON.parse(scValue) : [];
+          subCenters = scValue ? (typeof scValue === 'string' ? JSON.parse(scValue) : scValue) : [];
         } catch (e) {}
 
         const mappedFamilies = parsed.map(f => {
@@ -445,7 +450,7 @@ export const storage = {
           updatedCollection.push(newData);
         }
 
-        await AsyncStorage.setItem(key, JSON.stringify(updatedCollection));
+        await storage._saveAll(key, updatedCollection);
         
         if (key === STORAGE_KEYS.MEMBERS) {
            await storage.updateSummary(newData, (existingIndex >= 0 ? existingData[existingIndex] : null));
@@ -464,9 +469,9 @@ export const storage = {
     try {
       // BUG-M1 FIX: Use STORAGE_KEYS.PHC_SUMMARY constant instead of raw string
       const summaryStr = await AsyncStorage.getItem(STORAGE_KEYS.PHC_SUMMARY);
-      const summary = summaryStr ? JSON.parse(summaryStr) : {
-        totalMembers: 0, totalPregnant: 0, totalHighRisk: 0, totalChildren: 0
-      };
+      const summary = summaryStr
+        ? (typeof summaryStr === 'string' ? JSON.parse(summaryStr) : summaryStr)
+        : { totalMembers: 0, totalPregnant: 0, totalHighRisk: 0, totalChildren: 0 };
 
       if (oldData) {
         // BUG-STATE-02 FIX: use Math.max(0,...) to prevent negative counters on concurrent updates
@@ -587,6 +592,18 @@ export const storage = {
       if (user.villageId) assignedIds.add(user.villageId);
     }
 
+    let subCenterAshaIds = new Set();
+    let phcAshaIds = new Set();
+    try {
+      const allUsers = await storage.getAll(STORAGE_KEYS.USERS);
+      allUsers.forEach(u => {
+        if (u.role === 'ASHA') {
+          if (user.role === 'MO' && u.phcId === user.phcId) phcAshaIds.add(u.id);
+          else if (['ANM', 'MPW', 'CHO'].includes(user.role) && u.subCenterId === user.subCenterId) subCenterAshaIds.add(u.id);
+        }
+      });
+    } catch (e) {}
+
     for (const key of collectionsToCheck) {
       const data = await storage.getAll(key);
       const filtered = data.filter(item => {
@@ -594,13 +611,15 @@ export const storage = {
         const hasNoId = !item.villageId && !item.subCenterId && !item.phcId;
         if (hasNoId) return true;
 
-        return (user.role === 'ASHA' && (assignedIds.has(item.villageId) || item.ashaId === user.id || !item.villageId)) ||
+        return (user.role === 'ASHA' && (assignedIds.has(item.villageId) || item.ashaId === user.id)) ||
                (['ANM', 'MPW', 'CHO'].includes(user.role) && (
                  item.subCenterId === user.subCenterId ||
-                 // BUG-PURGE-01: Preserve ASHA-registered records (have ashaId but may lack subCenterId)
-                 !!item.ashaId
+                 (!item.subCenterId && subCenterAshaIds.has(item.ashaId))
                )) ||
-               (user.role === 'MO' && (item.phcId === user.phcId || !!item.ashaId));
+               (user.role === 'MO' && (
+                 item.phcId === user.phcId ||
+                 (!item.phcId && phcAshaIds.has(item.ashaId))
+               ));
       });
 
       // OPT-7 FIX: Only write back when records were actually removed.
@@ -623,7 +642,8 @@ export const storage = {
         try {
           const value = await AsyncStorage.getItem(key);
           if (!value) continue;
-          const data = JSON.parse(value);
+          // SYNC-FIX-1: localforage may return a native object, not a string
+          const data = typeof value === 'string' ? JSON.parse(value) : value;
           if (!Array.isArray(data)) continue;
           const filtered = data.filter(item => {
             if (!item.deleted) return true;
@@ -721,5 +741,12 @@ export const storage = {
    */
   wipeAllData: async () => {
     await AsyncStorage.clear();
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.clear();
+      } catch (e) {
+        console.warn('Failed to clear standard localStorage:', e);
+      }
+    }
   },
 };

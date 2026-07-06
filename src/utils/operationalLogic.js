@@ -6,14 +6,13 @@ import { storage, STORAGE_KEYS } from '../database/storage';
 
 export const updateStockLevel = async (itemId, quantityUsed) => {
   const stock = await storage.getAll(STORAGE_KEYS.STOCK);
-  const itemIndex = stock.findIndex(i => i.id === itemId);
+  const item = stock.find(i => i.id === itemId);
   
-  if (itemIndex >= 0) {
-    const item = stock[itemIndex];
+  if (item) {
     item.currentQuantity = Math.max(0, item.currentQuantity - quantityUsed);
     item.lastUpdatedAt = Date.now();
     
-    await storage.saveAll(STORAGE_KEYS.STOCK, stock);
+    await storage.save(STORAGE_KEYS.STOCK, item);
     
     // Check for low stock alert
     if (item.currentQuantity <= item.minThreshold) {

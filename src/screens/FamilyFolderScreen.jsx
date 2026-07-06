@@ -86,6 +86,7 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
     } else if (user?.role === 'MO') {
       scopedMembers = m.filter(mem => mem.phcId === user.phcId || !mem.phcId);
     }
+    scopedMembers = scopedMembers.filter(mem => !mem.isDeleted && mem.status !== 'Deceased');
 
     // 3. Identify Eligible Couples (Married Females 15-49) within scope
     const ecList = scopedMembers.filter(mem => {
@@ -104,7 +105,7 @@ const FamilyFolderScreen = ({ user, onBack, onNavigate }) => {
     setFilteredFamilies(scopedFamilies);
     setEligibleCouples(ecList);
     setFilteredECs(ecList);
-    setAllMembers(m); // Keep all members for counting in family cards (the families themselves are already filtered)
+    setAllMembers(m.filter(mem => !mem.isDeleted && mem.status !== 'Deceased')); // Keep only active, living members for counting
     setLoading(false);
   };
 

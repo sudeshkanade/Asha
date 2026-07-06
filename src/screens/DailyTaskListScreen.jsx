@@ -21,7 +21,7 @@ import { calculateMaternalSchedule, calculateChildSchedule, calculateVaccination
 import { useTranslation } from 'react-i18next';
 import { generateAllTasks } from '../utils/healthLogic';
 
-const DailyTaskListScreen = ({ user, villageName, onBack }) => {
+const DailyTaskListScreen = ({ user, villageName, onBack, onNavigate }) => {
   const { t } = useTranslation();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -123,8 +123,8 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
           return { 
             ...task, 
             status: newStatus,
-            visitSummary: newStatus === 'completed' ? completionData.reasoning : null,
-            visitImage: newStatus === 'completed' ? completionData.image : null,
+            visitSummary: null,
+            visitImage: null,
           };
         }
         return task;
@@ -132,9 +132,6 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
     } catch (e) {
       console.error('Failed to toggle task status', e);
     }
-    
-    setCompletionModalVisible(false);
-    setSelectedTask(null);
   };
 
   const submitCompletion = async (taskOverride = null, isQuick = false) => {
@@ -167,7 +164,8 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
         member.lastUpdatedAt = Date.now(); // Update timestamp on mutation
         await storage.save(STORAGE_KEYS.MEMBERS, member);
         
-        await storage.addToSyncQueue('task_completions', {
+        await storage.addToSyncQueue(STORAGE_KEYS.TASK_COMPLETIONS, {
+          id: storage.generateId('tc', user?.id),
           taskId: taskToComplete.id,
           memberId: member.id,
           completedAt: new Date().toISOString(),
@@ -228,7 +226,8 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
           
           // Queue sync tasks for all completed items
           for (const task of pendingTasks) {
-            await storage.addToSyncQueue('task_completions', {
+            await storage.addToSyncQueue(STORAGE_KEYS.TASK_COMPLETIONS, {
+              id: storage.generateId('tc', user?.id),
               taskId: task.id,
               memberId: member.id,
               completedAt: new Date().toISOString(),
@@ -405,6 +404,7 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
         memberName: task.memberName,
         age: member.age || (member.dob ? calculateAge(member.dob) : null),
         gender: member.gender,
+        memberObject: task.member || member,
         tasks: []
       };
     }
@@ -538,13 +538,16 @@ const DailyTaskListScreen = ({ user, villageName, onBack }) => {
     return (
       <View key={member.memberId} style={styles.memberBox}>
         <View style={styles.memberHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.memberTitle}>{member.memberName}</Text>
+          <TouchableOpacity 
+            style={{ flex: 1 }} 
+            onPress={() => onNavigate && onNavigate('HealthTracker', { member: member.memberObject })}
+          >
+            <Text style={styles.memberTitle}>{member.memberName} ➔</Text>
             <Text style={styles.memberSub}>
               {member.gender ? t(member.gender?.toLowerCase()) : ''} 
               {member.age !== null && member.age !== undefined ? ` • ${member.age} ${t('years', 'Yrs')}` : ''}
             </Text>
-          </View>
+          </TouchableOpacity>
           {hasPending && (
             <TouchableOpacity 
               style={styles.completeAllBtn}

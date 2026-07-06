@@ -91,7 +91,7 @@ const GoshwaraReportScreen = ({ user, onBack }) => {
   };
 
   const handleFinalize = async () => {
-    const monthYear = `${currentMonth}-${currentYear}`;
+    const monthYear = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
     await storage.save(STORAGE_KEYS.LOCKED_PERIODS, { id: monthYear, finalizedAt: new Date().toISOString() });
     Alert.alert(t('reportFrozen', 'Report Frozen'), t('reportFrozenDetails', 'The Goshwara for ') + `${monthName} ${currentYear}` + t('reportFrozenDetailsSuffix', ' has been locked. No further changes can be made for this period.'));
     onBack();

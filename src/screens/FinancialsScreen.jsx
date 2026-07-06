@@ -39,7 +39,7 @@ const FinancialsScreen = ({ user, onBack, onNavigate }) => {
         return null;
       }).filter(Boolean));
       if (user?.villageId) assignedIds.add(user.villageId);
-      members = allMembers.filter(m => m.ashaId === user.id || assignedIds.has(m.villageId) || !m.villageId);
+      members = allMembers.filter(m => m.ashaId === user.id || assignedIds.has(m.villageId));
     } else if (user?.role === 'ANM') {
       members = allMembers.filter(m => m.subCenterId === user.subCenterId);
     } else if (user?.role === 'MO') {
@@ -103,7 +103,7 @@ const FinancialsScreen = ({ user, onBack, onNavigate }) => {
                 lastUpdatedAt: Date.now()
               };
               await storage.save(STORAGE_KEYS.MEMBERS, updatedMember);
-              loadData();
+              await loadData();
             }
           }
         }

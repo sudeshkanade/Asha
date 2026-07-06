@@ -10,13 +10,14 @@ import {
 } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { storage, STORAGE_KEYS } from '../database/storage';
-import { calculateClaims, getActiveRates } from '../utils/claimsLogic';
+import { getActiveRates, DEFAULT_INCENTIVE_RATES } from '../utils/claimsLogic';
 import { useTranslation } from 'react-i18next';
 
 const ClaimsScreen = ({ user, onBack }) => {
   const { t } = useTranslation();
   const [claims, setClaims] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [rates, setRates] = useState(DEFAULT_INCENTIVE_RATES);
 
   useEffect(() => {
     loadClaims();
@@ -24,6 +25,9 @@ const ClaimsScreen = ({ user, onBack }) => {
 
   const loadClaims = async () => {
     try {
+      const activeRates = await getActiveRates();
+      setRates(activeRates);
+      
       const allClaims = await storage.getAll(STORAGE_KEYS.CLAIMS);
       
       // Filter for current user and current month
@@ -114,12 +118,12 @@ const ClaimsScreen = ({ user, onBack }) => {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>{t('currentRates')}</Text>
           {[
-            { label: t('ancRegistration'), rate: '₹25' },
-            { label: t('instDelivery'), rate: '₹300' },
-            { label: t('fullImmunization'), rate: '₹100' },
-            { label: t('hbncHomeVisit'), rate: '₹50' },
-            { label: t('vhndSession'), rate: '₹200' },
-            { label: t('ncdScreening'), rate: '₹10' },
+            { label: t('ancRegistration'), rate: `₹${rates.ANC_REGISTRATION}` },
+            { label: t('instDelivery'), rate: `₹${rates.INSTITUTIONAL_DELIVERY}` },
+            { label: t('fullImmunization'), rate: `₹${rates.FULL_IMMUNIZATION}` },
+            { label: t('hbncHomeVisit'), rate: `₹${rates.HBNC_VISIT}` },
+            { label: t('vhndSession'), rate: `₹${rates.VHND_SESSION}` },
+            { label: t('ncdScreening'), rate: `₹${rates.NCD_SCREENING}` },
           ].map((item, i) => (
             <View key={i} style={styles.rateRow}>
               <Text style={styles.rateLabel}>{item.label}</Text>
