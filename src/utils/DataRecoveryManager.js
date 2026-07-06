@@ -77,7 +77,11 @@ export const DataRecoveryManager = {
 
         if (changed) {
           updatedM.lastUpdatedAt = Date.now();
-          updatedM.syncStatus = 'pending';
+          // Only re-queue for sync if it hasn't been successfully synced yet.
+          // Avoids flooding the sync queue with already-synced records every time heal runs.
+          if (updatedM.syncStatus !== 'synced') {
+            updatedM.syncStatus = 'pending';
+          }
           membersUpdated = true;
         }
         return changed ? updatedM : m;
@@ -96,7 +100,7 @@ export const DataRecoveryManager = {
             status: 'Active',
             createdAt: Date.now(),
             lastUpdatedAt: Date.now(),
-            syncStatus: 'pending'
+            syncStatus: 'pending' // New record — always needs to sync
           };
           updatedFamilies.push(recoveryFamily);
           await storage._saveAll(STORAGE_KEYS.FAMILIES, updatedFamilies);
