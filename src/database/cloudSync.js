@@ -563,11 +563,11 @@ export const cloudSyncManager = {
             }
           }
 
-          // QUOTA FIX: Delta sync — filter by lastUpdatedAt to only fetch changed records.
+          // Delta sync — filter by lastUpdatedAt to only fetch changed records.
           // On first pull (lastPullTimestamp=0), fetches everything. Subsequent pulls fetch only changes.
-          // Admin always does a full pull to guarantee a complete view of all data.
+          // Admin has no cooldown so can trigger this anytime, but still only pulls new/changed records.
           let querySnapshot;
-          if (lastPullTimestamp > 0 && !isAdmin) {
+          if (lastPullTimestamp > 0) {
             try {
               const deltaQ = query(q, where('lastUpdatedAt', '>', lastPullTimestamp));
               querySnapshot = await getDocs(deltaQ);
@@ -575,7 +575,7 @@ export const cloudSyncManager = {
               // If composite index is missing for role-based filters + lastUpdatedAt,
               // fallback to fetching everything for this collection to prevent data loss.
               if (err.message && err.message.includes('index')) {
-                console.warn(`⚠️ CloudSync: Missing index for delta sync on ${col.table}, falling back to full fetch. Click link to create index:`, err.message);
+                console.warn(`⚠️ CloudSync: Missing index for delta sync on ${col.table}, falling back to full fetch.`, err.message);
                 querySnapshot = await getDocs(q);
               } else {
                 throw err;
