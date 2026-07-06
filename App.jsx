@@ -249,7 +249,7 @@ export default function App() {
 
   const getHomeScreen = (u) => {
     if (!u) return 'Login';
-    if (u.role === 'Admin') return 'AdminDashboard';
+    if (u.role === 'Admin') return 'Dashboard';
     if (u.role === 'MO') return 'MODashboard';
     return 'Dashboard';
   };
@@ -337,7 +337,7 @@ export default function App() {
       console.warn('Cache/session reset failed on login:', e);
     }
     AsyncStorage.setItem('LOGGED_IN_USER', JSON.stringify(userData)).catch(err => console.warn(err));
-    const homeScreen = userData.role === 'Admin' ? 'AdminDashboard' : (userData.role === 'MO' ? 'MODashboard' : 'Dashboard');
+    const homeScreen = userData.role === 'Admin' ? 'Dashboard' : (userData.role === 'MO' ? 'MODashboard' : 'Dashboard');
     setNavigationHistory([{ screen: homeScreen, data: null }]);
     setCurrentScreen(homeScreen);
   };

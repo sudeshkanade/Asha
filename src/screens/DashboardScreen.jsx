@@ -319,7 +319,7 @@ const DashboardScreen = ({ user, onNavigate }) => {
 
       // Save to cache
       _cachedStats = finalStats;
-      _cachedSyncCount = Math.max(events ? events.length : 0, pendingMembers + pendingVEvents + pendingSessions);
+      _cachedSyncCount = events ? events.length : 0;
       _cachedPendingTasksCount = pendingCount;
       _cachedAlerts = resolvedAlerts;
       _cachedVillages = finalVillages;
