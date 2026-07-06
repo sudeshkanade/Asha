@@ -70,20 +70,30 @@ const LoginScreen = ({ onLogin }) => {
   }, [isRegister]);
 
   const loadHierarchy = async () => {
-    setLoading(true);
+    // NOTE: Don't block the form with loading=true for hierarchy pull.
+    // Always render the login form immediately; load hierarchy in background.
+    try {
+      // Timeout guard: if Firestore is offline/slow, don't block the login form
+      await Promise.race([
+        cloudSyncManager.pullFromCloud(null, false, 'hierarchy'),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Hierarchy pull timed out')), 6000))
+      ]);
+    } catch (e) {
+      console.warn('Hierarchy pull skipped (offline or timed out):', e.message || e);
+    }
 
-    // BUG-C4 NOTE: This pull is intentionally unauthenticated — it only fetches
-    // static hierarchy data (PHCs, sub-centers, villages) for the registration
-    // dropdowns. Clinical tables (members, families) are skipped when user=null.
-    await cloudSyncManager.pullFromCloud(null, false, 'hierarchy');
-
-    const p = await storage.getAll(STORAGE_KEYS.PHCS);
-    const s = await storage.getAll(STORAGE_KEYS.SUB_CENTERS);
-    const v = await storage.getAll(STORAGE_KEYS.VILLAGES);
-    setPhcs(p);
-    setSubCenters(s);
-    setVillages(v);
-    setLoading(false);
+    try {
+      const p = await storage.getAll(STORAGE_KEYS.PHCS);
+      const s = await storage.getAll(STORAGE_KEYS.SUB_CENTERS);
+      const v = await storage.getAll(STORAGE_KEYS.VILLAGES);
+      setPhcs(p);
+      setSubCenters(s);
+      setVillages(v);
+    } catch (e) {
+      console.warn('Failed to load hierarchy from local storage:', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLogin = async () => {

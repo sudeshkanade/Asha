@@ -33,13 +33,8 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-native-web'],
-          'vendor-firebase': ['firebase/app', 'firebase/firestore'],
+          'vendor-firebase': ['firebase/app', 'firebase/firestore', 'firebase/auth'],
           'vendor-xlsx': ['xlsx'],
-          'screens-heavy': [
-            './src/screens/GoshwaraReportScreen',
-            './src/screens/MPRReportScreen',
-            './src/screens/AdminSetupScreen',
-          ],
         },
       },
     },

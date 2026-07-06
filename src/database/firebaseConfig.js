@@ -2,23 +2,15 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
-const getEnvVar = (key, fallback) => {
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
-    return import.meta.env[key];
-  }
-  if (typeof process !== 'undefined' && process.env && process.env[key]) {
-    return process.env[key];
-  }
-  return fallback;
-};
-
+// NOTE: Firebase web API keys are intentionally public — they identify the app to Firebase
+// but don't grant admin access. Security is enforced by Firestore security rules.
 const firebaseConfig = {
-  apiKey: getEnvVar('VITE_FIREBASE_API_KEY', ''),
-  authDomain: getEnvVar('VITE_FIREBASE_AUTH_DOMAIN', ''),
-  projectId: getEnvVar('VITE_FIREBASE_PROJECT_ID', ''),
-  storageBucket: getEnvVar('VITE_FIREBASE_STORAGE_BUCKET', ''),
-  messagingSenderId: getEnvVar('VITE_FIREBASE_MESSAGING_SENDER_ID', ''),
-  appId: getEnvVar('VITE_FIREBASE_APP_ID', '')
+  apiKey: "AIzaSyBe6IGJ65GlpnmCnPTTbA4_uR9XQcuwZpI",
+  authDomain: "asha---rural-health-tracker.firebaseapp.com",
+  projectId: "asha---rural-health-tracker",
+  storageBucket: "asha---rural-health-tracker.firebasestorage.app",
+  messagingSenderId: "64546671948",
+  appId: "1:64546671948:web:779879326b1992a33953e9",
 };
 
 let app;
@@ -29,10 +21,8 @@ try {
   app = initializeApp(firebaseConfig);
   db = getFirestore(app);
   auth = getAuth(app);
-  console.log('✅ Firebase initialized successfully.');
 } catch (error) {
   console.warn('❌ Firebase initialization failed:', error.message);
 }
 
 export { app, db, auth };
-
