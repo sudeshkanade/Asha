@@ -418,6 +418,7 @@ export const cloudSyncManager = {
         { key: STORAGE_KEYS.CUSTOM_FORM_SCHEMAS, table: 'custom_form_schemas' },
         { key: STORAGE_KEYS.CUSTOM_EVENTS, table: 'custom_events' },
         { key: STORAGE_KEYS.ALERTS, table: 'alerts' },
+        { key: 'dlq_forensics', table: 'dlq_forensics' },
       ];
 
       // RUTHLESS FIX: Shadow Sync (Fetch WITHOUT locking UI)
@@ -659,7 +660,9 @@ export const cloudSyncManager = {
         Object.keys(shadowBuffer).forEach(key => storage.invalidateCache(key));
 
         // QUOTA FIX: Save last successful pull timestamp for delta sync on next pull
-        await storage.saveRaw('LAST_CLOUD_PULL_AT', startTime.toString());
+        // Add a 15-minute buffer to catch offline devices pushing slightly stale timestamps
+        const safeWatermark = Math.max(0, startTime - (15 * 60 * 1000));
+        await storage.saveRaw('LAST_CLOUD_PULL_AT', safeWatermark.toString());
 
         // Mark static collections as pulled for this session
         cloudSyncManager._sessionStaticPulled = true;

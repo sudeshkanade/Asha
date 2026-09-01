@@ -51,7 +51,9 @@ const LoginScreen = ({ onLogin }) => {
   const [forgotEmail, setForgotEmail] = useState('');
 
   useEffect(() => {
-    loadHierarchy();
+    if (isRegister) {
+      loadHierarchy();
+    }
     // Clear forms on toggle
     setFormData({
       username: '',
@@ -167,8 +169,26 @@ const LoginScreen = ({ onLogin }) => {
               await auth.signOut();
             }
           } else {
-            setInlineError(t('noUserRecord', 'User record not found in database. Contact admin.'));
-            Alert.alert(t('error'), t('noUserRecord', 'User record not found in database. Contact admin.'));
+            // Fallback: create a minimal pending user so they are not permanently locked out if Firestore doc was deleted
+            const fallbackUser = {
+              id: uid,
+              uid: uid,
+              email: input,
+              role: 'ASHA', // placeholder
+              approvalStatus: 'pending',
+              name: input.split('@')[0],
+              authMigrated: true,
+              lastUpdatedAt: Date.now()
+            };
+            try {
+              await setDoc(doc(db, 'users', uid), fallbackUser, { merge: true });
+              await storage.save(STORAGE_KEYS.USERS, fallbackUser);
+            } catch (err) {
+              console.warn("Could not create fallback user:", err);
+            }
+
+            setInlineError(t('regPending', 'Registration Pending. Admin needs to assign your role.'));
+            Alert.alert(t('pendingApproval', 'Pending Approval'), t('regPending', 'Registration Pending. Admin needs to assign your role.'));
             await auth.signOut();
           }
         } catch (authError) {

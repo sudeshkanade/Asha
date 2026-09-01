@@ -1,0 +1,23 @@
+
+=== DATA ANALYSIS ===
+Total Members: 5975
+Valid PHCs in DB: 4
+Valid SubCenters in DB: 10
+Valid Villages in DB: 52
+
+ASHA UPLOADS:
+- Total: 5888
+- Active: 5705
+- Deleted: 183
+
+EXCEL UPLOADS:
+- Total: 87
+- Active: 20
+- Deleted: 67
+
+EXCEL DATA ISSUES (Active only):
+- Missing healthData object: 0 (Will cause UI crashes or missing clinical details)
+- Invalid PHC ID: 0 (Won't show up for Medical Officers)
+- Invalid SubCenter ID: 0 (Won't show up for ANMs)
+- Invalid Village ID: 0 (Won't show up for ASHAs)
+  
